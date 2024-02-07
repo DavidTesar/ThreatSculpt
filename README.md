@@ -1,3 +1,5 @@
+![alt text](https://github.com/DavidTesar/ThreatSculpt/blob/main/doc/logo.png)
+
 # Threat Sculpt
 
 ## Introduction
