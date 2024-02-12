@@ -5,8 +5,8 @@ from api import makeRequestPulseDive, makeRequestVuln
 def main():
     print("Checking for libraries...")
 
-    # This is where modules are called
-    findHosts()
+    subnet = '10.100.19.0/24'
+    findHosts(subnet)
     findVulns()
 
     makeRequestPulseDive("zeus")
