@@ -1,6 +1,8 @@
 import importlib.util
 import subprocess
 
+print("Checking for libraries...")
+
 # Check if python-nmap is installed
 spec = importlib.util.find_spec("nmap")
 if spec is None:

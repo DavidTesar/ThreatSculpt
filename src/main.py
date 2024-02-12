@@ -3,7 +3,6 @@ from api import makeRequestPulseDive, makeRequestVuln
 # TODO: install libraries outside, first.
 
 def main():
-    print("Checking for libraries...")
 
     #subnet = '10.100.19.0/24'
     subnet = '127.0.0.1'
