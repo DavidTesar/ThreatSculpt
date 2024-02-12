@@ -1,5 +1,5 @@
 import nmap 
-   
+
 # take the range of ports to  
 # be scanned 
 begin = 75
