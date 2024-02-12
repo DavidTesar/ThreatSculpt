@@ -9,7 +9,7 @@ def main():
     findHosts(subnet)
     findVulns()
 
-    makeRequestPulseDive("zeus")
+    #makeRequestPulseDive("zeus")
     #makeRequestVuln("CVE_2017_14174")
 
 
