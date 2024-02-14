@@ -2,7 +2,7 @@ from scan import findHosts, findVulns
 from api import makeRequestPulseDive, makeRequestVuln
 # TODO: install libraries outside, first.
 
-def main():
+def result():
 
     #subnet = '10.100.19.0/24'
     subnet = '127.0.0.1'
@@ -15,4 +15,4 @@ def main():
 
 
 if __name__ == "__main__":
-    main()
+    result()
