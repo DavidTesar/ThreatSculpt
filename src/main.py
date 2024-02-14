@@ -5,7 +5,7 @@ from api import makeRequestPulseDive, makeRequestVuln
 def result():
 
     #subnet = '10.100.19.0/24'
-    subnet = '127.0.0.1'
+    subnet = 'tesarsolutions.com'
     findHosts(subnet)
     findVulns()
 

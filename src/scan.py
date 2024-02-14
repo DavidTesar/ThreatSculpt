@@ -19,7 +19,7 @@ def findHosts(subnet):
             print("Protocol: ", proto)
             ports = nm[host][proto].keys()
             for port in ports:
-                print("Port: ", port, "State: ", nm[host][proto][port]['state'])
+                print("Port: ", port, "State: ", nm[host][proto][port]['state'], "Version: ", nm[host][proto][port]['version'])
 
     return nm.all_hosts()
 
