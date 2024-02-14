@@ -44,23 +44,18 @@ def perform_scan_and_display_result():
     # Close the scan progress window after the scan is completed
     scan_progress_window.destroy()
 
-    # Show a message indicating that the scan is complete
-    view_result_messagebox(result_content)
+    # Open the web browser to view the result
+    view_result_browser()
 
 # Route for the index page
 @app.route('/')
 def index():
     return render_template('index.html')
 
-def view_result(result_content, result_messagebox):
-    # Close the result message box
-    result_messagebox.destroy()
-
-    # Open the web browser to view the result
-    view_result_browser()
-
-# Function to display the result in the default web browser
+# Function to open the web browser and view the result
 def view_result_browser():
+    # Open index.html file
+    webbrowser.open_new_tab('http://127.0.0.1:8000')
     # Start the Flask server to view the result
     app.run(host='127.0.0.1', port=8000, debug=False)
     
@@ -80,18 +75,6 @@ def display_scan_progress():
 # Function to disable closing of the scan progress window
 def disable_event():
     pass  # Do nothing, effectively disabling the close button
-
-# Function to display the result message box
-def view_result_messagebox(result_content):
-    result_messagebox = tk.Toplevel()
-    result_messagebox.title("Scan Complete")
-    result_messagebox.geometry("300x100")
-
-    label = tk.Label(result_messagebox, text="Scan completed successfully!")
-    label.pack(pady=10)
-
-    view_result_button = tk.Button(result_messagebox, text="View Result", command=lambda: view_result(result_content, result_messagebox))
-    view_result_button.pack(pady=5)
 
 # Function to open the scanning window
 def open_scan_window():
