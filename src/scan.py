@@ -16,12 +16,12 @@ def findHosts(subnet):
         print("Host: ", host)
         print("State: ", nm[host].state())
         for proto in nm[host].all_protocols():
-            print("Protocol: ", proto)
             ports = nm[host][proto].keys()
             for port in ports:
+                print("Protocol: ", proto)
                 print("Port: ", port, "State: ", nm[host][proto][port]['state'], "Version: ", nm[host][proto][port]['version'])
 
-    return nm.all_hosts()
+    return nm
 
 
 def findVulns():
