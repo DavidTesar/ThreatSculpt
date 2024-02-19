@@ -6,7 +6,7 @@ def findHosts(subnet):
     # Create a new instance of NmapPortScanner
     nm = nmap.PortScanner()
 
-    options = "-sS -sV -O -A -p 1-1000"
+    options = "-O -sV"
 
     # Perform a ping scan on the specified subnet
     nm.scan(hosts=subnet, arguments=options)

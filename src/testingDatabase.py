@@ -2,13 +2,11 @@ from pymongo.mongo_client import MongoClient
 from urllib.parse import quote_plus
 from scan import findHosts
 import hashlib
-import uuid
 
 def create_id(input_string):
     # Hash the input string using SHA-256
     hash_object = hashlib.md5(input_string.encode())
     hash_hex = hash_object.hexdigest()
-    
     
     # Combine the hash and the UUID to create a unique scan ID
     scan_id = f"{hash_hex}"
@@ -41,24 +39,23 @@ for host in scanResults.all_hosts():
     for proto in scanResults[host].all_protocols():
         #print("Protocol: ", proto)
         ports = scanResults[host][proto].keys()
-        # for port in ports:
-        # #     print("Port: ", port, "State: ", scanResults[host][proto][port]['state'], "Version: ", scanResults[host][proto][port]['version'])
-        #     myNumber = port
-        #     myState = scanResults[host][proto][port]['state']
-            
-        #     myType = proto
-        #     myPorts.append(ports)
-        #     myVersion = scanResults[host][proto][port]['version']
+        for port in ports:
+        #     print("Port: ", port, "State: ", scanResults[host][proto][port]['state'], "Version: ", scanResults[host][proto][port]['version'])
+            portNumber = port
 
-        #     portObject = {
-        #         "port_num" : myNumber,
-        #         "port_state" : myState,
-        #         "protocol" : myType,
-        #         "protocol_version" : myVersion
-        #     }
+            portState = scanResults[host][proto][port]['state']
+            portType = proto
+            serviceVersion = scanResults[host][proto][port]['version']
 
-        #     myPorts.append(portObject)
-        myPorts.append(list(ports))
+            portObject = {
+                "port_num" : portNumber,
+                "port_state" : portState,
+                "protocol" : portType,
+                "protocol_version" : serviceVersion
+            }
+
+            myPorts.append(portObject)
+        # myPorts.append(list(ports))
 
         
         myResult = {
