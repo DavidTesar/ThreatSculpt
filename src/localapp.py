@@ -7,9 +7,15 @@ from io import BytesIO
 import threading
 import os
 from flask import Flask, render_template
-
+import webbrowser
+import threading
+import subprocess
+import open_react_app
+from flask import Flask, send_file
 # Import the 'result' function from the 'main' module
 from main import result as get_scan_result
+
+app = Flask(__name__)
 
 # Define the default username and password
 DEFAULT_USERNAME = "123"
@@ -44,21 +50,10 @@ def perform_scan_and_display_result():
     # Close the scan progress window after the scan is completed
     scan_progress_window.destroy()
 
-    # Open the web browser to view the result
-    view_result_browser()
+    # Start the React app
+    open_react_app.start_react_app()
+  
 
-# Route for the index page
-@app.route('/')
-def index():
-    return render_template('index.html')
-
-# Function to open the web browser and view the result
-def view_result_browser():
-    # Open index.html file
-    webbrowser.open_new_tab('http://127.0.0.1:8000')
-    # Start the Flask server to view the result
-    app.run(host='127.0.0.1', port=8000, debug=False)
-    
 # Function to display the scan progress
 def display_scan_progress():
     global scan_progress_window
