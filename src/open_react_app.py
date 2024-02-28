@@ -2,7 +2,7 @@ import subprocess
 import os
 
 # Define the path to the React app directory
-react_app_path = r'C:\Users\MasseyCharles\OneDrive - University of Wisconsin-Stout\Documents\sesh 6\Soft Practicium\Updated version\ThreatSculpt\website'
+react_app_path = r'..\website'
 
 # Define a function to start the React app
 def start_react_app():
