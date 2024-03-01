@@ -30,7 +30,7 @@ def authenticate(username, password):
 # Function to perform the scan
 def perform_scan(target):
     # Call the result function directly
-    result_content = get_scan_result(target)
+    result_content = get_scan_result(target, 'classic')
     return result_content
 
 # Function to start the scan in a separate thread

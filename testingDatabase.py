@@ -23,7 +23,7 @@ uri = "mongodb+srv://"+username+":"+password + "@cluster0.zc7grf3.mongodb.net/?r
 client = MongoClient(uri)
 
 # get the data
-scanResults = findHosts('tesarsolutions.com example.com')
+scanResults = findHosts('tesarsolutions.com example.com', 'classic')
 #print(scanResults)
 
 myHosts = []

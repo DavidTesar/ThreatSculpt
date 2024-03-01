@@ -1,12 +1,18 @@
 import nmap
 
-def findHosts(subnet):
+def findHosts(subnet, complexity):
     print("Finding devices on the local network")
 
     # Create a new instance of NmapPortScanner
     nm = nmap.PortScanner()
+    options = ""
 
-    options = "-O -sV"
+    if(complexity == 'simple'):
+        options = "-sL"
+    if(complexity == 'classic'):
+        options = "-O -sV"
+    if(complexity == 'advanced'):
+        options = "-A"
 
     # Perform a ping scan on the specified subnet
     nm.scan(hosts=subnet, arguments=options)
