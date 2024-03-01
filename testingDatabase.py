@@ -1,6 +1,6 @@
 from pymongo.mongo_client import MongoClient
 from urllib.parse import quote_plus
-from scan import findHosts
+from src.scan import findHosts
 import hashlib
 
 def create_id(input_string):
@@ -23,7 +23,7 @@ uri = "mongodb+srv://"+username+":"+password + "@cluster0.zc7grf3.mongodb.net/?r
 client = MongoClient(uri)
 
 # get the data
-scanResults = findHosts('localhost')
+scanResults = findHosts('tesarsolutions.com example.com')
 #print(scanResults)
 
 myHosts = []
@@ -64,7 +64,7 @@ for host in scanResults.all_hosts():
             "ports" : myPorts
             }
 
-        result = myResult
+    result.append(myResult)
 
 # example of adding an item into the database
 try:

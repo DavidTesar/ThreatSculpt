@@ -13,7 +13,7 @@ import subprocess
 import open_react_app
 from flask import Flask, send_file
 # Import the 'result' function from the 'main' module
-from main import result as get_scan_result
+from scan import findHosts as get_scan_result
 
 app = Flask(__name__)
 
@@ -28,31 +28,30 @@ def authenticate(username, password):
     return username == DEFAULT_USERNAME and password == DEFAULT_PASSWORD
 
 # Function to perform the scan
-def perform_scan():
+def perform_scan(target):
     # Call the result function directly
-    result_content = get_scan_result()
+    result_content = get_scan_result(target)
     return result_content
 
 # Function to start the scan in a separate thread
-def start_scan():
-    # Perform the scan in a separate thread
-    scan_thread = threading.Thread(target=perform_scan_and_display_result)
+def start_scan(target):
+    # Perform the scan in a separate thread, passing the target
+    scan_thread = threading.Thread(target=perform_scan_and_display_result, args=(target,))
     scan_thread.start()
 
 # Function to perform the scan and display the result
-def perform_scan_and_display_result():
+def perform_scan_and_display_result(target):
     # Display scan progress message
     display_scan_progress()
 
     # Perform the scan
-    result_content = perform_scan()
+    result_content = perform_scan(target)
 
     # Close the scan progress window after the scan is completed
     scan_progress_window.destroy()
 
     # Start the React app
-    open_react_app.start_react_app()
-  
+    #open_react_app.start_react_app()
 
 # Function to display the scan progress
 def display_scan_progress():
@@ -102,8 +101,14 @@ def open_scan_window():
     top_label = tk.Label(scan_window, text="Select the type of scan you want to do :", font=("Arial", 12, "bold"))
     top_label.pack()
 
-    # Button to start scanning
-    start_scan_button = tk.Button(scan_window, text="Classic Scan", command=start_scan)
+    # Entry for target domain/subnet
+    target_label = tk.Label(scan_window, text="Enter target domain/subnet:")
+    target_label.pack()
+    target_entry = tk.Entry(scan_window)
+    target_entry.pack()
+
+    # Button to start scanning, modified to get target from entry
+    start_scan_button = tk.Button(scan_window, text="Classic Scan", command=lambda: start_scan(target_entry.get()))
     start_scan_button.pack(pady=10)
 
     scan_window.mainloop()
