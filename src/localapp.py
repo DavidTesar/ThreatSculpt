@@ -14,6 +14,7 @@ import open_react_app
 from flask import Flask, send_file
 # Import the 'result' function from the 'main' module
 from scan import findHosts as get_scan_result
+from uploadResults import uploadScanResults
 
 app = Flask(__name__)
 
@@ -47,11 +48,18 @@ def perform_scan_and_display_result(target):
     # Perform the scan
     result_content = perform_scan(target)
 
+    try:
+        uploadScanResults('user_test','CZ66ttLSf5s0GVe4', result_content)
+
+    except Exception as e:
+        print("Error in DB connector")
+        print(e)
+    
     # Close the scan progress window after the scan is completed
     scan_progress_window.destroy()
 
     # Start the React app
-    #open_react_app.start_react_app()
+    # open_react_app.start_react_app()
 
 # Function to display the scan progress
 def display_scan_progress():
