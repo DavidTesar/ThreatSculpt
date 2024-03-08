@@ -29,33 +29,36 @@ def authenticate(username, password):
     return username == DEFAULT_USERNAME and password == DEFAULT_PASSWORD
 
 # Function to perform the scan
-def perform_scan(target):
+def perform_scan(target, scanType):
     # Call the result function directly
-    result_content = get_scan_result(target, 'classic')
+    result_content = get_scan_result(target, scanType)
     return result_content
 
 # Function to start the scan in a separate thread
-def start_scan(target):
+def start_scan(target, scanType):
     global scan_thread
+    scan_thread = True
     # Perform the scan in a separate thread, passing the target
-    scan_thread = threading.Thread(target=perform_scan_and_display_result, args=(target,))
+    scan_thread = threading.Thread(target=perform_scan_and_display_result, args=(target,scanType))
     scan_thread.start()
 
 # Function to check if the scan thread is running, and stop it
 def stop_scan():
     global scan_thread
-    print("Stopping the scan...")
     scan_thread = False
+    print("Stopping the scan...")
     # print("Scan stopped")
     scan_progress_window.destroy()
 
 # Function to perform the scan and display the result
-def perform_scan_and_display_result(target):
+def perform_scan_and_display_result(target, scanType):
+    global scan_thread
+    scan_thread = True
     # Display scan progress message
     display_scan_progress()
 
     # Perform the scan
-    result_content = perform_scan(target)
+    result_content = perform_scan(target, scanType)
 
     # This is very roundabout, but it's the only way I could get it to work
     # We may run into issuses later on with this method
@@ -71,7 +74,7 @@ def perform_scan_and_display_result(target):
         scan_progress_window.destroy()
 
         # Start the React app
-        # open_react_app.start_react_app()
+        open_react_app.start_react_app()
         
     else:
         print("Scan stopped from cancel button.")
@@ -102,13 +105,13 @@ def open_scan_window():
     scan_window = tk.Tk()
     scan_window.title("Threat Sculpt")
 
-    window_width = 400
+    window_width = 500  # Increased width to accommodate buttons side by side
     window_height = 250
     screen_width = scan_window.winfo_screenwidth()
     screen_height = scan_window.winfo_screenheight()
     x_coordinate = (screen_width / 2) - (window_width / 2)
     y_coordinate = (screen_height / 2) - (window_height / 2)
-    scan_window.geometry("%dx%d+%d+%d" % (window_width, window_height, x_coordinate, y_coordinate))
+    scan_window.geometry(f"{window_width}x{window_height}+{int(x_coordinate)}+{int(y_coordinate)}")
 
     # Load the logo image from a URL
     logo_url = "https://brown-friendly-dragon-577.mypinata.cloud/ipfs/QmcnmTnnHkPXCoKKshGuyhm5tNnkpUHxPGBi32CMD5oDLK"
@@ -134,9 +137,21 @@ def open_scan_window():
     target_entry = tk.Entry(scan_window)
     target_entry.pack()
 
-    # Button to start scanning, modified to get target from entry
-    start_scan_button = tk.Button(scan_window, text="Classic Scan", command=lambda: start_scan(target_entry.get()))
-    start_scan_button.pack(pady=10)
+    # Frame for the buttons
+    button_frame = tk.Frame(scan_window)
+    button_frame.pack(pady=20)
+
+    # Button for 'Simple Scan'
+    simple_scan_button = tk.Button(button_frame, text="Simple Scan", command=lambda: start_scan(target_entry.get(), 'simple'))
+    simple_scan_button.grid(row=0, column=0, padx=5)
+
+    # Button for 'Classic Scan'
+    classic_scan_button = tk.Button(button_frame, text="Classic Scan", command=lambda: start_scan(target_entry.get(), 'classic'))
+    classic_scan_button.grid(row=0, column=1, padx=5)
+
+    # Button for 'Complex Scan'
+    complex_scan_button = tk.Button(button_frame, text="Complex Scan", command=lambda: start_scan(target_entry.get(), 'complex'))
+    complex_scan_button.grid(row=0, column=2, padx=5)
 
     scan_window.mainloop()
 
