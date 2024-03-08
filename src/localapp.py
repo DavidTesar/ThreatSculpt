@@ -36,9 +36,18 @@ def perform_scan(target):
 
 # Function to start the scan in a separate thread
 def start_scan(target):
+    global scan_thread
     # Perform the scan in a separate thread, passing the target
     scan_thread = threading.Thread(target=perform_scan_and_display_result, args=(target,))
     scan_thread.start()
+
+# Function to check if the scan thread is running, and stop it
+def stop_scan():
+    global scan_thread
+    print("Stopping the scan...")
+    scan_thread = False
+    # print("Scan stopped")
+    scan_progress_window.destroy()
 
 # Function to perform the scan and display the result
 def perform_scan_and_display_result(target):
@@ -48,6 +57,7 @@ def perform_scan_and_display_result(target):
     # Perform the scan
     result_content = perform_scan(target)
 
+<<<<<<< Updated upstream
     try:
         uploadScanResults('user_test','CZ66ttLSf5s0GVe4', result_content)
 
@@ -60,6 +70,20 @@ def perform_scan_and_display_result(target):
 
     # Start the React app
     # open_react_app.start_react_app()
+=======
+    # This is very roundabout, but it's the only way I could get it to work
+    # We may run into issuses later on with this method
+    if scan_thread == True:
+        # Close the scan progress window after the scan is completed
+        scan_progress_window.destroy()
+
+        # Start the React app
+        open_react_app.start_react_app()
+        
+    else:
+        print("Scan stopped from cancel button.")
+
+>>>>>>> Stashed changes
 
 # Function to display the scan progress
 def display_scan_progress():
@@ -73,6 +97,10 @@ def display_scan_progress():
 
     # Disable closing of the window
     scan_progress_window.protocol("WM_DELETE_WINDOW", disable_event)
+    
+    # Button to cancel scanning
+    stop_scan_button = tk.Button(scan_progress_window, text="Cancel Scan", command=stop_scan)
+    stop_scan_button.pack(pady=10)
 
 # Function to disable closing of the scan progress window
 def disable_event():
