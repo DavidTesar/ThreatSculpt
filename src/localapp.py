@@ -57,33 +57,24 @@ def perform_scan_and_display_result(target):
     # Perform the scan
     result_content = perform_scan(target)
 
-<<<<<<< Updated upstream
-    try:
-        uploadScanResults('user_test','CZ66ttLSf5s0GVe4', result_content)
-
-    except Exception as e:
-        print("Error in DB connector")
-        print(e)
-    
-    # Close the scan progress window after the scan is completed
-    scan_progress_window.destroy()
-
-    # Start the React app
-    # open_react_app.start_react_app()
-=======
     # This is very roundabout, but it's the only way I could get it to work
     # We may run into issuses later on with this method
     if scan_thread == True:
+        try:
+            uploadScanResults('user_test','CZ66ttLSf5s0GVe4', result_content)
+
+        except Exception as e:
+            print("Error in DB connector")
+            print(e)
+
         # Close the scan progress window after the scan is completed
         scan_progress_window.destroy()
 
         # Start the React app
-        open_react_app.start_react_app()
+        # open_react_app.start_react_app()
         
     else:
         print("Scan stopped from cancel button.")
-
->>>>>>> Stashed changes
 
 # Function to display the scan progress
 def display_scan_progress():
