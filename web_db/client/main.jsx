@@ -7,7 +7,7 @@ const root = createRoot(document.getElementById('root'))
 root.render(
   <BrowserRouter>
   <React.Fragment>
-    <h1> TESTING IF THIS WORKS </h1>
+    <p> TESTING IF DB WORKS </p>
     <App />
     </React.Fragment>
   </BrowserRouter>

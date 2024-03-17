@@ -1,5 +1,5 @@
 import Express from 'express'
-import dataRouter from './dataRoutes.mjs'
+import dataRouter from './dataRoutes.js'
 //import mongoose from 'mongoose'
 //import MongoStore from 'connect-mongo'
 //import { Mongo } from './mongoControllers.js'
@@ -14,7 +14,6 @@ const app = new Express()
 
 app.use(Express.json())
 
-
 app.use((req, res, next) => {
   console.log(`${req.method} request at ${req.url}`)
   next()
@@ -22,7 +21,7 @@ app.use((req, res, next) => {
 // Statically serve the public folder
 app.use(Express.static(path.join('C:/Users/TrinhAn/OneDrive - University of Wisconsin-Stout/Desktop/ThreatSculpt-main/web_db/public')))
 
-app.use('/web/server', dataRouter)
+app.use('/server', dataRouter)
 
 app.get('*', (req, res) => {
   res.sendFile('index.html', { root: 'C:/Users/TrinhAn/OneDrive - University of Wisconsin-Stout/Desktop/ThreatSculpt-main/web_db/public' })

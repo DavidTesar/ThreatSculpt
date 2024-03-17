@@ -1,4 +1,4 @@
-import queryMongoDatabase from './mongoControllers.js'
+import queryMongoDatabase from './mongoControllers.mjs'
 import bcrypt from 'bcrypt'
 import dotenv from 'dotenv'
 dotenv.config()
