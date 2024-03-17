@@ -1,27 +1,56 @@
 import React, { useState, useEffect } from 'react';
-import './App.css';
+import { MongoClient } from 'mongodb';
+import dotenv from 'dotenv'
+
+dotenv.config({path: "../web_db/server/.env"})
+const dbPassword = process.env.DB_PASSWORD
+const dbUsername = process.env.DB_USERNAME
+
+const uri = `mongodb+srv://${dbUsername}:${dbPassword}@cluster0.zc7grf3.mongodb.net/?retryWrites=true&w=majority&appName=Cluster0`;
 
 function App() {
-  // State to manage whether results are available
-  const [resultsAvailable, setResultsAvailable] = useState(false);
+  const [data, setData] = useState([]);
 
   useEffect(() => {
-    // Simulate fetching data or checking for results
-    setTimeout(() => {
-      setResultsAvailable(true);
-    }, 8000); // Simulate a delay of 3 seconds
-  }, []);
+    // Function to fetch data
+    const fetchData = async () => {
+      // Connect to MongoDB
+      const client = new MongoClient(uri, {
+        useNewUrlParser: true,
+        useUnifiedTopology: true,
+      });
+
+      try {
+        await client.connect(); // Connect to the MongoDB server
+
+        // Access the database and collection
+        const db = client.db('ThreatSculpt');
+        const collection = db.collection('ScanResults');
+
+        // Query the collection for data
+        const result = await collection.find({}).toArray();
+        setData(result); // Update the component state with the fetched data
+      } catch (error) {
+        console.error('Error fetching data:', error);
+      } finally {
+        await client.close(); // Close the MongoDB connection
+      }
+    };
+
+    fetchData(); // Call the fetchData function
+  }, []); // Empty dependency array ensures this effect runs only once when the component mounts
 
   return (
-    <div className={`app-container ${resultsAvailable ? 'results-available' : 'no-results'}`}>
-      <video className="video-background" autoPlay loop muted>
-        <source src="https://brown-friendly-dragon-577.mypinata.cloud/ipfs/QmZJ8Xj8NnMU6EoEoPYPMuk1M1aQ9JiUrCsAR7YsieLkfc" type="video/mp4" />
-        Your browser does not support the video tag.
-      </video>
-      <div className="content">
-        <h1>Comming soon</h1>
-        {!resultsAvailable && <p className="output">There's no result for the moment</p>}
-      </div>
+    <div>
+      <h1>Data from MongoDB</h1>
+      <ul>
+        {data.map((item, index) => (
+          <li key={index}>
+            <h3>{item.name}</h3>
+            <p>{item.description}</p>
+          </li>
+        ))}
+      </ul>
     </div>
   );
 }
