@@ -1,48 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import './App.css';
 
-function HighlightableText({ text }) {
-  const [highlightedText, setHighlightedText] = useState('');
-
-  useEffect(() => {
-    // Highlight numbers above 6 when the component mounts
-    handleHighlightNumbers();
-  }, [text]); // Trigger highlighting when the text prop changes
-
-
-
-  const handleHighlightNumbers = () => {
-    // Logic to highlight numbers greater than a threshold (e.g., 6)
-    const highlighted = text.replace(/\b(\d+)\b/g, (match, number) => {
-      if (parseInt(number) > 6) {
-        return `<span class='highlighted'>${number}</span>`;
-      } else {
-        return number;
-      }
-    });
-    setHighlightedText(highlighted);
-  };
-
-  return (
-    <div>
-      <p dangerouslySetInnerHTML={{ __html: highlightedText || text }} />
-      <style>
-        {`
-        p {
-          color: white;
-        }
-
-          .highlighted {
-            background-color: red; /* Highlight the text with red background */
-            color: white; /* Set the text color to white */
-            font-weight: bold;
-          }
-        `}
-      </style>
-    </div>
-  );
-}
-
 function RandomNumbers() {
   const [numbers, setNumbers] = useState([]);
 
@@ -62,12 +20,42 @@ function RandomNumbers() {
   return (
     <div>
       {numbers.map((number, index) => (
-        <div key={index} style={{ position: 'absolute', top: `${Math.random() * 90}vh`, left: `${Math.random() * 90}vw`, color: number > 6 ? 'yellow' : 'white' }}>
+        <div key={index} style={{ position: 'absolute', top: `${Math.random() * 90}vh`, left: `${Math.random() * 90}vw`}} className={number > 6 ? 'highlighted' : ''}>
           {number}
         </div>
       ))}
+    </div>
+  );
+}
+
+function HighlightableText({ text }) {
+  const [highlightedText, setHighlightedText] = useState('');
+
+  useEffect(() => {
+    // Highlight numbers above 6 when the component mounts
+    handleHighlightNumbers(); 
+  }, [text]); // Trigger highlighting when the text prop changes
+
+  const handleHighlightNumbers = () => {
+    // Logic to highlight numbers greater than a threshold (e.g., 6)
+    const highlighted = text.replace(/\b(\d+)\b/g, (match, number) => {
+      if (parseInt(number) > 6) {
+        return `<span class='highlighted'>${number}</span>`;
+      } else {
+        return number;
+      }
+    });
+    setHighlightedText(highlighted);
+  };
+
+  return (
+    <div>
       <style>
         {`
+        p {
+          color: white;
+        }
+
           .highlighted {
             background-color: red; /* Highlight the text with red background */
             color: white; /* Set the text color to white */
@@ -80,6 +68,7 @@ function RandomNumbers() {
 }
 
 function App() {
+  const exampleText = "This is an example text with numbers like 6, 7, 8, 9, and 10.";
   return (
     <div>
           <video className="video-background" autoPlay loop muted>
@@ -88,6 +77,7 @@ function App() {
     </video>
       <div>
       <RandomNumbers />
+      <HighlightableText text={exampleText} />
       </div>
     </div>
   );
