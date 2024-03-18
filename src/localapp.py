@@ -16,9 +16,9 @@ from pymongo import MongoClient
 import hashlib
 from flask import Flask, send_file
 from scan import findHosts as get_scan_result
-
 from urllib.parse import quote_plus
 from bson.binary import Binary
+from uploadResults import uploadScanResults
 import uuid
 
 
