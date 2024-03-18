@@ -1,56 +1,94 @@
 import React, { useState, useEffect } from 'react';
-import { MongoClient } from 'mongodb';
-import dotenv from 'dotenv'
+import './App.css';
 
-dotenv.config({path: "../web_db/server/.env"})
-const dbPassword = process.env.DB_PASSWORD
-const dbUsername = process.env.DB_USERNAME
-
-const uri = `mongodb+srv://${dbUsername}:${dbPassword}@cluster0.zc7grf3.mongodb.net/?retryWrites=true&w=majority&appName=Cluster0`;
-
-function App() {
-  const [data, setData] = useState([]);
+function HighlightableText({ text }) {
+  const [highlightedText, setHighlightedText] = useState('');
 
   useEffect(() => {
-    // Function to fetch data
-    const fetchData = async () => {
-      // Connect to MongoDB
-      const client = new MongoClient(uri, {
-        useNewUrlParser: true,
-        useUnifiedTopology: true,
-      });
+    // Highlight numbers above 6 when the component mounts
+    handleHighlightNumbers();
+  }, [text]); // Trigger highlighting when the text prop changes
 
-      try {
-        await client.connect(); // Connect to the MongoDB server
 
-        // Access the database and collection
-        const db = client.db('ThreatSculpt');
-        const collection = db.collection('ScanResults');
 
-        // Query the collection for data
-        const result = await collection.find({}).toArray();
-        setData(result); // Update the component state with the fetched data
-      } catch (error) {
-        console.error('Error fetching data:', error);
-      } finally {
-        await client.close(); // Close the MongoDB connection
+  const handleHighlightNumbers = () => {
+    // Logic to highlight numbers greater than a threshold (e.g., 6)
+    const highlighted = text.replace(/\b(\d+)\b/g, (match, number) => {
+      if (parseInt(number) > 6) {
+        return `<span class='highlighted'>${number}</span>`;
+      } else {
+        return number;
       }
-    };
-
-    fetchData(); // Call the fetchData function
-  }, []); // Empty dependency array ensures this effect runs only once when the component mounts
+    });
+    setHighlightedText(highlighted);
+  };
 
   return (
     <div>
-      <h1>Data from MongoDB</h1>
-      <ul>
-        {data.map((item, index) => (
-          <li key={index}>
-            <h3>{item.name}</h3>
-            <p>{item.description}</p>
-          </li>
-        ))}
-      </ul>
+      <p dangerouslySetInnerHTML={{ __html: highlightedText || text }} />
+      <style>
+        {`
+        p {
+          color: white;
+        }
+
+          .highlighted {
+            background-color: red; /* Highlight the text with red background */
+            color: white; /* Set the text color to white */
+            font-weight: bold;
+          }
+        `}
+      </style>
+    </div>
+  );
+}
+
+function RandomNumbers() {
+  const [numbers, setNumbers] = useState([]);
+
+  useEffect(() => {
+    const generateNumbers = () => {
+      const newNumbers = [];
+      for (let i = 0; i < 20; i++) {
+        const randomNumber = Math.floor(Math.random() * 10) + 1; // Generate random numbers between 1 and 10
+        newNumbers.push(randomNumber);
+      }
+      setNumbers(newNumbers);
+    };
+    
+    generateNumbers();
+  }, []);
+
+  return (
+    <div>
+      {numbers.map((number, index) => (
+        <div key={index} style={{ position: 'absolute', top: `${Math.random() * 90}vh`, left: `${Math.random() * 90}vw`, color: number > 6 ? 'yellow' : 'white' }}>
+          {number}
+        </div>
+      ))}
+      <style>
+        {`
+          .highlighted {
+            background-color: red; /* Highlight the text with red background */
+            color: white; /* Set the text color to white */
+            font-weight: bold;
+          }
+        `}
+      </style>
+    </div>
+  );
+}
+
+function App() {
+  return (
+    <div>
+          <video className="video-background" autoPlay loop muted>
+      <source src="https://brown-friendly-dragon-577.mypinata.cloud/ipfs/QmZJ8Xj8NnMU6EoEoPYPMuk1M1aQ9JiUrCsAR7YsieLkfc" type="video/mp4" />
+      Your browser does not support the video tag.
+    </video>
+      <div>
+      <RandomNumbers />
+      </div>
     </div>
   );
 }
