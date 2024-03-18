@@ -11,21 +11,35 @@ import webbrowser
 import threading
 import subprocess
 import open_react_app
+from flask import Flask, request
+from pymongo import MongoClient
+import hashlib
 from flask import Flask, send_file
-# Import the 'result' function from the 'main' module
 from scan import findHosts as get_scan_result
+from urllib.parse import quote_plus
+from bson.binary import Binary
+import uuid
 
-app = Flask(__name__)
 
-# Define the default username and password
-DEFAULT_USERNAME = "123"
-DEFAULT_PASSWORD = "123"
+# Define your MongoDB credentials
+username = quote_plus('user_test')
+password = quote_plus('CZ66ttLSf5s0GVe4')
 
-app = Flask(__name__)
+# Construct the MongoDB connection URI
+uri = "mongodb+srv://" + username + ":" + password + "@cluster0.zc7grf3.mongodb.net/?retryWrites=true&w=majority"
 
-# Function to authenticate user login
+# Create a new client and connect to the server
+client = MongoClient(uri)
+db = client['ThreatSculpt']  
+users_collection = db['User']  
+
+# Function to authenticate user login against MongoDB
 def authenticate(username, password):
-    return username == DEFAULT_USERNAME and password == DEFAULT_PASSWORD
+    user = users_collection.find_one({'username': username, 'password': password})
+    if user:
+        return True
+    else:
+        return False
 
 # Function to perform the scan
 def perform_scan(target):
@@ -51,7 +65,7 @@ def perform_scan_and_display_result(target):
     scan_progress_window.destroy()
 
     # Start the React app
-    #open_react_app.start_react_app()
+    open_react_app.start_react_app()
 
 # Function to display the scan progress
 def display_scan_progress():
@@ -83,19 +97,19 @@ def open_scan_window():
     y_coordinate = (screen_height / 2) - (window_height / 2)
     scan_window.geometry("%dx%d+%d+%d" % (window_width, window_height, x_coordinate, y_coordinate))
 
-    # Load the logo image from a URL
+     # Load the logo image from a URL
     logo_url = "https://brown-friendly-dragon-577.mypinata.cloud/ipfs/QmcnmTnnHkPXCoKKshGuyhm5tNnkpUHxPGBi32CMD5oDLK"
     response = requests.get(logo_url)
     if response.status_code == 200:
-        logo_data = response.content
-        logo_image = Image.open(BytesIO(logo_data))
-        logo_image = logo_image.resize((100, 100))
-        logo_photo = ImageTk.PhotoImage(logo_image)
-        logo_label = tk.Label(scan_window, image=logo_photo)
-        logo_label.image = logo_photo
-        logo_label.pack(pady=5)
+         logo_data = response.content
+         logo_image = Image.open(BytesIO(logo_data))
+         logo_image = logo_image.resize((100, 100))
+         logo_photo = ImageTk.PhotoImage(logo_image)
+         logo_label = tk.Label(scan_window, image=logo_photo)
+         logo_label.image = logo_photo
+         logo_label.pack(pady=5)
     else:
-        print("Failed to load logo from URL")
+         print("Failed to load logo from URL")
 
     # Label at the center top of the window
     top_label = tk.Label(scan_window, text="Select the type of scan you want to do :", font=("Arial", 12, "bold"))
@@ -124,10 +138,6 @@ def open_login_window():
         else:
             messagebox.showerror("Login Failed", "Invalid username or password")
 
-    def skip_login():
-        login_window.destroy()
-        open_scan_window()
-
     login_window = tk.Tk()
     login_window.title("Login")
 
@@ -143,15 +153,15 @@ def open_login_window():
     logo_url = "https://brown-friendly-dragon-577.mypinata.cloud/ipfs/QmcnmTnnHkPXCoKKshGuyhm5tNnkpUHxPGBi32CMD5oDLK"
     response = requests.get(logo_url)
     if response.status_code == 200:
-        logo_data = response.content
-        logo_image = Image.open(BytesIO(logo_data))
-        logo_image = logo_image.resize((100, 100))
-        logo_photo = ImageTk.PhotoImage(logo_image)
-        logo_label = tk.Label(login_window, image=logo_photo)
-        logo_label.image = logo_photo
-        logo_label.pack(pady=5)
+         logo_data = response.content
+         logo_image = Image.open(BytesIO(logo_data))
+         logo_image = logo_image.resize((100, 100))
+         logo_photo = ImageTk.PhotoImage(logo_image)
+         logo_label = tk.Label(login_window, image=logo_photo)
+         logo_label.image = logo_photo
+         logo_label.pack(pady=5)
     else:
-        print("Failed to load logo from URL")
+         print("Failed to load logo from URL")
 
     username_label = tk.Label(login_window, text="Username:")
     username_label.pack()
@@ -166,13 +176,95 @@ def open_login_window():
     login_button = tk.Button(login_window, text="Login", command=login)
     login_button.pack(pady=10)
 
-    skip_login_label = tk.Label(login_window, text="Skip the login", fg="blue", cursor="hand2")
-    skip_login_label.pack(pady=5)
-    skip_login_label.bind("<Button-1>", lambda event: skip_login())
+    create_account_button = tk.Button(login_window, text="Create an Account", command=open_user_creation_window)
+    create_account_button.pack(pady=5)
+
 
     login_window.mainloop()
 
-# Function to open the initial panel
+
+# Function to create a new user
+def create_user(username, password):
+    
+    # Save the user information in the MongoDB collection
+    user_data = {
+        "username": username,
+        "password": password,
+        "userID": str(uuid.uuid4()),  
+        "scanIDs": [],
+        "networkIDs": []
+    }
+    users_collection.insert_one(user_data)
+    messagebox.showinfo("Success", "User created successfully!")
+    
+
+# Function to open the user creation window
+def open_user_creation_window():
+    def create_account():
+        new_username = new_username_entry.get()
+        new_password = new_password_entry.get()
+        confirm_password = confirm_password_entry.get()
+
+        if new_password != confirm_password:
+            messagebox.showerror("Error", "Passwords do not match!")
+            return
+
+        # Check if username already exists
+        existing_user = users_collection.find_one({"username": new_username})
+        if existing_user:
+            messagebox.showerror("Error", "Username already exists!")
+            return
+
+        # Create the new user
+        create_user(new_username, new_password)
+        # Close the user creation window upon successful creation
+        user_creation_window.destroy()
+      
+
+    #for the back button on account creation 
+    def close_window():
+        user_creation_window.destroy()
+
+    user_creation_window = tk.Tk()
+    user_creation_window.title("Create an Account")
+
+    # Set the size of the window
+    window_width = 350
+    window_height = 300
+    screen_width = user_creation_window.winfo_screenwidth()
+    screen_height = user_creation_window.winfo_screenheight()
+    x_coordinate = (screen_width / 2) - (window_width / 2)
+    y_coordinate = (screen_height / 2) - (window_height / 2)
+    user_creation_window.geometry("%dx%d+%d+%d" % (window_width, window_height, x_coordinate, y_coordinate))
+
+    # Add a "Back" button to close the window
+    back_button = tk.Button(user_creation_window, text="Back", command=close_window)
+    back_button.place(x=10, y=10)
+
+    # Add labels and entry widgets for username, password, and confirm password fields
+    new_username_label = tk.Label(user_creation_window, text="Username:")
+    new_username_label.place(relx=0.5, rely=0.24, anchor="center")
+    new_username_entry = tk.Entry(user_creation_window)
+    new_username_entry.place(relx=0.5, rely=0.3, anchor="center")
+
+    new_password_label = tk.Label(user_creation_window, text="Password:")
+    new_password_label.place(relx=0.5, rely=0.38, anchor="center")
+    new_password_entry = tk.Entry(user_creation_window, show="*")
+    new_password_entry.place(relx=0.5, rely=0.44, anchor="center")
+
+    confirm_password_label = tk.Label(user_creation_window, text="Confirm Password:")
+    confirm_password_label.place(relx=0.5, rely=0.52, anchor="center")
+    confirm_password_entry = tk.Entry(user_creation_window, show="*")
+    confirm_password_entry.place(relx=0.5, rely=0.58, anchor="center")
+
+    # Button to submit the user creation form
+    create_button = tk.Button(user_creation_window, text="Create Account", command=create_account)
+    create_button.place(relx=0.5, rely=0.75, anchor="center")
+
+    user_creation_window.mainloop()
+
+
+# Function to open the initial panels
 def open_panel():
     open_login_window()
 
