@@ -1,3 +1,8 @@
+//TODO: cleanup this file
+//Add: find all scan results from a User, find all network of a User, find all scan results for a network
+//Add: Delete User, delete network, delete scan results
+//Add: set up a network, set up a new User
+
 import React, { useState, useEffect } from 'react';
 import { login, find, signUp, scan } from '../dataHelper';
 import { Card, Button } from 'react-bootstrap';
