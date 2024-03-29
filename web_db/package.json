@@ -5,12 +5,12 @@
   "main": "server/server.js",
   "type": "module",
   "scripts": {
-    "clean": "rm public/*.map public/main.js public/main.css",
+    "clean": "del /q /f public\\*.map public\\main.js public\\main.css",
     "client": "esbuild --bundle --minify --target=es6 --outdir=public client/testdisplay.jsx",
     "build": "react-scripts build",
     "dev": "concurrently \"npm run client:dev\" \"npm run server:dev\"",
     "client:dev": "esbuild --watch --bundle --sourcemap --target=es6 --outdir=public client/testdisplay.jsx",
-    "server:dev": "nodemon --watch server dev",
+    "server:dev": "nodemon --watch server server/server.js",
     "server:prod": "node server/server.js prod",
     "test": "echo \"Error: no test specified\" && exit 1"
   },
@@ -23,6 +23,7 @@
     "eslint": "^8.57.0",
     "express": "^4.18.3",
     "mongodb": "^6.4.0",
+    "nodemon": "^3.1.0",
     "react-bootstrap": "^2.10.1",
     "react-router-dom": "^6.22.3",
     "react-scripts": "^5.0.1"
