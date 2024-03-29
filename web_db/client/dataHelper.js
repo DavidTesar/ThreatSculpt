@@ -69,3 +69,17 @@ export async function login (username, password) {
       return false
     }
   }
+
+  export async function getAllScans(username) {
+    try {
+      const response = await fetch(`http://localhost:3000/server/getAllScans/${username}`);
+      if (response.status >= 400) {
+        throw new Error(`Request failed with response code ${response.status}`);
+      }
+      return await response.json();
+    } catch (err) {
+      console.error('Failed to get all scans');
+      console.error(err);
+      return false;
+    }
+  }  

@@ -6,10 +6,10 @@
   "type": "module",
   "scripts": {
     "clean": "rm public/*.map public/main.js public/main.css",
-    "client": "esbuild --bundle --minify --target=es6 --outdir=public client/main.jsx",
+    "client": "esbuild --bundle --minify --target=es6 --outdir=public client/testdisplay.jsx",
     "build": "react-scripts build",
     "dev": "concurrently \"npm run client:dev\" \"npm run server:dev\"",
-    "client:dev": "esbuild --watch --bundle --sourcemap --target=es6 --outdir=public client/main.jsx",
+    "client:dev": "esbuild --watch --bundle --sourcemap --target=es6 --outdir=public client/testdisplay.jsx",
     "server:dev": "nodemon --watch server dev",
     "server:prod": "node server/server.js prod",
     "test": "echo \"Error: no test specified\" && exit 1"

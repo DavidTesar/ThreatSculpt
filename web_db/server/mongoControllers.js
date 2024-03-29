@@ -1,7 +1,7 @@
 import { MongoClient, ServerApiVersion } from 'mongodb'
 import dotenv from 'dotenv'
 
-dotenv.config({path: "C:/Users/TrinhAn/OneDrive - University of Wisconsin-Stout/Desktop/ThreatSculpt-main/web_db/server/.env"})
+dotenv.config({path: "../web_db/server/.env"})
 const dbPassword = process.env.DB_PASSWORD
 const dbUsername = process.env.DB_USERNAME
 
