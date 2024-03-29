@@ -1,35 +1,53 @@
-import Express from 'express'
-import dataRouter from 'dataRoutes.js'
-import mongoose from 'mongoose'
-import MongoStore from 'connect-mongo'
-import { Mongo, url } from 'mongoControllers.js'
-import path from 'path'
+import express from 'express';
+import bodyParser from 'body-parser';
+import { MongoClient } from 'mongodb';
+import cors from 'cors';
 
-import schedule from 'node-schedule'
+const app = express();
+let port = process.env.PORT || 4000; 
 
-//const store = new session.MemoryStore()
-path.__dirname = path.resolve(path.dirname('../public/index.html'))
+const username = 'user_test';
+const password = 'CZ66ttLSf5s0GVe4';
+const uri = `mongodb+srv://${username}:${password}@cluster0.zc7grf3.mongodb.net/?retryWrites=true&w=majority`;
 
+let usersCollection;
 
-const PORT = 3000
-const app = new Express()
+const client = new MongoClient(uri, { useNewUrlParser: true, useUnifiedTopology: true });
 
-app.use(Express.json())
+async function connectToMongo() {
+  try {
+    await client.connect();
+    const db = client.db('ThreatSculpt');
+    usersCollection = db.collection('User');
+    console.log('Connected to MongoDB');
+  } catch (error) {
+    console.error('Failed to connect to MongoDB:', error);
+  }
+}
 
+app.use(bodyParser.json());
+app.use(cors());
 
-app.use((req, res, next) => {
-  console.log(`${req.method} request at ${req.url}`)
-  next()
-})
-// Statically serve the public folder
-app.use(Express.static(path.join('../public')))
+app.post('/login', async (req, res) => {
+  const { username, password } = req.body;
 
-app.use('/website/server', dataRouter)
+  try {
+    const user = await usersCollection.findOne({ username, password });
+    if (user) {
+      // User found, send success response
+      res.status(200).json({ message: 'Login successful' });
+    } else {
+      // User not found or incorrect credentials, send error response
+      res.status(401).json({ error: 'Invalid username or password' });
+    }
+  } catch (error) {
+    console.error('Error authenticating user:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
 
-app.get('*', (req, res) => {
-  res.sendFile('index.html', { root: '../public' })
-})
-
-app.listen(PORT, () => {
-  console.log(`Server is running on port http://localhost:${PORT}`)
-})
+// Start the server and connect to MongoDB
+const server = app.listen(port, async () => {
+  await connectToMongo();
+  console.log(`Server is running on port ${server.address().port}`);
+});

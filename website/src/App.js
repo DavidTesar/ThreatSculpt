@@ -1,27 +1,71 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import './App.css';
 
 function App() {
-  // State to manage whether results are available
-  const [resultsAvailable, setResultsAvailable] = useState(false);
+  const [username, setUsername] = useState('');
+  const [password, setPassword] = useState('');
+  const [loggingIn, setLoggingIn] = useState(false);
+  const [loginError, setLoginError] = useState('');
+  const [isLoggedIn, setIsLoggedIn] = useState(false);
 
-  useEffect(() => {
-    // Simulate fetching data or checking for results
-    setTimeout(() => {
-      setResultsAvailable(true);
-    }, 8000); // Simulate a delay of 3 seconds
-  }, []);
+  const handleLogin = async (e) => {
+    e.preventDefault();
+    setLoggingIn(true);
+    try {
+      const response = await fetch('http://localhost:4000/login', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ username, password }),
+      });
+      if (response.ok) {
+        // Login successful
+        setLoginError('');
+        setIsLoggedIn(true);
+      } else {
+        // Login failed
+        const errorData = await response.json();
+        setLoginError(errorData.error);
+      }
+    } catch (error) {
+      console.error('Network error:', error);
+      setLoginError('Network error. Please try again later.');
+    }
+    setLoggingIn(false);
+  };
 
   return (
-    <div className={`app-container ${resultsAvailable ? 'results-available' : 'no-results'}`}>
-      <video className="video-background" autoPlay loop muted>
-        <source src="https://brown-friendly-dragon-577.mypinata.cloud/ipfs/QmZJ8Xj8NnMU6EoEoPYPMuk1M1aQ9JiUrCsAR7YsieLkfc" type="video/mp4" />
-        Your browser does not support the video tag.
-      </video>
-      <div className="content">
-        <h1>Comming soon</h1>
-        {!resultsAvailable && <p className="output">There's no result for the moment</p>}
-      </div>
+    <div className="login-container">
+      <h2>{isLoggedIn ? `Welcome, ${username}!` : 'Login'}</h2>
+      {!isLoggedIn && (
+        <form onSubmit={handleLogin}>
+          <div>
+            <label htmlFor="username">Username:</label>
+            <input
+              type="text"
+              id="username"
+              value={username}
+              onChange={(e) => setUsername(e.target.value)}
+              required
+            />
+          </div>
+          <div>
+            <label htmlFor="password">Password:</label>
+            <input
+              type="password"
+              id="password"
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              required
+            />
+          </div>
+          <button type="submit" disabled={loggingIn}>
+            {loggingIn ? 'Logging in...' : 'Login'}
+          </button>
+          {loginError && <div className="error-message">{loginError}</div>}
+        </form>
+      )}
     </div>
   );
 }

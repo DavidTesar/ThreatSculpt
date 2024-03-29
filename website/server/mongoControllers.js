@@ -1,25 +1,44 @@
 import { MongoClient, ServerApiVersion} from 'mongodb'
 import dotenv from 'dotenv'
+import { MongoClient } from 'mongodb';
+import { quote_plus } from 'mongodb-uri';
 
-const dbPassword = process.env.DB_PASSWORD
-const dbUsername = process.env.DB_USERNAME
-const uri = `mongodb+srv://${dbUsername}:${dbPassword}@cluster0.zc7grf3.mongodb.net/?retryWrites=true&w=majority&appName=Cluster0`;
-// Create a MongoClient with a MongoClientOptions object to set the Stable API version
+// mongoControllers.js
 
-export const Mongo = new MongoClient(uri, {
-    useNewUrlParser: true,
-    useUnifiedTopology: true,
-    serverApi:
-    {
-      version: ServerApiVersion.v1,
-      strict: true
-    }
-  })
+import { MongoClient } from 'mongodb';
+import { quote_plus } from 'mongodb-uri'; // Import quote_plus function from the mongodb-uri package
 
-export default function queryMongoDatabase (queryCallback, databaseName) {
-    queryCallback(Mongo.db(databaseName))
-      .catch(err => {
-        console.error('Failed to query database')
-        console.error(err)
-      })
+// Define MongoDB credentials
+const username = quote_plus('user_test');
+const password = quote_plus('CZ66ttLSf5s0GVe4');
+
+// Construct the MongoDB connection URI
+const uri = "mongodb+srv://" + username + ":" + password + "@cluster0.zc7grf3.mongodb.net/?retryWrites=true&w=majority";
+
+// Create a new client and connect to the server
+const client = new MongoClient(uri);
+
+// Function to connect to MongoDB and return the database and collections
+export async function connectToMongo() {
+  try {
+    await client.connect();
+    console.log('Connected to MongoDB');
+    const db = client.db('ThreatSculpt');
+    const usersCollection = db.collection('User');
+    return { db, usersCollection };
+  } catch (error) {
+    console.error('Failed to connect to MongoDB:', error);
+    throw error; // Rethrow the error for handling in the caller
   }
+}
+
+// Function to close the MongoDB connection
+export async function closeMongoConnection() {
+  try {
+    await client.close();
+    console.log('Disconnected from MongoDB');
+  } catch (error) {
+    console.error('Failed to close MongoDB connection:', error);
+    throw error; // Rethrow the error for handling in the caller
+  }
+}

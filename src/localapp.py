@@ -14,13 +14,18 @@ import open_react_app
 from flask import Flask, request
 from pymongo import MongoClient
 import hashlib
+import requests
 from flask import Flask, send_file
 from scan import findHosts as get_scan_result
 from urllib.parse import quote_plus
 from bson.binary import Binary
 from uploadResults import uploadScanResults
 import uuid
+import time
 
+
+# Global variable to store login information
+login_info = None
 
 # Define your MongoDB credentials
 username = quote_plus('user_test')
@@ -41,6 +46,7 @@ def authenticate(username, password):
         return True
     else:
         return False
+    
 
 # Function to perform the scan
 def perform_scan(target, scanType):
@@ -89,7 +95,7 @@ def perform_scan_and_display_result(target, scanType):
 
         # Start the React app
         open_react_app.start_react_app()
-        
+
     else:
         print("Scan stopped from cancel button.")
     # Start the React app
@@ -171,16 +177,15 @@ def open_scan_window():
 
     scan_window.mainloop()
 
-# Function to open the login window
 def open_login_window():
     def login():
+        global login_info
         entered_username = username_entry.get()
         entered_password = password_entry.get()
         if authenticate(entered_username, entered_password):
-            login_window.destroy()  
-            open_scan_window()  # Open the scanning window after successful login
-        else:
-            messagebox.showerror("Login Failed", "Invalid username or password")
+            login_info = {'username': entered_username, 'password': entered_password}
+            login_window.destroy()
+            open_scan_window()
 
     login_window = tk.Tk()
     login_window.title("Login")
@@ -222,7 +227,6 @@ def open_login_window():
 
     create_account_button = tk.Button(login_window, text="Create an Account", command=open_user_creation_window)
     create_account_button.pack(pady=5)
-
 
     login_window.mainloop()
 
