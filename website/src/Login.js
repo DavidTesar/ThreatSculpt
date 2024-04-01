@@ -1,3 +1,5 @@
+import './assets/bootstrap/css/bootstrap.min.css';
+
 import React, { useState } from 'react';
 
 function Login({ onLogin }) {

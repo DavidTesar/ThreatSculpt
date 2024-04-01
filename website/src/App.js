@@ -1,5 +1,9 @@
 import React, { useState } from 'react';
 import './App.css';
+import './assets/bootstrap/css/bootstrap.min.css';
+import './assets/fonts/fontawesome-all.min.css';
+import './assets/css/bs-theme-overrides.css';
+import logo from './assets/img/logo.png';
 
 function App() {
   const [username, setUsername] = useState('');
@@ -36,37 +40,75 @@ function App() {
   };
 
   return (
-    <div className="login-container">
-      <h2>{isLoggedIn ? `Welcome, ${username}!` : 'Login'}</h2>
-      {!isLoggedIn && (
-        <form onSubmit={handleLogin}>
-          <div>
-            <label htmlFor="username">Username:</label>
-            <input
-              type="text"
-              id="username"
-              value={username}
-              onChange={(e) => setUsername(e.target.value)}
-              required
-            />
+  <body class="bg-gradient-primary">
+    <div class="container">
+      <div class="row justify-content-center">
+        <div class="col-md-9 col-lg-12 col-xl-10">
+          <div class="card shadow-lg o-hidden border-0 my-5">
+            <div class="card-body p-0">
+          
+          <div className="login-container" class="p-5">
+            <div class="text-center">
+              <h2>{isLoggedIn ? `Welcome, ${username}!` : 'Login'}</h2>
+            </div>
+            {!isLoggedIn && (
+              <div class="row">
+              <div className="col-lg-6 d-none d-lg-flex">
+                <div 
+                  className="flex-grow-1 bg-login-image" 
+                      style={{
+                      backgroundImage: `url(${logo})`,
+                        backgroundSize: 'contain', // Ensures the image fits without being cut off
+                        backgroundRepeat: 'no-repeat', // Prevents the image from repeating
+                        backgroundPosition: 'center' // Centers the background image in the container
+                    }}>
+                </div>
+              </div>
+              
+              <div class="col-lg-6">
+              <form onSubmit={handleLogin}>
+                  <div class="mb-3">
+                    <label htmlFor="username">Username:</label>
+                      <input
+                        type="text"
+                        id="username"
+                        class = "form-control form-control-user"
+                        placeholder = "Enter username..."
+                        value={username}
+                        onChange={(e) => setUsername(e.target.value)}
+                        required
+                      />
+                  </div>
+                <div class="mb-3">
+                  <label htmlFor="password">Password:</label>
+                  <input
+                    type="password"
+                    id="password"
+                    class = "form-control form-control-user"
+                    placeholder = "Enter password..."
+                    value={password}
+                    onChange={(e) => setPassword(e.target.value)}
+                    required
+                  />
+                </div>
+                <button 
+                type="submit" 
+                class = "btn btn-primary d-block btn-user w-100"
+                disabled={loggingIn}>
+                  {loggingIn ? 'Logging in...' : 'Login'}
+                </button>
+                {loginError && <div className="error-message">{loginError}</div>}
+              </form>
+              </div>
+              </div>
+            )}
+                </div>
+              </div>
+            </div>
           </div>
-          <div>
-            <label htmlFor="password">Password:</label>
-            <input
-              type="password"
-              id="password"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              required
-            />
-          </div>
-          <button type="submit" disabled={loggingIn}>
-            {loggingIn ? 'Logging in...' : 'Login'}
-          </button>
-          {loginError && <div className="error-message">{loginError}</div>}
-        </form>
-      )}
-    </div>
+        </div>
+      </div>
+    </body>
   );
 }
 
