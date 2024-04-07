@@ -1,3 +1,5 @@
+#this is the code that start all the react appp from the localapp.py
+
 import subprocess
 import os
 

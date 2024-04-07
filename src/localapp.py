@@ -9,6 +9,7 @@ import os
 from flask import Flask, render_template
 import webbrowser
 import threading
+from trigger_login import trigger_login
 import subprocess
 import open_react_app
 from flask import Flask, request
@@ -19,13 +20,14 @@ from flask import Flask, send_file
 from scan import findHosts as get_scan_result
 from urllib.parse import quote_plus
 from bson.binary import Binary
+import threading
 from uploadResults import uploadScanResults
 import uuid
 import time
 
-
-# Global variable to store login information
-login_info = None
+# Global variables to store login information
+entered_username = None
+entered_password = None
 
 # Define your MongoDB credentials
 username = quote_plus('user_test')
@@ -93,13 +95,18 @@ def perform_scan_and_display_result(target, scanType):
         # Close the scan progress window after the scan is completed
         scan_progress_window.destroy()
 
-        # Start the React app
-        open_react_app.start_react_app()
+          # Start the React app in a separate process
+        subprocess.Popen(["python", "open_react_app.py"])
 
+        # Add a delay of 10 seconds
+        time.sleep(10)
+
+         # Trigger the login
+        trigger_login(entered_username, entered_password)
+       
     else:
         print("Scan stopped from cancel button.")
-    # Start the React app
-    open_react_app.start_react_app()
+  
 
 # Function to display the scan progress
 def display_scan_progress():
@@ -179,13 +186,13 @@ def open_scan_window():
 
 def open_login_window():
     def login():
-        global login_info
+        global entered_username, entered_password
         entered_username = username_entry.get()
         entered_password = password_entry.get()
         if authenticate(entered_username, entered_password):
-            login_info = {'username': entered_username, 'password': entered_password}
             login_window.destroy()
             open_scan_window()
+
 
     login_window = tk.Tk()
     login_window.title("Login")

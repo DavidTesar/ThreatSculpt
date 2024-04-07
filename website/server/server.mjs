@@ -34,8 +34,11 @@ app.post('/login', async (req, res) => {
   try {
     const user = await usersCollection.findOne({ username, password });
     if (user) {
-      // User found, send success response
-      res.status(200).json({ message: 'Login successful' });
+      // Store the username in req.user
+      req.user = { username };
+      // Send success response with username
+      res.status(200).json({ username });
+      console.log(`[start-server] Login successful for username: '${username}'`);
     } else {
       // User not found or incorrect credentials, send error response
       res.status(401).json({ error: 'Invalid username or password' });
@@ -43,6 +46,16 @@ app.post('/login', async (req, res) => {
   } catch (error) {
     console.error('Error authenticating user:', error);
     res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+app.get('/get-username', (req, res) => {
+  // Check if username is stored in req.user
+  if (req.user && req.user.username) {
+    // Send back the username
+    res.status(200).json({ username: req.user.username });
+  } else {
+    res.status(401).json({ error: 'User not authenticated' });
   }
 });
 
