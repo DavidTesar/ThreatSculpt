@@ -2,6 +2,7 @@ import express from 'express';
 import bodyParser from 'body-parser';
 import { MongoClient } from 'mongodb';
 import cors from 'cors';
+import dataRouter from './dataServices.js';
 
 const app = express();
 let port = process.env.PORT || 4000; 
@@ -27,18 +28,15 @@ async function connectToMongo() {
 
 app.use(bodyParser.json());
 app.use(cors());
-
+app.use('/server', dataRouter)
 app.post('/login', async (req, res) => {
   const { username, password } = req.body;
 
   try {
     const user = await usersCollection.findOne({ username, password });
     if (user) {
-      // Store the username in req.user
-      req.user = { username };
-      // Send success response with username
-      res.status(200).json({ username });
-      console.log(`[start-server] Login successful for username: '${username}'`);
+      // User found, send success response
+      res.status(200).json({ message: 'Login successful' });
     } else {
       // User not found or incorrect credentials, send error response
       res.status(401).json({ error: 'Invalid username or password' });
@@ -48,7 +46,6 @@ app.post('/login', async (req, res) => {
     res.status(500).json({ error: 'Internal server error' });
   }
 });
-
 app.get('/get-username', (req, res) => {
   // Check if username is stored in req.user
   if (req.user && req.user.username) {
@@ -58,7 +55,6 @@ app.get('/get-username', (req, res) => {
     res.status(401).json({ error: 'User not authenticated' });
   }
 });
-
 // Start the server and connect to MongoDB
 const server = app.listen(port, async () => {
   await connectToMongo();
