@@ -7,13 +7,14 @@
     "@testing-library/react": "^13.4.0",
     "@testing-library/user-event": "^13.5.0",
     "cors": "^2.8.5",
+    "mongodb": "^6.5.0",
     "react": "^18.2.0",
     "react-dom": "^18.2.0",
     "react-scripts": "5.0.1",
     "web-vitals": "^2.1.4"
   },
   "scripts": {
-     "start": "concurrently \"npm:start-server\" \"npm:start-react\"",
+    "start": "concurrently \"npm:start-server\" \"npm:start-react\"",
     "start-react": "react-scripts start",
     "start-server": "cd ../website/server && node server.mjs",
     "build": "react-scripts build",

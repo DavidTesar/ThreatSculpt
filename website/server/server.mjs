@@ -4,13 +4,14 @@ import { MongoClient } from 'mongodb';
 import cors from 'cors';
 
 const app = express();
-let port = process.env.PORT || 4000; 
+const port = process.env.PORT || 4000;
 
 const username = 'user_test';
 const password = 'CZ66ttLSf5s0GVe4';
 const uri = `mongodb+srv://${username}:${password}@cluster0.zc7grf3.mongodb.net/?retryWrites=true&w=majority`;
 
-let usersCollection;
+let userCollection;
+let userScanCollection; // Define userScanCollection for /getUserData endpoint
 
 const client = new MongoClient(uri, { useNewUrlParser: true, useUnifiedTopology: true });
 
@@ -18,7 +19,8 @@ async function connectToMongo() {
   try {
     await client.connect();
     const db = client.db('ThreatSculpt');
-    usersCollection = db.collection('User');
+    userCollection = db.collection('User');
+    userScanCollection = db.collection('ScanResults'); // Initialize userScanCollection
     console.log('Connected to MongoDB');
   } catch (error) {
     console.error('Failed to connect to MongoDB:', error);
@@ -32,16 +34,43 @@ app.post('/login', async (req, res) => {
   const { username, password } = req.body;
 
   try {
-    const user = await usersCollection.findOne({ username, password });
+    const user = await userCollection.findOne({ username, password });
     if (user) {
-      // User found, send success response
       res.status(200).json({ message: 'Login successful' });
     } else {
-      // User not found or incorrect credentials, send error response
       res.status(401).json({ error: 'Invalid username or password' });
     }
   } catch (error) {
     console.error('Error authenticating user:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+app.post('/getUserInfo', async (req, res) => {
+  const { username } = req.body;
+
+  try {
+    const userInfo = await userCollection.findOne({ username });
+    if (userInfo) {
+      res.status(200).json(userInfo);
+    } else {
+      res.status(404).json({ error: 'User not found' });
+    }
+  } catch (error) {
+    console.error('Error fetching user information:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+app.post('/getUserData', async (req, res) => {
+  const { userID } = req.body;
+  console.log('Received userID:', userID); // Log the received userID
+  try {
+    const scanResults = await userScanCollection.find({ userID }).toArray();
+    console.log('Fetched scan results:', scanResults); // Log the fetched scan results
+    res.status(200).json(scanResults);
+  } catch (error) {
+    console.error('Error fetching scan results:', error);
     res.status(500).json({ error: 'Internal server error' });
   }
 });
