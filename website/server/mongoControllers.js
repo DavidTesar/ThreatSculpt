@@ -1,16 +1,9 @@
 import { MongoClient, ServerApiVersion} from 'mongodb'
 import dotenv from 'dotenv'
-import { MongoClient } from 'mongodb';
-import { quote_plus } from 'mongodb-uri';
-
-// mongoControllers.js
-
-import { MongoClient } from 'mongodb';
-import { quote_plus } from 'mongodb-uri'; // Import quote_plus function from the mongodb-uri package
 
 // Define MongoDB credentials
-const username = quote_plus('user_test');
-const password = quote_plus('CZ66ttLSf5s0GVe4');
+const username = 'user_test';
+const password ='CZ66ttLSf5s0GVe4';
 
 // Construct the MongoDB connection URI
 const uri = "mongodb+srv://" + username + ":" + password + "@cluster0.zc7grf3.mongodb.net/?retryWrites=true&w=majority";
@@ -42,3 +35,22 @@ export async function closeMongoConnection() {
     throw error; // Rethrow the error for handling in the caller
   }
 }
+
+
+export const Mongo = new MongoClient(uri, {
+    useNewUrlParser: true,
+    useUnifiedTopology: true,
+    serverApi:
+    {
+      version: ServerApiVersion.v1,
+      strict: true
+    }
+  })
+
+export default function queryMongoDatabase (queryCallback, databaseName) {
+    queryCallback(Mongo.db(databaseName))
+      .catch(err => {
+        console.error('Failed to query database')
+        console.error(err)
+      })
+  }
