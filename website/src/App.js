@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import './App.css';
 
+
 function App() {
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
@@ -10,7 +11,6 @@ function App() {
   const [userInfo, setUserInfo] = useState(null);
   const [scanResults, setScanResults] = useState([]);
   const [userID, setUserID] = useState(null);
-
 
   const handleLogin = async (e) => {
     e.preventDefault();
@@ -28,26 +28,37 @@ function App() {
         setLoginError('');
         setIsLoggedIn(true);
         const userData = await response.json();
-        console.log('User Data:', userData); // Log the entire userData object
-        setUserID(userData.userID); // Set userID in state
-        console.log('User ID:', userData.userID); // Log the userID before making the request
-        setUserInfo({ username }); // Save username in userInfo state
-        // Fetch user data after successful login
-        console.log('Request Body:', JSON.stringify({ userID: userData.userID }));
+        console.log('User Data:', userData);
+        setUserID(userData.userID);
+        console.log('User ID:', userData.userID);
+        // Fetch user information after successful login
+        const userInfoResponse = await fetch('http://localhost:4000/getUserInfo', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({ username }), // Pass the username
+        });
+        if (userInfoResponse.ok) {
+          const userInfoData = await userInfoResponse.json();
+          console.log('User Info Data:', userInfoData);
+          setUserInfo(userInfoData);
+        } else {
+          console.error('Failed to fetch user information');
+        }
+        // Fetch scan results after successful login
         const scanResultsResponse = await fetch('http://localhost:4000/getUserData', {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
           },
-          body: JSON.stringify({ userID: userData.userID }), // Pass the user ID
+          body: JSON.stringify({ userID }), // Pass the userID
         });
         if (scanResultsResponse.ok) {
           const scanResultsData = await scanResultsResponse.json();
-          console.log('Scan Results Data:', scanResultsData); // Log the entire scanResultsData object
-          setScanResults(scanResultsData || []); // Update scan results state with scanResultsData directly
-          console.log('Scan Results:', scanResults); // Log scanResults after setting the state
+          console.log('Scan Results Data:', scanResultsData);
+          setScanResults(scanResultsData);
         } else {
-          // Handle error if fetching scan results fails
           console.error('Failed to fetch scan results');
         }
       } else {
@@ -101,7 +112,7 @@ function App() {
           <ul>
             {scanResults.map((result, index) => (
               <li key={index}>
-                Network ID: {result.networkID}, Scan ID: {result.scanID}
+                Scan ID: {result.scanID}
               </li>
             ))}
           </ul>

@@ -27,7 +27,7 @@ export async function getUserInfo(username) {
   try {
     const { db, userCollection } = await connectToMongo(); // Establish MongoDB connection
     const user = await userCollection.findOne({ username });
-    await db.close(); // Close the MongoDB connection after use
+    console.log('Fetched user information:', user);
     return user;
   } catch (error) {
     console.error('Error fetching user information:', error);
