@@ -8,7 +8,7 @@ import dotenv from 'dotenv'
 dotenv.config()
 const salt = 10
 //login function
-async function logIn(req, res) { 
+export async function login(req, res) { 
     const username = req.body.username
     const password = req.body.password
     queryMongoDatabase(async db => {
@@ -171,6 +171,16 @@ async function findUser (req, res) {
     }, 'ThreatSculpt')
   }
 
+  export async function getScanResults() {
+    // Logic to retrieve scan results from the database
+    // For example, using a MongoDB collection:
+    const db = client.db('ThreatSculpt');
+    const scansCollection = db.collection('ScanResults');
+    const scanResults = await scansCollection.find({}).toArray();
+    return scanResults;
+  }
+  
+
   async function changeName(req, res) {
     const username = req.body.username
     const password = req.body.password
@@ -248,7 +258,7 @@ async function findUser (req, res) {
 const dataRouter = new Express.Router()
 dataRouter.post('/login', (req, res) => {
     console.log('Request body:', req.body)
-    logIn(req, res)
+    login(req, res)
 }) 
 dataRouter.post('/signup', signup)
 dataRouter.get('/find/:username', findUser)

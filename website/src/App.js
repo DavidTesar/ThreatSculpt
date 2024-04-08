@@ -11,6 +11,8 @@ import {Routes, Route, Switch, BrowserRouter as Router, uselocation} from 'react
 import SignUp from './SignUp.js';
 import SearchPage from './client/Search.jsx';
 import DeviceForm from './client/Devices.jsx';
+import Dashboard from './client/Dashboard.jsx';
+
 function App() {
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
@@ -42,6 +44,7 @@ function App() {
     <Router>    
     <Navigation></Navigation>
     <Routes>
+    <Route path="/" element={<Dashboard /> }/>
     <Route
             path="/login"
             exact
@@ -68,7 +71,6 @@ function App() {
           />
     </Routes>
     </Router>
-    
   );
 }
 

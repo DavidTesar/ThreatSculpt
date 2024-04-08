@@ -2,7 +2,7 @@ import express from 'express';
 import bodyParser from 'body-parser';
 import { MongoClient } from 'mongodb';
 import cors from 'cors';
-import dataRouter from './dataServices.js';
+import dataRouter from './dataRoutes.js';
 
 const app = express();
 let port = process.env.PORT || 4000; 
@@ -28,7 +28,7 @@ async function connectToMongo() {
 
 app.use(bodyParser.json());
 app.use(cors());
-app.use('/server', dataRouter)
+app.use('/server', dataRouter);
 app.post('/login', async (req, res) => {
   const { username, password } = req.body;
 
@@ -53,6 +53,17 @@ app.get('/get-username', (req, res) => {
     res.status(200).json({ username: req.user.username });
   } else {
     res.status(401).json({ error: 'User not authenticated' });
+  }
+});
+app.get('/server/scans', async (req, res) => {
+  try {
+    const db = client.db('ThreatSculpt');
+    const scansCollection = db.collection('ScanResults');
+    const scanResults = await scansCollection.find({}).toArray();
+    res.status(200).json(scanResults);
+  } catch (error) {
+    console.error('Error fetching scan results:', error);
+    res.status(500).json({ error: 'Internal server error' });
   }
 });
 // Start the server and connect to MongoDB
