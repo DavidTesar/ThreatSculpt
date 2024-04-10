@@ -40,15 +40,3 @@ export async function closeMongoConnection() {
     throw error; // Rethrow the error for handling in the caller
   }
 }
-
-// Function to fetch user data by user ID
-export async function getUserDataByUserID(userID) {
-  try {
-    const { db, userCollection } = await connectToMongo();
-    const userData = await userCollection.findOne({ userID });
-    return userData;
-  } catch (error) {
-    console.error('Error fetching user data:', error);
-    throw new Error('Internal server error');
-  }
-}

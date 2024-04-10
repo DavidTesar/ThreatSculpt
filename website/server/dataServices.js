@@ -3,7 +3,7 @@ import bcrypt from 'bcrypt'
 import dotenv from 'dotenv'
 import { connectToMongo } from './mongoControllers.js';
 dotenv.config()
-import { userCollection, scanResultsCollection, getScanResultsByUserID, getUserDataByUserID } from '../server/mongoControllers.js';
+import { userCollection, scanResultsCollection, getUserData, getUserDataByUserID } from '../server/mongoControllers.js';
 
 // Function to handle user login
 export async function login(username, password, userCollection) {
@@ -36,16 +36,30 @@ export async function getUserInfo(username) {
 }
 
 // Function to fetch scan results by user ID
-export async function getScanResultsByUserID(userID) {
+export async function getUserData(userID) {
   try {
-    console.log('Received userID in getScanResultsByUserID:', userID);
+    //console.log('Received userID in getUserData:', userID);
     const { db, scanResultsCollection } = await connectToMongo();
     const scanResultsCursor = await scanResultsCollection.find({ userID });
     const scanResults = await scanResultsCursor.toArray();
-    console.log('Fetched scan results:', scanResults);
+    //console.log('Fetched scan results dataServices:', scanResults);
     return scanResults;
   } catch (error) {
     console.error('Error fetching scan results:', error);
+    throw new Error('Internal server error');
+  }
+}
+
+// Function to fetch user ID by username
+export async function getUserID(username) {
+  try {
+    const { db, userCollection } = await connectToMongo();
+    const user = await userCollection.findOne({ username });
+    console.log('Fetched user ID:', user.userID); 
+    return user.userID;
+  }
+  catch (error) {
+    console.error('Error fetching user ID:', error);
     throw new Error('Internal server error');
   }
 }

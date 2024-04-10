@@ -49,6 +49,8 @@ app.post('/login', async (req, res) => {
 app.post('/getUserInfo', async (req, res) => {
   const { username } = req.body;
 
+  //console.log('req.body username:', req); // Log the received request body (username)
+  //console.log('Received username:', username); // Log the received username
   try {
     const userInfo = await userCollection.findOne({ username });
     if (userInfo) {
@@ -64,13 +66,32 @@ app.post('/getUserInfo', async (req, res) => {
 
 app.post('/getUserData', async (req, res) => {
   const { userID } = req.body;
-  console.log('Received userID:', userID); // Log the received userID
+
+  //console.log('req.body userID:', req); // Log the received request body (userID
+  //console.log('Received userID:', userID); // Log the received userID
   try {
     const scanResults = await userScanCollection.find({ userID }).toArray();
-    console.log('Fetched scan results:', scanResults); // Log the fetched scan results
+    //console.log('Fetched scan results:', scanResults); // Log the fetched scan results
     res.status(200).json(scanResults);
   } catch (error) {
     console.error('Error fetching scan results:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+// Server side for getting user ID by username
+app.post('/getUserID', async (req, res) => {
+  const { username } = req.body;
+
+  try {
+    const user = await userCollection.findOne({ username });
+    //console.log('Fetched user ID:', user.userID); // Log the fetched user ID
+    const userID = user.userID;
+    //console.log('Checking before sending user ID:', userID); // Log the sent user ID
+    res.status(200).json({ userID });
+    //console.log('Sent user ID:', userID); // Log the sent user ID
+  } catch (error) {
+    console.error('Error fetching user ID:', error);
     res.status(500).json({ error: 'Internal server error' });
   }
 });

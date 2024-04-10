@@ -1,7 +1,7 @@
 // This is for setting the route so that the website can calls and run functions that query the database
 // This is so that the website won't runs the functions directly from the database
 import express from 'express';
-import { login, getUserInfo, getScanResultsByUserID } from '../server/dataService.js';
+import { login, getUserInfo, getUserData } from '../server/dataService.js';
 
 const router = express.Router();
 
@@ -45,10 +45,23 @@ router.post('/getUserInfo', async (req, res) => {
 router.post('/getUserData', async (req, res) => {
   const { userID } = req.body;
   try {
-    const scanResults = await getScanResultsByUserID(userID);
+    console.log('Received userID:', userID);
+    const scanResults = await getUserData(userID);
     res.status(200).json(scanResults);
   } catch (error) {
     console.error('Error fetching scan results:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+// Route for getting user ID by username
+router.post('/getUserID', async (req, res) => {
+  const { username } = req.body;
+  try {
+    const userID = await getUserID(username);
+    res.status(200).json({ userID });
+  } catch (error) {
+    console.error('Error fetching user ID:', error);
     res.status(500).json({ error: 'Internal server error' });
   }
 });
