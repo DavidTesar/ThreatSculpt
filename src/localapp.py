@@ -99,7 +99,7 @@ def perform_scan_and_display_result(target, scanType):
         subprocess.Popen(["python", "open_react_app.py"])
 
         # Add a delay of 10 seconds
-        time.sleep(10)
+        time.sleep(15)
 
          # Trigger the login
         trigger_login(entered_username, entered_password)
