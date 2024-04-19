@@ -9,7 +9,7 @@ def trigger_login(username, password):
     try:
         response = requests.post(url, json=data)
         if response.status_code == 200:
-            print("test")
+            print("Login successful.")
         else:
             print("Login failed. Invalid username or password.")
     except Exception as e:
