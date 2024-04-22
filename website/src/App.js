@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import PropTypes from 'prop-types'
 import './App.css';
 import './assets/bootstrap/css/bootstrap.min.css';
@@ -19,32 +19,46 @@ function App() {
   const [loggingIn, setLoggingIn] = useState(false);
   const [loginError, setLoginError] = useState('');
   const [isLoggedIn, setIsLoggedIn] = useState(false);
+  const [userInfo, setUserInfo] = useState(null);
+  const [scanResults, setScanResults] = useState([]);
 
-  React.useEffect(() => {
-    // Fetch username from server
-    const fetchUsername = async () => {
-      try {
-        const response = await fetch('http://localhost:4000/get-username');
-        if (response.ok) {
-          const data = await response.json();
-          setUsername(data.username);
-          setIsLoggedIn(true);
-        } else {
-          console.error('Failed to fetch username:', response.statusText);
-        }
-      } catch (error) {
-        console.error('Error fetching username:', error);
+  const handleLogin = async (e) => {
+    e.preventDefault();
+    setLoggingIn(true);
+    try {
+      const response = await fetch('http://localhost:4000/login', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ username, password }),
+      });
+      if (response.ok) {
+        // Login successful
+        setLoginError('');
+        setIsLoggedIn(true);
+      } else {
+        // Login failed
+        const errorData = await response.json();
+        setLoginError(errorData.error);
       }
-    };
-    fetchUsername();
-  }, []);
+    } catch (error) {
+      console.error('Network error:', error);
+      setLoginError('Network error. Please try again later.');
+    }
+    setLoggingIn(false);
+  };
 
+  useEffect(() => {
+    // Automatically login when component mounts
+    handleLogin();
+  }, []); // Empty dependency array ensures it only runs once on mount
 
   return (
     <Router>    
     <Navigation></Navigation>
     <Routes>
-    <Route path="/" element={<Dashboard /> }/>
+    <Route path="/" element={<Dashboard username={username}/> }/>
     <Route
             path="/login"
             exact
@@ -83,14 +97,16 @@ function LogIn(props) {
     e.preventDefault();
     setLoggingIn(true);
     try {
-      const response = await fetch('http://localhost:4000/server/login', {
+      const response = await fetch('http://localhost:4000/login', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({ username, password }),
       });
+      console.log('Login before ok response', response)
       if (response.ok) {
+        console.log('Login after ok response', response)
         // Login successful
         setLoginError('');
         setIsLoggedIn(true);

@@ -2,14 +2,122 @@
 import axios from 'axios';
 import React, { useState, useEffect } from 'react';
 
-function Dashboard() {
+function Dashboard({ username: initialUsername}) {
   const [scanResults, setScanResults] = useState([]);
   const [user, setUser] = useState({});
+  const [username, setUsername] = useState(initialUsername);
 
+  useEffect(() => {
+    const fetchData = async () => {
+      try {
+        // Fetch user information
+        console.log('Username from prop:', username);
+        const userInfoResponse = await axios.post('http://localhost:4000/getUserInfo', {
+          username,
+        });
+        console.log('Username after prop:', username);
+  
+        if (userInfoResponse.status === 200) {
+          // console.log('User Info Data:', userInfoResponse.data);
+          const userInfo = userInfoResponse.data;        
+          console.log('User Info:', userInfo);
+          setUser(userInfo); // Set user state with full user info
+          console.log('User:', userInfo);
+          setUsername(userInfo.username); // Set username state with extracted username
+          console.log('userInformation username:', userInfo.username);
+          console.log('Set Username:', username);
+  
+          // Now you can use this username for further requests if needed
+          const userIDResponse = await axios.post('http://localhost:4000/getUserID', {
+            username,
+          });
+  
+          if (userIDResponse.status === 200) {
+            const userID = userIDResponse.data.userID;
+            console.log('User ID:', userID);
+  
+            // Fetch scan results
+            const scanResultsResponse = await axios.post('http://localhost:4000/getUserData', {
+              userID,
+            });
+  
+            if (scanResultsResponse.status === 200) {
+              setScanResults(scanResultsResponse.data);
+            } else {
+              console.error('Failed to fetch scan results');
+            }
+          } else {
+            console.error('Failed to fetch user ID');
+          }
+        } else {
+          console.error('Failed to fetch user information');
+        }
+      } catch (error) {
+        console.error('Network error:', error);
+      }
+    };
+  
+    fetchData();
+  }, [username]);
+
+/*
+// Fetch user information after successful login
+const userInfoResponse = await fetch('http://localhost:4000/getUserInfo', {
+  method: 'POST',
+  headers: {
+    'Content-Type': 'application/json',
+  },
+  body: JSON.stringify({ username }), // Pass the username
+});
+if (userInfoResponse.ok) {
+  const userInfoData = await userInfoResponse.json();
+  //console.log('User Info Data:', userInfoData);
+  setUserInfo(userInfoData);
+} else {
+  console.error('Failed to fetch user information');
+}
+
+// Fetch userID after successful login and then scan results after successful userID fetch
+const userIDResponse = await fetch('http://localhost:4000/getUserID', {
+  method: 'POST',
+  headers: {
+    'Content-Type': 'application/json',
+  },
+  body: JSON.stringify({ username }), // Pass the username
+});
+
+if (userIDResponse.ok) {
+  const userIDData = await userIDResponse.json();
+  const userID = userIDData.userID;
+
+  // Fetch scan results using the obtained userID
+  const scanResultsResponse = await fetch('http://localhost:4000/getUserData', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({ userID }), // Pass the userID obtained
+  });
+
+  if (scanResultsResponse.ok) {
+    const scanResultsData = await scanResultsResponse.json();
+    //console.log('Scan Results Data:', scanResultsData);
+    setScanResults(scanResultsData);
+    //console.log('Scan Results:', scanResults);
+  } else {
+    console.error('Failed to fetch scan results');
+  }
+} else {
+  console.error('Failed to fetch user ID');
+}
+*/
+
+/*
   useEffect(() => {
     const fetchScanResults = async () => {
       try {
-        const response = await axios.get('/server/scans');
+        const response = await axios.get('/server/getUserData');
+        console.log('Scan results:', response.data);
         setScanResults(response.data);
       } catch (error) {
         console.error('Error fetching scan results:', error);
@@ -20,7 +128,8 @@ function Dashboard() {
     const fetchUserDetails = async () => {
         try {
           // Adjust this URL to wherever your user details are fetched from
-          const response = await axios.get('/server/current-user');
+          const response = await axios.get('/server/getUserInfo');
+          console.log('User details:', response.data);
           setUser(response.data);
         } catch (error) {
           console.error('Error fetching user details:', error);
@@ -29,6 +138,7 @@ function Dashboard() {
       fetchUserDetails();
       fetchScanResults();
     }, []);
+*/
 
 return (
 <>
@@ -526,6 +636,8 @@ return (
                   </thead>
                     <tbody>
                         {scanResults.map((scan) => (
+                          // Replace the placeholder values with actual data
+                          // PUT IN THE INFORMAITON FROM THE DATABASE HERE
                         <tr key={scan.id}>
                             <td>{scan.scanID}</td>
                             <td>MM/DD/YYYY</td> {/* Replace with actual date if available */}
