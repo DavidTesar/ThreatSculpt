@@ -20,6 +20,7 @@ async function connectToMongo() {
     await client.connect();
     const db = client.db('ThreatSculpt');
     userCollection = db.collection('User');
+    userScanCollection = db.collection('ScanResults'); // Initialize userScanCollection
     console.log('Connected to MongoDB');
   } catch (error) {
     console.error('Failed to connect to MongoDB:', error);
@@ -76,6 +77,7 @@ app.post('/getUserData', async (req, res) => {
 
   //console.log('req.body userID:', req); // Log the received request body (userID
   console.log('Received userID:', userID); // Log the received userID
+  console.log('userScanCollection:', userScanCollection); // Log the userScanCollection (ScanResults collection
 
   try {
     const scanResults = await userScanCollection.find({ userID }).toArray();
