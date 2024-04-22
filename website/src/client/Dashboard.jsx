@@ -6,6 +6,7 @@ function Dashboard({ username: initialUsername}) {
   const [scanResults, setScanResults] = useState([]);
   const [user, setUser] = useState({});
   const [username, setUsername] = useState(initialUsername);
+  const [userID, setUserID] = useState('');
 
   useEffect(() => {
     const fetchData = async () => {
@@ -32,9 +33,11 @@ function Dashboard({ username: initialUsername}) {
             username,
           });
   
-          if (userIDResponse.status === 200) {
+          if (userIDResponse.status === 200) { 
             const userID = userIDResponse.data.userID;
             console.log('User ID:', userID);
+
+            setUserID(userID);
   
             // Fetch scan results
             const scanResultsResponse = await axios.post('http://localhost:4000/getUserData', {
@@ -635,13 +638,11 @@ return (
                     </tr>
                   </thead>
                     <tbody>
-                        {scanResults.map((scan) => (
-                          // Replace the placeholder values with actual data
-                          // PUT IN THE INFORMAITON FROM THE DATABASE HERE
-                        <tr key={scan.id}>
-                            <td>{scan.scanID}</td>
+                        {scanResults.map((result, index) => (
+                        <tr key={index}>
+                            <td>{result.scanID}</td>
                             <td>MM/DD/YYYY</td> {/* Replace with actual date if available */}
-                            <td style={{ width: "367.125px" }}>{scan.result[0].ports.length}</td>
+                            <td style={{ width: "367.125px" }}></td>
                         </tr>
                         ))}
                     </tbody>
