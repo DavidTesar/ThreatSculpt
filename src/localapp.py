@@ -24,6 +24,7 @@ import threading
 from uploadResults import uploadScanResults
 import uuid
 import time
+from get_data import get_data
 
 # Global variables to store login information
 entered_username = None
@@ -103,6 +104,9 @@ def perform_scan_and_display_result(target, scanType):
 
          # Trigger the login
         trigger_login(entered_username, entered_password)
+        
+         # Trigger getting data
+        get_data(entered_username)
        
     else:
         print("Scan stopped from cancel button.")

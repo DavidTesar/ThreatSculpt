@@ -77,7 +77,7 @@ app.post('/getUserData', async (req, res) => {
 
   //console.log('req.body userID:', req); // Log the received request body (userID
   console.log('Received userID:', userID); // Log the received userID
-  console.log('userScanCollection:', userScanCollection); // Log the userScanCollection (ScanResults collection
+  //console.log('userScanCollection:', userScanCollection); // Log the userScanCollection (ScanResults collection
 
   try {
     const scanResults = await userScanCollection.find({ userID }).toArray();
