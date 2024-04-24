@@ -3,8 +3,7 @@ import nmap
 # Create an Nmap scanner object
 nm = nmap.PortScanner()
 
-# Run the scan with the defined script, --script-args can limit CVEs that are displayed
-nm.scan('192.168.56.102 --script vulners --script-args mincvss=5 -oX vulnerableOutput.xml')
+nm.scan(hosts='192.168.89.1', arguments='-sV --script vulners --script-args mincvss=6')
 
 # Display the result
 for host in nm.all_hosts():
@@ -15,8 +14,17 @@ for host in nm.all_hosts():
         print(f'----------')
         print(f'Protocol : {proto}')
         lport = nm[host][proto].keys()
-        for port in lport:
-            print(f'port : {port}\tstate : {nm[host][proto][port]["state"]}')
+        sorted_ports = sorted(lport)  # It's often more readable to display ports in order
+        for port in sorted_ports:
+            print(f'Port : {port}\tState : {nm[host][proto][port]["state"]}')
+            # Check if there are any scripts in the output, and if the 'vulners' script has output
             if 'script' in nm[host][proto][port]:
-                for script_out in nm[host][proto][port]['script']:
-                    print(f'Script: {script_out}, Output: {nm[host][proto][port]["script"][script_out]}')
+                # It's a good idea to also check if 'vulners' specifically is in the script output
+                if 'vulners' in nm[host][proto][port]['script']:
+                    # Print the output of the 'vulners' script
+                    print(f"Vulnerabilities (CVEs with CVSS >= 6.0):")
+                    vulners_output = nm[host][proto][port]['script']['vulners']
+                    print(vulners_output)
+                else:
+                    for script_id, script_output in nm[host][proto][port]['script'].items():
+                        print(f'Script: {script_id}, Output: {script_output}')

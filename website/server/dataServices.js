@@ -5,7 +5,13 @@ import Express from 'express'
 import queryMongoDatabase from '../server/mongoControllers.js'
 import bcrypt from 'bcrypt'
 import dotenv from 'dotenv'
+import { connectToMongo } from './mongoControllers.js';
+import { userCollection, userScanCollection, getUserData, getUserDataByUserID } from '../server/mongoControllers.js';
+
 dotenv.config()
+
+/*
+
 const salt = 10
 //login function
 export async function login(req, res) { 
@@ -257,7 +263,7 @@ async function findUser (req, res) {
 
 const dataRouter = new Express.Router()
 dataRouter.post('/login', (req, res) => {
-    console.log('Request body:', req.body)
+    //console.log('Request body:', req.body)
     login(req, res)
 }) 
 dataRouter.post('/signup', signup)
@@ -273,3 +279,65 @@ dataRouter.post('/acc/password', changePass)
 dataRouter.post('/add/device', addDevice)
 
 export default dataRouter 
+
+*/
+//-------------------------------------------------------
+
+// Function to handle user login
+export async function login(username, password, userCollection) {
+  try {
+    const user = await userCollection.findOne({ username, password });
+    if (user) {
+      // If user is found, return an object with login status and user data
+      return user;
+    } else {
+        // If user is not found or incorrect credentials, return null
+        return null;
+    }
+  } catch (error) {
+    console.error('Error authenticating user:', error);
+    throw new Error('Internal server error');
+  }
+}
+
+// Function to get user information
+export async function getUserInfo(username) {
+  try {
+    const { db, userCollection } = await connectToMongo(); // Establish MongoDB connection
+    const user = await userCollection.findOne({ username });
+    //console.log('Fetched user information:', user);
+    return user;
+  } catch (error) {
+    console.error('Error fetching user information:', error);
+    throw new Error('Internal server error');
+  }
+}
+
+// Function to fetch scan results by user ID
+export async function getUserData(userID) {
+  try {
+    console.log('Received userID in getUserData:', userID);
+    const { db, userScanCollection } = await connectToMongo();
+    const scanResultsCursor = await userScanCollection.find({ userID });
+    const scanResults = await scanResultsCursor.toArray();
+    console.log('Fetched scan results dataServices:', scanResults);
+    return scanResults;
+  } catch (error) {
+    console.error('Error fetching scan results:', error);
+    throw new Error('Internal server error');
+  }
+}
+
+// Function to fetch user ID by username
+export async function getUserID(username) {
+  try {
+    const { db, userCollection } = await connectToMongo();
+    const user = await userCollection.findOne({ username });
+    console.log('Fetched user ID:', user.userID); 
+    return user.userID;
+  }
+  catch (error) {
+    console.error('Error fetching user ID:', error);
+    throw new Error('Internal server error');
+  }
+}

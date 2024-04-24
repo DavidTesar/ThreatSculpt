@@ -17,13 +17,17 @@ let storedScanIDs = [];
 // Initialize storedScanIDs as an empty array
 storedScanIDs = [];
 
+let userCollection;
+let userScanCollection; // Define userScanCollection for /getUserData endpoint
+
 const client = new MongoClient(uri, { useNewUrlParser: true, useUnifiedTopology: true });
 
 async function connectToMongo() {
   try {
     await client.connect();
     const db = client.db('ThreatSculpt');
-    usersCollection = db.collection('User');
+    userCollection = db.collection('User');
+    userScanCollection = db.collection('ScanResults'); // Initialize userScanCollection
     console.log('Connected to MongoDB');
   } catch (error) {
     console.error('Failed to connect to MongoDB:', error);
@@ -40,14 +44,21 @@ app.post('/login', async (req, res) => {
   const { username, password } = req.body;
 
   try {
-    const user = await usersCollection.findOne({ username, password });
+    const user = await userCollection.findOne({ username, password });
     if (user) {
       // Store the username in req.user
       req.user = { username };
-      // Log the successful username
+      
+      console.log('req.user:', req.user); // Log the stored username
+      console.log('Login username:', username); // Log the fetched user
+      // Send success response with username
+      res.status(200).json({ username });
+      console.log('Sent username:', username); // Log the sent username
       console.log(`[start-server] Successful login for username: '${username}'`);
       // Trigger the '/get-scan-ids' route handler immediately after successful login
       await getScanIDs(username);
+
+      
     } else {
       // User not found or incorrect credentials, send error response
       res.status(401).json({ error: 'Invalid username or password' });
@@ -58,13 +69,55 @@ app.post('/login', async (req, res) => {
   }
 });
 
-app.get('/get-username', (req, res) => {
-  // Check if username is stored in req.user
-  if (req.user && req.user.username) {
-    // Send back the username
-    res.status(200).json({ username: req.user.username });
-  } else {
-    res.status(401).json({ error: 'User not authenticated' });
+app.post('/getUserInfo', async (req, res) => {
+  const { username } = req.body;
+
+  console.log('Received username:', username); // Log the received username
+  
+  try {
+    const userInfo = await userCollection.findOne({ username });
+    if (userInfo) {
+      res.status(200).json(userInfo);
+    } else {
+      res.status(404).json({ error: 'User not found' });
+    }
+  } catch (error) {
+    console.error('Error fetching user information:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+app.post('/getUserData', async (req, res) => {
+  const { userID } = req.body;
+
+  //console.log('req.body userID:', req); // Log the received request body (userID
+  console.log('Received userID:', userID); // Log the received userID
+  console.log('userScanCollection:', userScanCollection); // Log the userScanCollection (ScanResults collection
+
+  try {
+    const scanResults = await userScanCollection.find({ userID }).toArray();
+    console.log('Fetched scan results:', scanResults); // Log the fetched scan results
+    res.status(200).json(scanResults);
+  } catch (error) {
+    console.error('Error fetching scan results:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+// Server side for getting user ID by username
+app.post('/getUserID', async (req, res) => {
+  const { username } = req.body;
+
+  try {
+    const user = await userCollection.findOne({ username });
+    console.log('Fetched user ID:', user.userID); // Log the fetched user ID
+    const userID = user.userID;
+    console.log('Checking before sending user ID:', userID); // Log the sent user ID
+    res.status(200).json({ userID });
+    console.log('Sent user ID:', userID); // Log the sent user ID
+  } catch (error) {
+    console.error('Error fetching user ID:', error);
+    res.status(500).json({ error: 'Internal server error' });
   }
 });
 

@@ -1,59 +1,10 @@
-// Dashboard.jsx
-import axios from 'axios';
-import React, { useState, useEffect } from 'react';
-import ScanModal from './ScanModal';
-
-function Dashboard({ username: initialUsername}) {
-  const [scanResults, setScanResults] = useState([]);
-  const [user, setUser] = useState({});
-  const [scanIDs, setScanIDs] = useState([]);
-  const [isModalOpen, setIsModalOpen] = useState(false);
-  const [currentScanType, setCurrentScanType] = useState('');
-
-  const handleButtonClick = async (scanType) => {
-    try {
-      // Open the modal and set the current scan type
-      setCurrentScanType(scanType);
-      setIsModalOpen(true);
-    } catch (error) {
-      console.error('Error triggering scan:', error);
-    }
-  };
-
-  const fetchScanResults = async () => {
-    try {
-      // Fetch scan results from the existing endpoint
-      const response = await axios.get('/server/nmap-scan');
-      setScanResults(response.data);
-
-      // Fetch scan IDs initially
-      fetchScanIDs();
-    } catch (error) {
-      console.error('Error fetching data:', error);
-    }
-  };
-
-  const fetchScanIDs = async () => {
-    try {
-      // Fetch scan IDs from the correct endpoint URL
-      const storedScanIDResponse = await axios.get('http://localhost:4000/fetch-scan-ids');
-      setScanIDs(storedScanIDResponse.data.scanIDs); // Assuming scanIDs is the state variable to store scan IDs
-    } catch (error) {
-      console.error('Error fetching scan IDs:', error);
-    }
-  };
-
-  useEffect(() => {
-    fetchScanResults();
-  }, []);
-  return (
 <>
   <meta charSet="utf-8" />
   <meta
     name="viewport"
     content="width=device-width, initial-scale=1.0, shrink-to-fit=no"
   />
-  <title>Dashboard - ThreatSculpt</title>
+  <title>Profile - ThreatSculpt</title>
   <link rel="stylesheet" href="assets/bootstrap/css/bootstrap.min.css" />
   <link
     rel="stylesheet"
@@ -62,8 +13,65 @@ function Dashboard({ username: initialUsername}) {
   <link rel="stylesheet" href="assets/fonts/fontawesome-all.min.css" />
   <link rel="stylesheet" href="assets/fonts/simple-line-icons.min.css" />
   <link rel="stylesheet" href="assets/css/bs-theme-overrides.css" />
-  <link rel="stylesheet" href="assets/css/animate.min.css" />
-
+  <div id="wrapper">
+    <nav
+      className="navbar align-items-start sidebar sidebar-dark accordion bg-gradient-primary p-0 navbar-dark"
+      style={{ background: "rgb(0,0,0)" }}
+    >
+      <div className="container-fluid d-flex flex-column p-0">
+        <a
+          className="navbar-brand d-flex justify-content-center align-items-center sidebar-brand m-0"
+          href="#"
+        >
+          <div className="sidebar-brand-icon rotate-n-15">
+            <i className="icon-globe" style={{ fontSize: 36 }} />
+          </div>
+          <div className="sidebar-brand-text mx-3">
+            <span>ThreatSculpt</span>
+          </div>
+        </a>
+        <hr className="sidebar-divider my-0" />
+        <ul className="navbar-nav text-light" id="accordionSidebar">
+          <li className="nav-item">
+            <a className="nav-link" href="index.html">
+              <i className="fas fa-tachometer-alt" />
+              <span>Dashboard</span>
+            </a>
+          </li>
+          <li className="nav-item">
+            <a className="nav-link active" href="profile.html">
+              <i className="fas fa-user" />
+              <span>Profile</span>
+            </a>
+          </li>
+          <li className="nav-item">
+            <a className="nav-link" href="table.html">
+              <i className="fas fa-table" />
+              <span>Table</span>
+            </a>
+          </li>
+          <li className="nav-item">
+            <a className="nav-link" href="login.html">
+              <i className="far fa-user-circle" />
+              <span>Login</span>
+            </a>
+          </li>
+          <li className="nav-item">
+            <a className="nav-link" href="register.html">
+              <i className="fas fa-user-circle" />
+              <span>Register</span>
+            </a>
+          </li>
+        </ul>
+        <div className="text-center d-none d-md-inline">
+          <button
+            className="btn rounded-circle border-0"
+            id="sidebarToggle"
+            type="button"
+          />
+        </div>
+      </div>
+    </nav>
     <div className="d-flex flex-column" id="content-wrapper">
       <div id="content">
         <nav className="navbar navbar-expand bg-white shadow mb-4 topbar static-top navbar-light">
@@ -303,7 +311,7 @@ function Dashboard({ username: initialUsername}) {
                     href="#"
                   >
                     <span className="d-none d-lg-inline me-2 text-gray-600 small">
-                    {user.username || 'Loading...'}
+                      User 1
                     </span>
                   </a>
                   <div className="dropdown-menu shadow dropdown-menu-end animated--grow-in">
@@ -331,221 +339,154 @@ function Dashboard({ username: initialUsername}) {
           </div>
         </nav>
         <div className="container-fluid">
-          <div className="d-sm-flex justify-content-between align-items-center mb-4">
-            <h3 className="text-dark mb-0">Start a new scan</h3>
-          </div>
-          <div className="row">
-            <div className="col-md-6 col-xl-3 mb-4">
-              <div
-                className="card shadow border-start-primary py-2"
-                data-bss-hover-animate="pulse"
-              >
-                <div className="card-body">
-                  <div className="row align-items-center no-gutters">
-                    <div className="col me-2">
-                      <div className="text-uppercase text-primary fw-bold text-xs mb-1">
-                        <span>
-                        <button className="btn btn-primary" onClick={() => handleButtonClick('simple')}>
-                         Simple Scan
-                        </button>
-                        </span>
-                      </div>
-                      <div className="text-dark fw-bold h5 mb-0">
-                        <span />
-                      </div>
-                    </div>
-                    <div className="col-auto">
-                      <i className="fas fa-broadcast-tower fa-2x text-gray-300" />
-                    </div>
-                  </div>
-                </div>
-              </div>
-            </div>
-            <div className="col-md-6 col-xl-3 mb-4">
-              <div
-                className="card shadow border-start-success py-2"
-                data-bss-hover-animate="pulse"
-              >
-                <div className="card-body">
-                  <div className="row align-items-center no-gutters">
-                    <div className="col me-2">
-                    <button className="btn btn-primary" onClick={() => handleButtonClick('classic')}>
-                     More Advanced
+          <h3 className="text-dark mb-4">Profile</h3>
+          <div className="row mb-3">
+            <div className="col-lg-4">
+              <div className="card mb-3">
+                <div className="card-body text-center shadow">
+                  <img
+                    className="rounded-circle mb-3 mt-4"
+                    src="assets/img/dogs/image2.jpeg"
+                    width={160}
+                    height={160}
+                  />
+                  <div className="mb-3">
+                    <button className="btn btn-primary btn-sm" type="button">
+                      Change Photo
                     </button>
-                      <div className="text-dark fw-bold h5 mb-0" />
-                    </div>
-                    <div className="col-auto">
-                      <svg
-                        xmlns="http://www.w3.org/2000/svg"
-                        width="1em"
-                        height="1em"
-                        fill="currentColor"
-                        viewBox="0 0 16 16"
-                        className="bi bi-radar fa-2x text-gray-300"
-                      >
-                        <path d="M6.634 1.135A7 7 0 0 1 15 8a.5.5 0 0 1-1 0 6 6 0 1 0-6.5 5.98v-1.005A5 5 0 1 1 13 8a.5.5 0 0 1-1 0 4 4 0 1 0-4.5 3.969v-1.011A2.999 2.999 0 1 1 11 8a.5.5 0 0 1-1 0 2 2 0 1 0-2.5 1.936v-1.07a1 1 0 1 1 1 0V15.5a.5.5 0 0 1-1 0v-.518a7 7 0 0 1-.866-13.847Z" />
-                      </svg>
-                    </div>
                   </div>
                 </div>
               </div>
+              <div className="card shadow mb-4" />
             </div>
-            <div className="col-md-6 col-xl-3 mb-4">
-              <div
-                className="card shadow border-start-info py-2"
-                data-bss-hover-animate="pulse"
-              >
-                <div className="card-body">
-                  <div className="row align-items-center no-gutters">
-                    <div className="col me-2">
-                    <button className="btn btn-primary" onClick={() => handleButtonClick('advanced')}>
-                      Complex Scan
-                   </button>
-                      <div className="row g-0 align-items-center">
+            <div className="col-lg-8">
+              <div className="row mb-3 d-none">
+                <div className="col">
+                  <div className="card text-white bg-primary shadow">
+                    <div className="card-body">
+                      <div className="row mb-2">
+                        <div className="col">
+                          <p className="m-0">Peformance</p>
+                          <p className="m-0">
+                            <strong>65.2%</strong>
+                          </p>
+                        </div>
                         <div className="col-auto">
-                          <div className="text-dark fw-bold h5 mb-0 me-3" />
+                          <i className="fas fa-rocket fa-2x" />
                         </div>
                       </div>
-                    </div>
-                    <div className="col-auto">
-                      <svg
-                        xmlns="http://www.w3.org/2000/svg"
-                        width="1em"
-                        height="1em"
-                        fill="currentColor"
-                        viewBox="0 0 16 16"
-                        className="bi bi-shield-exclamation fa-2x text-gray-300"
-                      >
-                        <path d="M5.338 1.59a61.44 61.44 0 0 0-2.837.856.481.481 0 0 0-.328.39c-.554 4.157.726 7.19 2.253 9.188a10.725 10.725 0 0 0 2.287 2.233c.346.244.652.42.893.533.12.057.218.095.293.118a.55.55 0 0 0 .101.025.615.615 0 0 0 .1-.025c.076-.023.174-.061.294-.118.24-.113.547-.29.893-.533a10.726 10.726 0 0 0 2.287-2.233c1.527-1.997 2.807-5.031 2.253-9.188a.48.48 0 0 0-.328-.39c-.651-.213-1.75-.56-2.837-.855C9.552 1.29 8.531 1.067 8 1.067c-.53 0-1.552.223-2.662.524zM5.072.56C6.157.265 7.31 0 8 0s1.843.265 2.928.56c1.11.3 2.229.655 2.887.87a1.54 1.54 0 0 1 1.044 1.262c.596 4.477-.787 7.795-2.465 9.99a11.775 11.775 0 0 1-2.517 2.453 7.159 7.159 0 0 1-1.048.625c-.28.132-.581.24-.829.24s-.548-.108-.829-.24a7.158 7.158 0 0 1-1.048-.625 11.777 11.777 0 0 1-2.517-2.453C1.928 10.487.545 7.169 1.141 2.692A1.54 1.54 0 0 1 2.185 1.43 62.456 62.456 0 0 1 5.072.56" />
-                        <path d="M7.001 11a1 1 0 1 1 2 0 1 1 0 0 1-2 0zM7.1 4.995a.905.905 0 1 1 1.8 0l-.35 3.507a.553.553 0 0 1-1.1 0z" />
-                      </svg>
-                    </div>
-                  </div>
-                </div>
-              </div>
-            </div>
-            <div className="col-md-6 col-xl-3 mb-4">
-              <div
-                className="card shadow border-start-warning py-2"
-                data-bss-hover-animate="pulse"
-              >
-                <div className="card-body">
-                  <div className="row align-items-center no-gutters">
-                    <div className="col me-2">
-                      <div className="text-uppercase text-warning fw-bold text-xs mb-1">
-                        <span>Scans&nbsp;</span>
-                      </div>
-                      <div className="text-dark fw-bold h5 mb-0">
-                        <span>#</span>
-                      </div>
-                    </div>
-                    <div className="col-auto">
-                      <svg
-                        xmlns="http://www.w3.org/2000/svg"
-                        width="1em"
-                        height="1em"
-                        viewBox="0 0 24 24"
-                        strokeWidth={2}
-                        stroke="currentColor"
-                        fill="none"
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                        className="icon icon-tabler icon-tabler-scan-eye fa-2x text-gray-300"
-                      >
-                        <path stroke="none" d="M0 0h24v24H0z" fill="none" />
-                        <path d="M4 8v-2a2 2 0 0 1 2 -2h2" />
-                        <path d="M4 16v2a2 2 0 0 0 2 2h2" />
-                        <path d="M16 4h2a2 2 0 0 1 2 2v2" />
-                        <path d="M16 20h2a2 2 0 0 0 2 -2v-2" />
-                        <path d="M7 12c3.333 -4.667 6.667 -4.667 10 0" />
-                        <path d="M7 12c3.333 4.667 6.667 4.667 10 0" />
-                        <path d="M12 12h-.01" />
-                      </svg>
-                    </div>
-                  </div>
-                </div>
-              </div>
-            </div>
-          </div>
-          <div className="row">
-            <div
-              className="col-lg-5 col-xl-4 offset-xxl-0"
-              style={{ textAlign: "center" }}
-            >
-              <div className="card shadow mb-4">
-                <div className="card-header d-flex justify-content-between align-items-center">
-                  <h6 className="text-primary fw-bold m-0">Vulnerabilities</h6>
-                  <div className="dropdown no-arrow">
-                    <button
-                      className="btn btn-link btn-sm dropdown-toggle"
-                      aria-expanded="false"
-                      data-bs-toggle="dropdown"
-                      type="button"
-                    >
-                      <i className="fas fa-ellipsis-v text-gray-400" />
-                    </button>
-                    <div className="dropdown-menu shadow dropdown-menu-end animated--fade-in">
-                      <p className="text-center dropdown-header">
-                        dropdown header:
+                      <p className="text-white-50 small m-0">
+                        <i className="fas fa-arrow-up" />
+                        &nbsp;5% since last month
                       </p>
-                      <a className="dropdown-item" href="#">
-                        &nbsp;Action
-                      </a>
-                      <a className="dropdown-item" href="#">
-                        &nbsp;Another action
-                      </a>
-                      <div className="dropdown-divider" />
-                      <a className="dropdown-item" href="#">
-                        &nbsp;Something else here
-                      </a>
                     </div>
                   </div>
                 </div>
-                <div className="card-body" style={{ textAlign: "center" }}>
-                  <div className="chart-area">
-                    <canvas data-bss-chart='{"type":"doughnut","data":{"labels":["Direct","Social","Referral"],"datasets":[{"label":"","backgroundColor":["#4e73df","#1cc88a","#36b9cc"],"borderColor":["#ffffff","#ffffff","#ffffff"],"data":["50","30","15"]}]},"options":{"maintainAspectRatio":false,"legend":{"display":false,"labels":{"fontStyle":"normal"}},"title":{"fontStyle":"normal"}}}' />
-                  </div>
-                  <div className="text-center small mt-4">
-                    <span className="me-2">
-                      <i
-                        className="fas fa-circle text-primary"
-                        style={{
-                          borderColor: "rgb(234,40,40)",
-                          color: "rgb(235,34,46)"
-                        }}
-                      />
-                      Critical
-                    </span>
-                    <span className="me-2">
-                      <i className="fas fa-circle text-success" />
-                      &nbsp;High
-                    </span>
-                    <span className="me-2">
-                      <i className="fas fa-circle text-info" />
-                      &nbsp;Medium
-                    </span>
+                <div className="col">
+                  <div className="card text-white bg-success shadow">
+                    <div className="card-body">
+                      <div className="row mb-2">
+                        <div className="col">
+                          <p className="m-0">Peformance</p>
+                          <p className="m-0">
+                            <strong>65.2%</strong>
+                          </p>
+                        </div>
+                        <div className="col-auto">
+                          <i className="fas fa-rocket fa-2x" />
+                        </div>
+                      </div>
+                      <p className="text-white-50 small m-0">
+                        <i className="fas fa-arrow-up" />
+                        &nbsp;5% since last month
+                      </p>
+                    </div>
                   </div>
                 </div>
               </div>
-            </div>
-            <div className="col">
-              <div className="table-responsive">
-                <button className="btn btn-primary mb-3" onClick={() => fetchScanIDs()}>
-                  Check your's Scan IDs
-                </button>
-                <table className="table">
-                  <thead>
-                    <tr>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {scanIDs.map((scanID) => (
-                      <tr key={scanID}>
-                        <td>{scanID}</td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
+              <div className="row">
+                <div className="col">
+                  <div className="card shadow mb-3">
+                    <div className="card-header py-3">
+                      <p className="text-primary m-0 fw-bold">User Settings</p>
+                    </div>
+                    <div className="card-body">
+                      <form>
+                        <div className="row">
+                          <div className="col">
+                            <div className="mb-3">
+                              <label className="form-label" htmlFor="username">
+                                <strong>Username</strong>
+                              </label>
+                              <input
+                                className="form-control"
+                                type="text"
+                                id="username"
+                                placeholder="user.name"
+                                name="username"
+                              />
+                            </div>
+                          </div>
+                          <div className="col">
+                            <div className="mb-3">
+                              <label className="form-label" htmlFor="email">
+                                <strong>Email Address</strong>
+                              </label>
+                              <input
+                                className="form-control"
+                                type="email"
+                                id="email"
+                                placeholder="user@example.com"
+                                name="email"
+                              />
+                            </div>
+                          </div>
+                        </div>
+                        <div className="row">
+                          <div className="col">
+                            <div className="mb-3">
+                              <label
+                                className="form-label"
+                                htmlFor="first_name"
+                              >
+                                <strong>First Name</strong>
+                              </label>
+                              <input
+                                className="form-control"
+                                type="text"
+                                id="first_name"
+                                placeholder="John"
+                                name="first_name"
+                              />
+                            </div>
+                          </div>
+                          <div className="col">
+                            <div className="mb-3">
+                              <label className="form-label" htmlFor="last_name">
+                                <strong>Last Name</strong>
+                              </label>
+                              <input
+                                className="form-control"
+                                type="text"
+                                id="last_name"
+                                placeholder="Doe"
+                                name="last_name"
+                              />
+                            </div>
+                          </div>
+                        </div>
+                        <div className="mb-3">
+                          <button
+                            className="btn btn-primary btn-sm"
+                            type="submit"
+                          >
+                            Save Settings
+                          </button>
+                        </div>
+                      </form>
+                    </div>
+                  </div>
+                </div>
               </div>
             </div>
           </div>
@@ -558,15 +499,9 @@ function Dashboard({ username: initialUsername}) {
           </div>
         </div>
       </footer>
-      <ScanModal
-        isOpen={isModalOpen}
-        onClose={() => setIsModalOpen(false)} // Close the modal
-        scanType={currentScanType} // Pass the current scan type
-      />
     </div>
+    <a className="border rounded d-inline scroll-to-top" href="#page-top">
+      <i className="fas fa-angle-up" />
+    </a>
+  </div>
 </>
-
-  );
-}
-
-export default Dashboard;
