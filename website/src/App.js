@@ -22,8 +22,7 @@ function App() {
   const [userInfo, setUserInfo] = useState(null);
   const [scanResults, setScanResults] = useState([]);
 
-  const handleLogin = async (e) => {
-    e.preventDefault();
+  const handleLogin = async () => {
     setLoggingIn(true);
     try {
       const response = await fetch('http://localhost:4000/login', {

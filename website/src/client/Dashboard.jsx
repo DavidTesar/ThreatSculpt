@@ -9,10 +9,10 @@ function Dashboard({ username: initialUsername}) {
   const [scanIDs, setScanIDs] = useState([]);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [currentScanType, setCurrentScanType] = useState('');
+  let scanIDInterval;
 
   const handleButtonClick = async (scanType) => {
     try {
-      // Open the modal and set the current scan type
       setCurrentScanType(scanType);
       setIsModalOpen(true);
     } catch (error) {
@@ -22,12 +22,9 @@ function Dashboard({ username: initialUsername}) {
 
   const fetchScanResults = async () => {
     try {
-      // Fetch scan results from the existing endpoint
       const response = await axios.get('/server/nmap-scan');
       setScanResults(response.data);
-
-      // Fetch scan IDs initially
-      fetchScanIDs();
+      fetchScanIDs(); // Fetch scan IDs initially
     } catch (error) {
       console.error('Error fetching data:', error);
     }
@@ -35,9 +32,8 @@ function Dashboard({ username: initialUsername}) {
 
   const fetchScanIDs = async () => {
     try {
-      // Fetch scan IDs from the correct endpoint URL
       const storedScanIDResponse = await axios.get('http://localhost:4000/fetch-scan-ids');
-      setScanIDs(storedScanIDResponse.data.scanIDs); // Assuming scanIDs is the state variable to store scan IDs
+      setScanIDs(storedScanIDResponse.data.scanIDs);
     } catch (error) {
       console.error('Error fetching scan IDs:', error);
     }
@@ -45,7 +41,14 @@ function Dashboard({ username: initialUsername}) {
 
   useEffect(() => {
     fetchScanResults();
+    // Start polling for new scan IDs every 10 seconds
+    scanIDInterval = setInterval(fetchScanIDs, 5000);
+    return () => {
+      // Clear the interval when the component unmounts
+      clearInterval(scanIDInterval);
+    };
   }, []);
+
   return (
 <>
   <meta charSet="utf-8" />
@@ -529,14 +532,10 @@ function Dashboard({ username: initialUsername}) {
               </div>
             </div>
             <div className="col">
-              <div className="table-responsive">
-                <button className="btn btn-primary mb-3" onClick={() => fetchScanIDs()}>
-                  Check your's Scan IDs
-                </button>
+            <div className="table-responsive">
                 <table className="table">
                   <thead>
-                    <tr>
-                    </tr>
+                    <tr></tr>
                   </thead>
                   <tbody>
                     {scanIDs.map((scanID) => (
