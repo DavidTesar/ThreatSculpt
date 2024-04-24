@@ -14,11 +14,11 @@ def create_id(input_string):
 
     return id
 
-def uploadScanResults(username, password, scanResults):
+def uploadScanResults(dbusername, dbpassword, username, scanResults):
     # username = quote_plus('user_test')
     # password = quote_plus('CZ66ttLSf5s0GVe4')
 
-    uri = "mongodb+srv://"+username+":"+password + "@cluster0.zc7grf3.mongodb.net/?retryWrites=true&w=majority"
+    uri = "mongodb+srv://"+dbusername+":"+dbpassword + "@cluster0.zc7grf3.mongodb.net/?retryWrites=true&w=majority"
     # Create a new client and connect to the server
     client = MongoClient(uri)
 
@@ -34,7 +34,6 @@ def uploadScanResults(username, password, scanResults):
         print("Host: ", host)
         myHosts.append(host)
         
-
         #print("State: ", scanResults[host].state())
         for proto in scanResults[host].all_protocols():
             #print("Protocol: ", proto)
@@ -66,7 +65,7 @@ def uploadScanResults(username, password, scanResults):
 
         result.append(myResult)
 
-    # example of adding an item into the database
+    # Adding an item into the database
     try:
         dbname = client.ThreatSculpt
         col_name = dbname.ScanResults
@@ -83,7 +82,29 @@ def uploadScanResults(username, password, scanResults):
         }
 
         col_name.insert_one(scan)
-        print("DB Upload Successful")
+        print("DB Results Upload Successful")
+
+        dbname = client.ThreatSculpt
+        col_name = dbname.User
+
+        scanID = create_id(str(scanResults))
+        networkID = create_id(str(myHosts))
+        userID = create_id(username)
+
+        # Update the user's document by pushing the new scanID and networkID to their respective arrays
+        col_name.update_one(
+            {"userID": userID},  # Make sure the key used here matches the field in the document
+            {
+                "$push": {
+                    "scanIDs": scanID,  # Assuming 'scanIDs' is the field name in the MongoDB document
+                    "networkIDs": networkID  # Assuming 'networkIDs' is the field name in the MongoDB document
+                }
+            }
+        )
+        
+        print("DB User IDs Update Successful")
     except Exception as e:
-        print("exception cought..")
+        print("exception cought in uploading results into the database..")
         print(e)
+
+        # TODO: Different scans stored under NetworkID with ScanID. If network ID not there, add a new one.
