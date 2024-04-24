@@ -1,36 +1,52 @@
 // Dashboard.jsx
 import axios from 'axios';
 import React, { useState, useEffect } from 'react';
+import ScanModal from './ScanModal';
 
 function Dashboard() {
   const [scanResults, setScanResults] = useState([]);
   const [user, setUser] = useState({});
+  const [scanIDs, setScanIDs] = useState([]);
+  const [isModalOpen, setIsModalOpen] = useState(false);
+  const [currentScanType, setCurrentScanType] = useState('');
+
+  const handleButtonClick = async (scanType) => {
+    try {
+      // Open the modal and set the current scan type
+      setCurrentScanType(scanType);
+      setIsModalOpen(true);
+    } catch (error) {
+      console.error('Error triggering scan:', error);
+    }
+  };
+
+  const fetchScanResults = async () => {
+    try {
+      // Fetch scan results from the existing endpoint
+      const response = await axios.get('/server/nmap-scan');
+      setScanResults(response.data);
+
+      // Fetch scan IDs initially
+      fetchScanIDs();
+    } catch (error) {
+      console.error('Error fetching data:', error);
+    }
+  };
+
+  const fetchScanIDs = async () => {
+    try {
+      // Fetch scan IDs from the correct endpoint URL
+      const storedScanIDResponse = await axios.get('http://localhost:4000/fetch-scan-ids');
+      setScanIDs(storedScanIDResponse.data.scanIDs); // Assuming scanIDs is the state variable to store scan IDs
+    } catch (error) {
+      console.error('Error fetching scan IDs:', error);
+    }
+  };
 
   useEffect(() => {
-    const fetchScanResults = async () => {
-      try {
-        const response = await axios.get('/server/scans');
-        setScanResults(response.data);
-      } catch (error) {
-        console.error('Error fetching scan results:', error);
-      }
-    };
-
-    // Fetch user details
-    const fetchUserDetails = async () => {
-        try {
-          // Adjust this URL to wherever your user details are fetched from
-          const response = await axios.get('/server/current-user');
-          setUser(response.data);
-        } catch (error) {
-          console.error('Error fetching user details:', error);
-        }
-      };
-      fetchUserDetails();
-      fetchScanResults();
-    }, []);
-
-return (
+    fetchScanResults();
+  }, []);
+  return (
 <>
   <meta charSet="utf-8" />
   <meta
@@ -316,7 +332,7 @@ return (
         </nav>
         <div className="container-fluid">
           <div className="d-sm-flex justify-content-between align-items-center mb-4">
-            <h3 className="text-dark mb-0">Start a scan</h3>
+            <h3 className="text-dark mb-0">Start a new scan</h3>
           </div>
           <div className="row">
             <div className="col-md-6 col-xl-3 mb-4">
@@ -329,11 +345,9 @@ return (
                     <div className="col me-2">
                       <div className="text-uppercase text-primary fw-bold text-xs mb-1">
                         <span>
-                          <span
-                            style={{ backgroundColor: "rgb(255, 255, 255)" }}
-                          >
-                            Simple Scan
-                          </span>
+                        <button className="btn btn-primary" onClick={() => handleButtonClick('simple')}>
+                         Simple Scan
+                        </button>
                         </span>
                       </div>
                       <div className="text-dark fw-bold h5 mb-0">
@@ -355,9 +369,9 @@ return (
                 <div className="card-body">
                   <div className="row align-items-center no-gutters">
                     <div className="col me-2">
-                      <div className="text-uppercase text-success fw-bold text-xs mb-1">
-                        <span>More Advanced</span>
-                      </div>
+                    <button className="btn btn-primary" onClick={() => handleButtonClick('classic')}>
+                     More Advanced
+                    </button>
                       <div className="text-dark fw-bold h5 mb-0" />
                     </div>
                     <div className="col-auto">
@@ -384,9 +398,9 @@ return (
                 <div className="card-body">
                   <div className="row align-items-center no-gutters">
                     <div className="col me-2">
-                      <div className="text-uppercase text-info fw-bold text-xs mb-1">
-                        <span>Complex Scan</span>
-                      </div>
+                    <button className="btn btn-primary" onClick={() => handleButtonClick('advanced')}>
+                      Complex Scan
+                   </button>
                       <div className="row g-0 align-items-center">
                         <div className="col-auto">
                           <div className="text-dark fw-bold h5 mb-0 me-3" />
@@ -515,26 +529,24 @@ return (
               </div>
             </div>
             <div className="col">
-              <div className="table-responsive">
-                <table className="table">
-                  <thead>
-                    <tr>
-                      <th>Scans ID</th>
-                      <th style={{ width: "429.188px" }}>Scan Date</th>
-                      <th>Number of devices</th>
-                    </tr>
-                  </thead>
-                    <tbody>
-                        {scanResults.map((scan) => (
-                        <tr key={scan.id}>
-                            <td>{scan.scanID}</td>
-                            <td>MM/DD/YYYY</td> {/* Replace with actual date if available */}
-                            <td style={{ width: "367.125px" }}>{scan.result[0].ports.length}</td>
-                        </tr>
-                        ))}
-                    </tbody>
-                </table>
-              </div>
+            <div className="table-responsive">
+        <button className="btn btn-primary mb-3" onClick={() => fetchScanIDs()}>
+          Check your's Scan IDs
+        </button>
+        <table className="table">
+          <thead>
+            <tr>
+            </tr>
+          </thead>
+          <tbody>
+            {scanIDs.map((scanID) => (
+              <tr key={scanID}>
+                <td>{scanID}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
             </div>
           </div>
         </div>
@@ -546,8 +558,14 @@ return (
           </div>
         </div>
       </footer>
+      <ScanModal
+        isOpen={isModalOpen}
+        onClose={() => setIsModalOpen(false)} // Close the modal
+        scanType={currentScanType} // Pass the current scan type
+      />
     </div>
 </>
+
   );
 }
 

@@ -6,6 +6,7 @@ import requests
 from io import BytesIO
 import threading
 import os
+import re 
 from flask import Flask, render_template
 import webbrowser
 import threading
@@ -192,6 +193,8 @@ def open_login_window():
         if authenticate(entered_username, entered_password):
             login_window.destroy()
             open_scan_window()
+        else:
+            messagebox.showerror("Error", "Wrong Username or Password")
 
 
     login_window = tk.Tk()
@@ -240,7 +243,6 @@ def open_login_window():
 
 # Function to create a new user
 def create_user(username, password):
-    
     # Save the user information in the MongoDB collection
     user_data = {
         "username": username,
@@ -251,7 +253,6 @@ def create_user(username, password):
     }
     users_collection.insert_one(user_data)
     messagebox.showinfo("Success", "User created successfully!")
-    
 
 # Function to open the user creation window
 def open_user_creation_window():
@@ -264,6 +265,21 @@ def open_user_creation_window():
             messagebox.showerror("Error", "Passwords do not match!")
             return
 
+        # Check if username meets the length requirement
+        if len(new_username) < 6:
+            messagebox.showerror("Error", "Username must be at least 6 characters long!")
+            return
+
+        # Check if password meets the length requirement
+        if len(new_password) < 8:
+            messagebox.showerror("Error", "Password must be at least 8 characters long!")
+            return
+
+        # Check if password contains at least one capital letter and one special character
+        if not re.search(r"[A-Z]", new_password) or not re.search(r"[!@#$%^&*]", new_password):
+            messagebox.showerror("Error", "Password must contain at least one capital letter and one special character!")
+            return
+
         # Check if username already exists
         existing_user = users_collection.find_one({"username": new_username})
         if existing_user:
@@ -274,7 +290,6 @@ def open_user_creation_window():
         create_user(new_username, new_password)
         # Close the user creation window upon successful creation
         user_creation_window.destroy()
-      
 
     #for the back button on account creation 
     def close_window():
