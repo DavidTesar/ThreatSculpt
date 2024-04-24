@@ -1,149 +1,52 @@
 // Dashboard.jsx
 import axios from 'axios';
 import React, { useState, useEffect } from 'react';
+import ScanModal from './ScanModal';
 
 function Dashboard({ username: initialUsername}) {
   const [scanResults, setScanResults] = useState([]);
   const [user, setUser] = useState({});
-  const [username, setUsername] = useState(initialUsername);
-  const [userID, setUserID] = useState('');
+  const [scanIDs, setScanIDs] = useState([]);
+  const [isModalOpen, setIsModalOpen] = useState(false);
+  const [currentScanType, setCurrentScanType] = useState('');
+
+  const handleButtonClick = async (scanType) => {
+    try {
+      // Open the modal and set the current scan type
+      setCurrentScanType(scanType);
+      setIsModalOpen(true);
+    } catch (error) {
+      console.error('Error triggering scan:', error);
+    }
+  };
+
+  const fetchScanResults = async () => {
+    try {
+      // Fetch scan results from the existing endpoint
+      const response = await axios.get('/server/nmap-scan');
+      setScanResults(response.data);
+
+      // Fetch scan IDs initially
+      fetchScanIDs();
+    } catch (error) {
+      console.error('Error fetching data:', error);
+    }
+  };
+
+  const fetchScanIDs = async () => {
+    try {
+      // Fetch scan IDs from the correct endpoint URL
+      const storedScanIDResponse = await axios.get('http://localhost:4000/fetch-scan-ids');
+      setScanIDs(storedScanIDResponse.data.scanIDs); // Assuming scanIDs is the state variable to store scan IDs
+    } catch (error) {
+      console.error('Error fetching scan IDs:', error);
+    }
+  };
 
   useEffect(() => {
-    const fetchData = async () => {
-      try {
-        // Fetch user information
-        console.log('Username from prop:', username);
-        const userInfoResponse = await axios.post('http://localhost:4000/getUserInfo', {
-          username,
-        });
-        console.log('Username after prop:', username);
-  
-        if (userInfoResponse.status === 200) {
-          // console.log('User Info Data:', userInfoResponse.data);
-          const userInfo = userInfoResponse.data;        
-          console.log('User Info:', userInfo);
-          setUser(userInfo); // Set user state with full user info
-          console.log('User:', userInfo);
-          setUsername(userInfo.username); // Set username state with extracted username
-          console.log('userInformation username:', userInfo.username);
-          console.log('Set Username:', username);
-  
-          // Now you can use this username for further requests if needed
-          const userIDResponse = await axios.post('http://localhost:4000/getUserID', {
-            username,
-          });
-  
-          if (userIDResponse.status === 200) { 
-            const userID = userIDResponse.data.userID;
-            console.log('User ID:', userID);
-
-            setUserID(userID);
-  
-            // Fetch scan results
-            const scanResultsResponse = await axios.post('http://localhost:4000/getUserData', {
-              userID,
-            });
-  
-            if (scanResultsResponse.status === 200) {
-              setScanResults(scanResultsResponse.data);
-            } else {
-              console.error('Failed to fetch scan results');
-            }
-          } else {
-            console.error('Failed to fetch user ID');
-          }
-        } else {
-          console.error('Failed to fetch user information');
-        }
-      } catch (error) {
-        console.error('Network error:', error);
-      }
-    };
-  
-    fetchData();
-  }, [username]);
-
-/*
-// Fetch user information after successful login
-const userInfoResponse = await fetch('http://localhost:4000/getUserInfo', {
-  method: 'POST',
-  headers: {
-    'Content-Type': 'application/json',
-  },
-  body: JSON.stringify({ username }), // Pass the username
-});
-if (userInfoResponse.ok) {
-  const userInfoData = await userInfoResponse.json();
-  //console.log('User Info Data:', userInfoData);
-  setUserInfo(userInfoData);
-} else {
-  console.error('Failed to fetch user information');
-}
-
-// Fetch userID after successful login and then scan results after successful userID fetch
-const userIDResponse = await fetch('http://localhost:4000/getUserID', {
-  method: 'POST',
-  headers: {
-    'Content-Type': 'application/json',
-  },
-  body: JSON.stringify({ username }), // Pass the username
-});
-
-if (userIDResponse.ok) {
-  const userIDData = await userIDResponse.json();
-  const userID = userIDData.userID;
-
-  // Fetch scan results using the obtained userID
-  const scanResultsResponse = await fetch('http://localhost:4000/getUserData', {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify({ userID }), // Pass the userID obtained
-  });
-
-  if (scanResultsResponse.ok) {
-    const scanResultsData = await scanResultsResponse.json();
-    //console.log('Scan Results Data:', scanResultsData);
-    setScanResults(scanResultsData);
-    //console.log('Scan Results:', scanResults);
-  } else {
-    console.error('Failed to fetch scan results');
-  }
-} else {
-  console.error('Failed to fetch user ID');
-}
-*/
-
-/*
-  useEffect(() => {
-    const fetchScanResults = async () => {
-      try {
-        const response = await axios.get('/server/getUserData');
-        console.log('Scan results:', response.data);
-        setScanResults(response.data);
-      } catch (error) {
-        console.error('Error fetching scan results:', error);
-      }
-    };
-
-    // Fetch user details
-    const fetchUserDetails = async () => {
-        try {
-          // Adjust this URL to wherever your user details are fetched from
-          const response = await axios.get('/server/getUserInfo');
-          console.log('User details:', response.data);
-          setUser(response.data);
-        } catch (error) {
-          console.error('Error fetching user details:', error);
-        }
-      };
-      fetchUserDetails();
-      fetchScanResults();
-    }, []);
-*/
-
-return (
+    fetchScanResults();
+  }, []);
+  return (
 <>
   <meta charSet="utf-8" />
   <meta
@@ -429,7 +332,7 @@ return (
         </nav>
         <div className="container-fluid">
           <div className="d-sm-flex justify-content-between align-items-center mb-4">
-            <h3 className="text-dark mb-0">Start a scan</h3>
+            <h3 className="text-dark mb-0">Start a new scan</h3>
           </div>
           <div className="row">
             <div className="col-md-6 col-xl-3 mb-4">
@@ -442,11 +345,9 @@ return (
                     <div className="col me-2">
                       <div className="text-uppercase text-primary fw-bold text-xs mb-1">
                         <span>
-                          <span
-                            style={{ backgroundColor: "rgb(255, 255, 255)" }}
-                          >
-                            Simple Scan
-                          </span>
+                        <button className="btn btn-primary" onClick={() => handleButtonClick('simple')}>
+                         Simple Scan
+                        </button>
                         </span>
                       </div>
                       <div className="text-dark fw-bold h5 mb-0">
@@ -468,9 +369,9 @@ return (
                 <div className="card-body">
                   <div className="row align-items-center no-gutters">
                     <div className="col me-2">
-                      <div className="text-uppercase text-success fw-bold text-xs mb-1">
-                        <span>More Advanced</span>
-                      </div>
+                    <button className="btn btn-primary" onClick={() => handleButtonClick('classic')}>
+                     More Advanced
+                    </button>
                       <div className="text-dark fw-bold h5 mb-0" />
                     </div>
                     <div className="col-auto">
@@ -497,9 +398,9 @@ return (
                 <div className="card-body">
                   <div className="row align-items-center no-gutters">
                     <div className="col me-2">
-                      <div className="text-uppercase text-info fw-bold text-xs mb-1">
-                        <span>Complex Scan</span>
-                      </div>
+                    <button className="btn btn-primary" onClick={() => handleButtonClick('advanced')}>
+                      Complex Scan
+                   </button>
                       <div className="row g-0 align-items-center">
                         <div className="col-auto">
                           <div className="text-dark fw-bold h5 mb-0 me-3" />
@@ -629,23 +530,21 @@ return (
             </div>
             <div className="col">
               <div className="table-responsive">
+                <button className="btn btn-primary mb-3" onClick={() => fetchScanIDs()}>
+                  Check your's Scan IDs
+                </button>
                 <table className="table">
                   <thead>
                     <tr>
-                      <th>Scans ID</th>
-                      <th style={{ width: "429.188px" }}>Scan Date</th>
-                      <th>Number of devices</th>
                     </tr>
                   </thead>
-                    <tbody>
-                        {scanResults.map((result, index) => (
-                        <tr key={index}>
-                            <td>{result.scanID}</td>
-                            <td>MM/DD/YYYY</td> {/* Replace with actual date if available */}
-                            <td style={{ width: "367.125px" }}></td>
-                        </tr>
-                        ))}
-                    </tbody>
+                  <tbody>
+                    {scanIDs.map((scanID) => (
+                      <tr key={scanID}>
+                        <td>{scanID}</td>
+                      </tr>
+                    ))}
+                  </tbody>
                 </table>
               </div>
             </div>
@@ -659,8 +558,14 @@ return (
           </div>
         </div>
       </footer>
+      <ScanModal
+        isOpen={isModalOpen}
+        onClose={() => setIsModalOpen(false)} // Close the modal
+        scanType={currentScanType} // Pass the current scan type
+      />
     </div>
 </>
+
   );
 }
 
