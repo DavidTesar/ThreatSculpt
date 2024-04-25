@@ -106,7 +106,7 @@ def perform_scan_and_display_result(target, scanType):
         trigger_login(entered_username, entered_password)
         
          # Trigger getting data
-        get_data(entered_username)
+        # get_data(entered_username)
        
     else:
         print("Scan stopped from cancel button.")

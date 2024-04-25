@@ -22,38 +22,6 @@ function App() {
   const [userInfo, setUserInfo] = useState(null);
   const [scanResults, setScanResults] = useState([]);
 
-  const handleLogin = async (e) => {
-    e.preventDefault();
-    setLoggingIn(true);
-    try {
-      const response = await fetch('http://localhost:4000/login', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ username, password }),
-      });
-      if (response.ok) {
-        // Login successful
-        setLoginError('');
-        setIsLoggedIn(true);
-      } else {
-        // Login failed
-        const errorData = await response.json();
-        setLoginError(errorData.error);
-      }
-    } catch (error) {
-      console.error('Network error:', error);
-      setLoginError('Network error. Please try again later.');
-    }
-    setLoggingIn(false);
-  };
-
-  useEffect(() => {
-    // Automatically login when component mounts
-    handleLogin();
-  }, []); // Empty dependency array ensures it only runs once on mount
-
   return (
     <Router>    
     <Navigation></Navigation>
