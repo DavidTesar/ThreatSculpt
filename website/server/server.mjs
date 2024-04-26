@@ -20,6 +20,8 @@ storedScanIDs = [];
 let userCollection;
 let userScanCollection; // Define userScanCollection for /getUserData endpoint
 
+let storedUser;
+
 const client = new MongoClient(uri, { useNewUrlParser: true, useUnifiedTopology: true });
 
 async function connectToMongo() {
@@ -246,6 +248,60 @@ app.get('/fetch-scan-ids', (_req, res) => {
   res.status(200).json({ scanIDs: storedScanIDs });
 });
 //-----------------------------------------------------------------------------------------------------------------------
+
+async function getStoredUser(username) {
+  try {
+      // Execute the StoreUser.py script to get the stored user
+      const pythonProcess = spawn('python', ['StoreUser.py', username]);
+
+      // Capture the output of the Python script
+      pythonProcess.stdout.on('data', (data) => {
+        storedUser = data.toString().trim(); // Store the user in the storedUser variable
+      });
+
+      // Handle any errors that occur during the execution
+      pythonProcess.on('error', (err) => {
+          console.error('Error executing Python script:', err);
+          // Handle the error here, or log it
+      });
+
+      // Wait for the Python script to finish executing
+      await new Promise((resolve, reject) => {
+          pythonProcess.on('close', (code) => {
+              if (code === 0) {
+                  // console.log('Getting stored user:', username);
+                  // console.log('Stored user:', storedUser);
+                  console.log("Stored user retrieved successfully", storedUser);
+                  /*
+                  // Store the user in the storedUser variable
+                  console.log('User in promise:', user);
+                  storedUser =  user;
+                  console.log('Stored user in promise:', storedUser);
+                  */
+                  resolve(); // Resolve when user is stored
+              } else {
+                  reject(new Error(`Python script exited with code ${code}`));
+              }
+          });
+      });
+  } catch (error) {
+      console.error('Error getting stored user:', error);
+      throw error; // Throw error to be caught in the catch block
+  }
+}
+
+// Call the function to retrieve stored user during server startup
+getStoredUser().catch(error => console.error('Error initializing stored user:', error));
+
+// Endpoint to retrieve stored user
+app.get('/fetch-stored-user', (req, res) => {
+  // Return stored user
+  console.log('Stored user:', storedUser);
+  res.status(200).json({ username: storedUser });
+  // console.log('Sent response:', res);
+});
+
+// -------------------------------------------------------------------------------------------------
 
 // Start the server and connect to MongoDB
 const server = app.listen(port, async () => {
