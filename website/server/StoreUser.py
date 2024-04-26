@@ -22,16 +22,12 @@ def getStoredUser(username):
 
         if user:
             # If user document is found, return the username value
-            return user.get('username')
+            print(username)
+            print(user.get('username'))
+            return user.get(username)
         else:
             # If user document is not found, return an empty value
             return None
     except Exception as e:
         print(f"Error: {e}")
-        return ""
-
-# Example usage
-if __name__ == "__main__":
-    # If the script is executed directly, call findHosts function
-    storedUser = getStoredUser(username)
-    print(storedUser)
+        return "This is the exception"

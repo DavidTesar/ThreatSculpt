@@ -48,6 +48,9 @@ app.post('/login', async (req, res) => {
   try {
     const user = await userCollection.findOne({ username, password });
     if (user) {
+      console.log('User that is getting stored in login:', username)
+      await getStoredUser(username) // Call the function to retrive stored user
+      console.log('After storing username:', username)
       // Store the username in req.user
       req.user = { username };
       
@@ -296,7 +299,7 @@ getStoredUser().catch(error => console.error('Error initializing stored user:', 
 // Endpoint to retrieve stored user
 app.get('/fetch-stored-user', (req, res) => {
   // Return stored user
-  console.log('Stored user:', storedUser);
+  console.log('Stored user in fetch:', storedUser);
   res.status(200).json({ username: storedUser });
   // console.log('Sent response:', res);
 });
