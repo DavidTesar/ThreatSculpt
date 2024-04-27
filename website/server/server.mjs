@@ -3,7 +3,7 @@ import bodyParser from 'body-parser';
 import { MongoClient } from 'mongodb';
 import cors from 'cors';
 import { spawn } from 'child_process';
-
+import dataRouter from './dataServices.js';
 const app = express();
 let port = process.env.PORT || 4000; 
 
@@ -36,7 +36,7 @@ async function connectToMongo() {
 
 app.use(bodyParser.json());
 app.use(cors());
-
+app.use('/server', dataRouter)
 //-----------------------------------------------------------------------------------------------------------
 
 

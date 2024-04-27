@@ -102,7 +102,7 @@ export default function SignUp(props) {
                 <br/>
                 <button  
                 class = "btn btn-primary d-block btn-user w-100"
-                onClick={ ()=>{ navigate('/')}}
+                onClick={ ()=>{ navigate('/login')}}
                 > Already have an account?
                 
                 </button>

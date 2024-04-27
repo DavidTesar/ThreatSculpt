@@ -6,15 +6,22 @@ import queryMongoDatabase from '../server/mongoControllers.js'
 import bcrypt from 'bcrypt'
 import dotenv from 'dotenv'
 import { connectToMongo } from './mongoControllers.js';
-import { userCollection, userScanCollection, getUserData, getUserDataByUserID } from '../server/mongoControllers.js';
+import { MongoClient, ServerApiVersion} from 'mongodb'
+
+const username = 'user_test';
+const password ='CZ66ttLSf5s0GVe4';
+
+// Construct the MongoDB connection URI
+const uri = "mongodb+srv://" + username + ":" + password + "@cluster0.zc7grf3.mongodb.net/?retryWrites=true&w=majority";
+
+// Create a new client and connect to the server
+const client = new MongoClient(uri);
 
 dotenv.config()
 
-/*
-
 const salt = 10
 //login function
-export async function login(req, res) { 
+export async function login2(req, res) { 
     const username = req.body.username
     const password = req.body.password
     queryMongoDatabase(async db => {
@@ -88,6 +95,45 @@ async function findUser (req, res) {
     }, 'ThreatSculpt')
   }
 
+  //For cleaning is_exploit field
+  /*
+  async function updateVul(req, res){
+    queryMongoDatabase(async db => {
+      const response = await db.collection('Vulnerabilities').updateMany({}, {$unset: {"is_exploit": ""}})
+      
+      if (response){
+        res.status(200).json({error: false, message: "success"})
+      } else {
+        res.status(404).json({error: true, message:"failed"})
+      }
+    }, 'ThreatSculpt')
+  }
+  */
+   //FOR SHOWING ALL SCAN OF ONE USER
+   async function findScanByUser (req, res) {
+    const user_id = req.params.userID 
+    queryMongoDatabase(async db => {
+      const results = await db.collection('ScanResults').find({ userID: user_id }).toArray()
+      if (results.length === 0) {
+        res.status(404).json({ error: true, message: 'Scan not found' });
+      } else {
+        res.json(results);
+      }
+    }, 'ThreatSculpt')
+  }
+
+  async function findScanByNetwork (req, res) {
+    const net_id = req.params.networkID 
+    queryMongoDatabase(async db => {
+      const results = await db.collection('ScanResults').find({ networkID: net_id }).toArray()
+      if (results.length === 0) {
+        res.status(404).json({ error: true, message: 'Scan not found' });
+      } else {
+        res.json(results);
+      }
+    }, 'ThreatSculpt')
+  }
+
 
   async function findScan (req, res) {
     const scanID = req.params.scanID // eventually change to session
@@ -107,29 +153,79 @@ async function findUser (req, res) {
     }, 'ThreatSculpt')
   }
 
+  //CHECK WITH POSTMAN
   async function deleteAcc(req, res){
     const username = req.body.username
     const password = req.body.password
 
     queryMongoDatabase(async db => {
       const confirmUser = await db.collection('User').findOne({username})
+      const userID = confirmUser.userID
       if (confirmUser < 1) { res.status(400).json({ error: true, message: 'Username or Password could not be found.' }) } else {
           const match = await bcrypt.compare(password, confirmUser.password)
           console.log(confirmUser.password)
           if (match.valueOf() === true) {
             //query to delete a user
             const deleteAcc = await db.collection('User').deleteOne({username})
-            if (deleteAcc){
+            const deleteScans = await db.collection('ScanResults').deleteMany({userID: userID})
+            const deleteNetworks = await db.collection('Networks').deleteMany({userID: userID})
+            const deleteDevices = await db.collection('Devices').deleteMany({user_id: userID})
+        
+            if (deleteAcc && deleteDevices && deleteNetworks && deleteScans){
               res.status(200).json({error: false, message: 'Successfully delete the account'})
             } else {
-              res.status(404).json({error: true, message: 'Could not delete Account'})
+              let message = 'Something went wrong in the database!'
+              if (!deleteAcc) {
+                message += ' Account Delete Failed!'
+              }
+              if (!deleteDevices) {
+                message += ' Device Delete Failed!'
+              }
+              if (!deleteScans) {
+                message += ' Scan Delete Failed!'
+              }
+              if (!deleteNetworks) {
+                message += ' Network Delete Failed!'
+              }
+              res.status(400).json({error: true, message})
             }
           } else {
-            res.status(401).json({ error: true, message: 'Username or Password could not be found. Deletion failed' })
+            res.status(404).json({ error: true, message: 'Username or Password could not be found. Deletion failed' })
           }
         }
       }, 'ThreatSculpt')
   }
+
+  //TODO Postman check
+  async function deleteNet(req, res){
+    const host = req.body.host
+    const name = req.body.name
+
+    queryMongoDatabase(async db => {
+      const confirmNet = await db.collection('Networks').findOne({host: host, name: name})
+      const networkID = confirmNet.networkID
+      if (confirmNet < 1) { res.status(400).json({ error: true, message: 'Network could not be found.' }) } else {
+            //query to delete a user
+            const deleteNet = await db.collection('Network').deleteOne({networkID})
+            const deleteScans = await db.collection('ScanResults').deleteMany({networkID: networkID})
+            
+            if (deleteNet && deleteScans){
+              res.status(200).json({error: false, message: 'Successfully delete the account'})
+            } else {
+              let message = 'Something went wrong in the database!'
+              if (!deleteNet) {
+                message += ' Network Delete Failed!'
+              }
+              if (!deleteScans) {
+                message += ' Scan Delete Failed!'
+              }
+              res.status(400).json({error: true, message})
+            }
+        }
+      }, 'ThreatSculpt')
+  }
+
+  //TODO delete devices
 
   async function deleteScan(req, res){
     const scanID = req.params.scanID
@@ -186,6 +282,24 @@ async function findUser (req, res) {
     return scanResults;
   }
   
+  //Get List of network based on userID
+  export async function getNetworkList(req, res) {
+    const userID = req.body.userID
+    //console.log(userID)
+    const db = client.db('ThreatSculpt');
+    const netsCollection = db.collection('Networks');
+    const netResults = await netsCollection.find({userID: userID}).toArray();
+    //console.log(netResults)
+    return res.json(netResults)
+  }
+  //Get lists of devices
+  export async function getDeviceList(req, res) {
+    const userID = req.body.userID
+    const db = client.db('ThreatSculpt');
+    const devCollection = db.collection('Devices');
+    const devResults = await devCollection.find({user_id: userID}).toArray();
+    return res.json(devResults)
+  }
 
   async function changeName(req, res) {
     const username = req.body.username
@@ -238,6 +352,8 @@ async function findUser (req, res) {
         }, 'ThreatSculpt')
   }
 
+  //----------------------ADDING-----------------------------------
+  //Add a new device
   async function addDevice(req, res) {
     const type = req.body.type
     const name = req.body.name
@@ -259,28 +375,65 @@ async function findUser (req, res) {
         }
     }, 'ThreatSculpt')
   }
-//-----------------------------------------------------
 
+  //Add a new network TODO
+  async function addNetwork(req, res) {
+    const networkID = req.body.networkID
+    const name = req.body.name
+    const host = req.body.host
+    const userID = req.body.userID
+    const scanIDs = []
+    queryMongoDatabase(async db => {
+      const findDev = await db.collection('Networks').findOne({ networkID })
+      if ((findDev) !== null) { // Return error if username already exists
+        res.status(404).json({ error: true, message: 'Network Already Exists.' })
+        return
+      }
+      const insertDoc = await db.collection('Devices').insertOne({ name, networkID, userID, host, scanIDs})
+      if (insertDoc.insertedCount !== null) { 
+            res.json({ error: false, message: `Network Added Successfully` })
+         } 
+        else { 
+            res.status(404).json({ error: true, message: 'Failed to insert network info!' }) 
+        }
+    }, 'ThreatSculpt')
+  }
+//-----------------------------------------------------
 const dataRouter = new Express.Router()
 dataRouter.post('/login', (req, res) => {
-    //console.log('Request body:', req.body)
-    login(req, res)
+    console.log('Request body:', req.body)
+    login2(req, res)
 }) 
 dataRouter.post('/signup', signup)
+
+//Searching
 dataRouter.get('/find/:username', findUser)
-//TODO: Check if works
+dataRouter.get('/find/scan/user/:userID', findScanByUser)
+dataRouter.get('/find/scan/network/:networkID', findScanByNetwork)
 dataRouter.get('/scan/:scanID', findScan)
-dataRouter.get(`/scan/delete/:scanID`, deleteScan)
+
+//filtering
 dataRouter.get('/filter/:filter', filter)
+
+//deleting
+dataRouter.get(`/scan/delete/:scanID`, deleteScan)
 dataRouter.post('/acc/delete', deleteAcc)
+dataRouter.post('/network/delete', deleteNet)
+
+//update UserInfo
 dataRouter.post('/acc/name', changeName)
 dataRouter.post('/acc/password', changePass)
 
+//Adding info
 dataRouter.post('/add/device', addDevice)
+dataRouter.post('/add/network', addNetwork)
 
+dataRouter.post('/networks', getNetworkList)
+dataRouter.post('/devices', getDeviceList)
+//Uncomment for cleaning database
+//dataRouter.get('/update/vul', updateVul)
 export default dataRouter 
 
-*/
 //-------------------------------------------------------
 
 // Function to handle user login
