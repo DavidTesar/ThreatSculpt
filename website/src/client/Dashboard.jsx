@@ -12,17 +12,29 @@ function Dashboard({ username: initialUsername}) {
   const [userID, setUserID] = useState('');
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [currentScanType, setCurrentScanType] = useState('');
+  const [target, setTarget] = useState('');
   const [isStoredUsernameFetched, setIsStoredUsernameFetched] = useState(false);
   let scanIDInterval;
 
-  const handleButtonClick = async (scanType) => {
-    try {
-      setCurrentScanType(scanType);
-      setIsModalOpen(true);
-    } catch (error) {
-      console.error('Error triggering scan:', error);
-    }
-  };
+  // Inside handleButtonClick function
+const handleButtonClick = async (scanType) => {
+  try {
+    // Prompt the user for the target input
+    const target = prompt('Choose a target to Scan:');
+    if (!target) return; 
+  
+    // Set the target value in the state
+    setTarget(target);
+
+    // Set the current scan type
+    setCurrentScanType(scanType);
+    
+    // Open the ScanModal
+    setIsModalOpen(true);
+  } catch (error) {
+    console.error('Error triggering scan:', error);
+  }
+};
 
   const fetchScanResults = async () => {
     try {
@@ -655,6 +667,7 @@ function Dashboard({ username: initialUsername}) {
         isOpen={isModalOpen}
         onClose={() => setIsModalOpen(false)} // Close the modal
         scanType={currentScanType} // Pass the current scan type
+        target={target}
       />
     </div>
 </>
