@@ -129,14 +129,18 @@ app.post('/getUserID', async (req, res) => {
 //-----------------------------------------------------------------------------------------------------
 
 app.post('/nmap', async (req, res) => {
-  const { scanType } = req.body;
+  const { scanType, target } = req.body;
   console.log("Received scanType:", scanType);
-  
+  console.log("Received target:", target);
+
+  // Assign target value to subnet
+  const subnet = target;
+
   // Map scanType to complexity
   let complexity;
   switch (scanType) {
     case 'simple':
-      complexity = 'simple';
+      complexity = 'classic';
       break;
     case 'classic':
       complexity = 'classic';
@@ -153,8 +157,8 @@ app.post('/nmap', async (req, res) => {
   console.log("Using complexity:", complexity);
 
   try {
-    // Perform Nmap scan with the corresponding complexity level
-    const result = await performNmapScan('localhost', complexity);
+    // Perform Nmap scan with the corresponding complexity level and target (subnet)
+    const result = await performNmapScan(subnet, complexity);
     
     // Send the result as response
     res.status(200).json(result);

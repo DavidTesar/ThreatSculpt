@@ -1,21 +1,22 @@
 import React, { useState, useEffect } from 'react';
 import requests from './requests'; // Import the requests library
 
-function ScanModal({ isOpen, onClose, scanType, onScanComplete }) {
+function ScanModal({ isOpen, onClose, scanType, target, onScanComplete }) {
   const [isLoading, setIsLoading] = useState(false);
   const [scanResult, setScanResult] = useState('');
 
   useEffect(() => {
     if (isOpen) {
       // Perform the scan when the modal is opened
-      performScan(scanType);
+      performScan(scanType, target);
     }
-  }, [isOpen, scanType]);
+  }, [isOpen, scanType, target]);
 
-  const performScan = async (scanType) => {
+
+  const performScan = async (scanType, target) => {
     setIsLoading(true);
     try {
-      const response = await requests.post('http://localhost:4000/nmap', { scanType });
+      const response = await requests.post('http://localhost:4000/nmap', { scanType, target });
       setScanResult(response); // Set scanResult to the response string
       onScanComplete(); // Notify parent component about scan completion
     } catch (error) {
