@@ -1,7 +1,12 @@
 import nmap
+import sys
 
 def findHosts(subnet, complexity):
-    print("Finding devices on the local network")
+     # Extracting subnet and complexity from command line arguments
+    subnet = sys.argv[1]
+    complexity = sys.argv[2]
+
+    print("Performing Nmap scan with subnet:", subnet, "and complexity:", complexity)
 
     # Create a new instance of NmapPortScanner
     nm = nmap.PortScanner()
@@ -35,4 +40,9 @@ def findVulns():
 
 if __name__ == "__main__":
     # If the script is executed directly, call findHosts function
-    findHosts("localhost", "classic")
+    if len(sys.argv) != 3:
+        print("Usage: python script_name.py subnet complexity")
+        sys.exit(1)
+    subnet = sys.argv[1]
+    complexity = sys.argv[2]
+    findHosts(subnet, complexity)
