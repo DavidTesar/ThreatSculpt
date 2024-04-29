@@ -1,8 +1,20 @@
 // Dashboard.jsx
 import axios from 'axios';
 import React, { useState, useEffect } from 'react';
+import ChartsEmbedSDK from '@mongodb-js/charts-embed-dom';
 import ScanModal from './ScanModal';
 
+// Charts render
+const sdk = new ChartsEmbedSDK({
+  baseUrl: "https://charts.mongodb.com/charts-project-0-twdpw",
+  showAttribution: false
+});
+const scanNumChart = sdk.createChart({
+  chartId: "662f1fe9-30a4-4836-84bd-b7fc9be48018"
+});
+const vulnChart = sdk.createChart({
+  chartId: "662f25d5-c731-4961-85a7-5201574d9c20"
+});
 
 function Dashboard({ username: initialUsername}) {
   const [scanResults, setScanResults] = useState([]);
@@ -56,6 +68,8 @@ const handleButtonClick = async (scanType) => {
   };
 
   useEffect(() => {
+    scanNumChart.render(document.getElementById("chart-data"));
+    vulnChart.render(document.getElementById("chart-area"));
     fetchScanResults();
     // Start polling for new scan IDs every 10 seconds
     scanIDInterval = setInterval(fetchScanIDs, 5000);
@@ -545,7 +559,7 @@ const handleButtonClick = async (scanType) => {
                         <span>Scans&nbsp;</span>
                       </div>
                       <div className="text-dark fw-bold h5 mb-0">
-                        <span>#</span>
+                        <div id="chart-data" style={{ height: 50 }}></div>
                       </div>
                     </div>
                     <div className="col-auto">
@@ -611,8 +625,7 @@ const handleButtonClick = async (scanType) => {
                   </div>
                 </div>
                 <div className="card-body" style={{ textAlign: "center" }}>
-                  <div className="chart-area">
-                    <canvas data-bss-chart='{"type":"doughnut","data":{"labels":["Direct","Social","Referral"],"datasets":[{"label":"","backgroundColor":["#4e73df","#1cc88a","#36b9cc"],"borderColor":["#ffffff","#ffffff","#ffffff"],"data":["50","30","15"]}]},"options":{"maintainAspectRatio":false,"legend":{"display":false,"labels":{"fontStyle":"normal"}},"title":{"fontStyle":"normal"}}}' />
+                  <div id="chart-area" style={{ height: 500 }}>
                   </div>
                   <div className="text-center small mt-4">
                     <span className="me-2">
