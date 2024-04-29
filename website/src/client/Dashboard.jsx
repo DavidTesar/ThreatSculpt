@@ -652,7 +652,7 @@ const handleButtonClick = async (scanType) => {
             </div>
             <div className="col">
               <div className="table-responsive">
-                <table className="table">
+              <table className="table">
                   <thead>
                     <tr>
                       <th>Scans ID</th>
@@ -661,12 +661,29 @@ const handleButtonClick = async (scanType) => {
                     </tr>
                   </thead>
                     <tbody>
-                        {scanResults.map((result, index) => (
-                        <tr key={index}>
-                            <td>{result.scanID}</td>
-                            <td>MM/DD/YYYY</td> {/* Replace with actual date if available */}
-                            <td style={{ width: "367.125px" }}></td>
-                        </tr>
+                    {scanResults.map((output, index) => (
+                      <tr key={index}>
+                        <td>{output.scanID}</td>
+                        <td>
+                          {Array.isArray(output.result) ? (
+                            output.result.map((host, idx) => (
+                              <div key={idx}>
+                                <p>Host: {host.host_num}</p>
+                                <ul>
+                                  {host.ports.map((port, i) => (
+                                    <li key={i}>
+                                      Port {port.port_num} ({port.port_state})
+                                    </li>
+                                  ))}
+                                </ul>
+                              </div>
+                            ))
+                          ) : (
+                            'N/A' // Render default content if result is not an array
+                          )}
+                        </td>
+                        <td style={{ width: "367.125px" }}></td>
+                      </tr>
                         ))}
                     </tbody>
                 </table>
