@@ -10,7 +10,7 @@ def findHosts(subnet, complexity):
     if(complexity == 'simple'):
         options = ""
     if(complexity == 'classic'):
-        options = "-sV"
+        options = "-O -sV -T5"
     if(complexity == 'complex'):
         options = "-sV --script vulners --script-args mincvss=8 -T5"
 
