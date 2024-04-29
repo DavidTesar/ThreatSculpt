@@ -30,12 +30,9 @@ def uploadScanResults(dbusername, dbpassword, username, scanResults):
         print("Host: ", host)
         myHosts.append(host)
         
-        #print("State: ", scanResults[host].state())
         for proto in scanResults[host].all_protocols():
-            #print("Protocol: ", proto)
             ports = scanResults[host][proto].keys()
             for port in ports:
-            #     print("Port: ", port, "State: ", scanResults[host][proto][port]['state'], "Version: ", scanResults[host][proto][port]['version'])
                 portNumber = port
 
                 portState = scanResults[host][proto][port]['state']
@@ -63,12 +60,32 @@ def uploadScanResults(dbusername, dbpassword, username, scanResults):
 
     # Adding an item into the database
     try:
-        dbname = client.ThreatSculpt
-        col_name = dbname.ScanResults
 
         scanID = create_id(str(scanResults))
         networkID = create_id(str(myHosts))
         userID = create_id(username)
+        
+        dbname = client.ThreatSculpt
+        col_name = dbname.Networks
+
+        networkdb = {
+            "networkID" : networkID,
+            "host" : scanResults.all_hosts(),
+            "scanIDs" : scanID,
+            "userID" : userID
+        }
+
+        if col_name.count_documents({"networkID": networkID}) == 0:
+            try:
+                col_name.insert_one(networkdb)
+                print("Networks DB updated with new networkID:", networkID)
+            except:
+                print("Network ID already exists in the database.")
+        else:
+            print("No update made: Network ID already exists in the database.")
+
+        dbname = client.ThreatSculpt
+        col_name = dbname.ScanResults
 
         scan = {
             "userID" : userID,
