@@ -132,14 +132,20 @@ const handleButtonClick = async (scanType) => {
     }
   };
 
+  /*
   useEffect(() => {
     if (!isStoredUsernameFetched) { // Check if stored username is not fetched
       fetchStoredUsername(); // Fetch stored username and set it to the state
     }
   }, [isStoredUsernameFetched]); // Run effect whenever isStoredUsernameFetched changes
-  
+  */
+
   useEffect(() => {
-    if (username) { // Check if username is set before fetching user data
+      fetchStoredUsername(); // Fetch stored username and set it to the state
+  }, []);
+
+  useEffect(() => {
+    if (username != undefined) { // Check if username is set before fetching user data
       fetchUserData(); // Fetch user information, user ID, and scan results
     }
   }, [username]); // Run effect whenever username changes

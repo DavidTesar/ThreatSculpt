@@ -48,9 +48,6 @@ app.post('/login', async (req, res) => {
   try {
     const user = await userCollection.findOne({ username, password });
     if (user) {
-      console.log('User that is getting stored in login:', username)
-      await getStoredUser(username) // Call the function to retrive stored user
-      console.log('After storing username:', username)
       // Store the username in req.user
       req.user = { username };
       
@@ -60,10 +57,16 @@ app.post('/login', async (req, res) => {
       res.status(200).json({ username });
       console.log('Sent username:', username); // Log the sent username
       console.log(`[start-server] Successful login for username: '${username}'`);
-      // Trigger the '/get-scan-ids' route handler immediately after successful login
-      await getScanIDs(username);
 
-      
+      console.log('User that is getting stored in login:', username)
+      if (username !== undefined) {
+        await getStoredUser(username); // Call the function to retrieve stored user if username is defined
+        console.log('After storing username:', username);
+        
+        // Trigger the '/get-scan-ids' route handler immediately after successful login
+        await getScanIDs(username);
+      }
+
     } else {
       // User not found or incorrect credentials, send error response
       res.status(401).json({ error: 'Invalid username or password' });
@@ -84,7 +87,7 @@ app.post('/getUserInfo', async (req, res) => {
     if (userInfo) {
       res.status(200).json(userInfo);
     } else {
-      res.status(404).json({ error: 'User not found' });
+      res.status(404).json({ error: 'User not found in server getUserInfo' });
     }
   } catch (error) {
     console.error('Error fetching user information:', error);
@@ -263,6 +266,7 @@ async function getStoredUser(username) {
 
       // Capture the output of the Python script
       pythonProcess.stdout.on('data', (data) => {
+        console.log('Data:', data);
         storedUser = data.toString().trim(); // Store the user in the storedUser variable
       });
 
@@ -278,7 +282,7 @@ async function getStoredUser(username) {
               if (code === 0) {
                   // console.log('Getting stored user:', username);
                   // console.log('Stored user:', storedUser);
-                  console.log("Stored user retrieved successfully", storedUser);
+                  console.log("Stored user retrieved successfully:", storedUser);
                   /*
                   // Store the user in the storedUser variable
                   console.log('User in promise:', user);
@@ -303,9 +307,11 @@ getStoredUser().catch(error => console.error('Error initializing stored user:', 
 // Endpoint to retrieve stored user
 app.get('/fetch-stored-user', (req, res) => {
   // Return stored user
-  console.log('Stored user in fetch:', storedUser);
-  res.status(200).json({ username: storedUser });
-  // console.log('Sent response:', res);
+  if (storedUser !== undefined) {
+    console.log('Stored user in fetch:', storedUser);
+    res.status(200).json({ username: storedUser });
+    // console.log('Sent response:', res);
+  }
 });
 
 // -------------------------------------------------------------------------------------------------
