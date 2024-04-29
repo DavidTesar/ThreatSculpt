@@ -6,7 +6,7 @@ def findHosts(subnet, complexity):
     subnet = sys.argv[1]
     complexity = sys.argv[2]
 
-    print("Performing Nmap scan with subnet:", subnet, "and complexity:", complexity)
+    print("For the Target:", subnet)
 
     # Create a new instance of NmapPortScanner
     nm = nmap.PortScanner()
