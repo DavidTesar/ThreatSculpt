@@ -15,8 +15,6 @@ export default function SignUp(props) {
   const handleSignUp = async (e) => {
     e.preventDefault();
     setLoggingIn(true);
-  
-    
     try {
       const response = await fetch('http://localhost:4000/server/signup', {
         method: 'POST',
@@ -29,6 +27,7 @@ export default function SignUp(props) {
         // Login successful
         setLoginError('');
         setIsLoggedIn(true);
+        navigate('/')
       } else {
         // Login failed
         const errorData = await response.json();
@@ -102,7 +101,7 @@ export default function SignUp(props) {
                 <br/>
                 <button  
                 class = "btn btn-primary d-block btn-user w-100"
-                onClick={ ()=>{ navigate('/')}}
+                onClick={ ()=>{ navigate('/login')}}
                 > Already have an account?
                 
                 </button>
