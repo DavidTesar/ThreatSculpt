@@ -10,7 +10,7 @@ def findHosts(subnet, complexity):
     if(complexity == 'simple'):
         options = "-sL"
     if(complexity == 'classic'):
-        options = "-O -sV"
+        options = "-O -sV -T5"
     if(complexity == 'advanced'):
         options = "-A"
 
