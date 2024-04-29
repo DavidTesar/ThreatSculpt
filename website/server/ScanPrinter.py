@@ -33,5 +33,5 @@ def get_scan_ids(username):
 # Example usage
 if __name__ == "__main__":
     # If the script is executed directly, call findHosts function
-    scan_ids = get_scan_ids("DylanAdmin")
+    scan_ids = get_scan_ids(username)
     print("ScanIDs:", scan_ids)

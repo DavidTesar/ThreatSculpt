@@ -1,5 +1,3 @@
-//NOTICE: to turn off bcrypt just change fetch for login into localhost:4000/login instead of /server/login
-//Make sure you change back to /server/login afterward for security reason - Thank you
 import React, { useState, useEffect } from 'react';
 import PropTypes from 'prop-types'
 import './App.css';
@@ -12,14 +10,12 @@ import Navigation from './client/Navigation.jsx';
 import {Routes, Route, Switch, BrowserRouter as Router, uselocation} from 'react-router-dom';
 import SignUp from './SignUp.js';
 import SearchPage from './client/Search.jsx';
-import DeviceForm from './client/Forms/AddDeviceForm.jsx';
+import DeviceForm from './client/Devices.jsx';
 import Dashboard from './client/Dashboard.jsx';
-import SettingsPage from './client/Setting.jsx';
 
 function App() {
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
-  const [userID, setUserID] = useState('')
   const [loggingIn, setLoggingIn] = useState(false);
   const [loginError, setLoginError] = useState('');
   const [isLoggedIn, setIsLoggedIn] = useState(false);
@@ -57,35 +53,9 @@ function App() {
     handleLogin();
   }, []); // Empty dependency array ensures it only runs once on mount
 
-  const fetchID = async () => {
-    try {
-      const response = await fetch('http://localhost:4000/getUserInfo', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ username}),
-      });
-      if (response.ok) {
-        const data = await response.json()
-        setUserID(data.userID)
-      } else {
-        console.log("failed to get ID")
-      }
-    } catch (error) {
-      console.error('Network error:', error);
-    }
-  }
-
-  //get ID for the setting page
-  useEffect(() => {
-    fetchID();
-  }, []);
-
-  console.log(userID)
   return (
     <Router>    
-    <Navigation isLoggedIn = {isLoggedIn} setIsLoggedIn={setIsLoggedIn}></Navigation>
+    <Navigation></Navigation>
     <Routes>
     <Route path="/" element={<Dashboard username={username}/> }/>
     <Route
@@ -106,14 +76,11 @@ function App() {
           />
           <Route
             path = "/search"
-            element = {<SearchPage userID={userID}></SearchPage>}
+            element = {<SearchPage></SearchPage>}
           />
            <Route
-            path = "/setting"
-            element = {<SettingsPage user_id={userID}></SettingsPage>}
-          />
-          <Route
-            path = "/logout"
+            path = "/devices"
+            element = {<DeviceForm username = {username}/>}
           />
     </Routes>
     </Router>
@@ -129,7 +96,7 @@ function LogIn(props) {
     e.preventDefault();
     setLoggingIn(true);
     try {
-      const response = await fetch('http://localhost:4000/server/login', {
+      const response = await fetch('http://localhost:4000/login', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -142,7 +109,6 @@ function LogIn(props) {
         // Login successful
         setLoginError('');
         setIsLoggedIn(true);
-        navigate('/')
       } else {
         // Login failed
         const errorData = await response.json();

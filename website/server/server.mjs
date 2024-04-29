@@ -3,7 +3,7 @@ import bodyParser from 'body-parser';
 import { MongoClient } from 'mongodb';
 import cors from 'cors';
 import { spawn } from 'child_process';
-import dataRouter from './dataServices.js';
+
 const app = express();
 let port = process.env.PORT || 4000; 
 
@@ -19,6 +19,8 @@ storedScanIDs = [];
 
 let userCollection;
 let userScanCollection; // Define userScanCollection for /getUserData endpoint
+
+let storedUser;
 
 const client = new MongoClient(uri, { useNewUrlParser: true, useUnifiedTopology: true });
 
@@ -36,7 +38,7 @@ async function connectToMongo() {
 
 app.use(bodyParser.json());
 app.use(cors());
-app.use('/server', dataRouter)
+
 //-----------------------------------------------------------------------------------------------------------
 
 
@@ -46,6 +48,9 @@ app.post('/login', async (req, res) => {
   try {
     const user = await userCollection.findOne({ username, password });
     if (user) {
+      console.log('User that is getting stored in login:', username)
+      await getStoredUser(username) // Call the function to retrive stored user
+      console.log('After storing username:', username)
       // Store the username in req.user
       req.user = { username };
       
@@ -124,14 +129,18 @@ app.post('/getUserID', async (req, res) => {
 //-----------------------------------------------------------------------------------------------------
 
 app.post('/nmap', async (req, res) => {
-  const { scanType } = req.body;
+  const { scanType, target } = req.body;
   console.log("Received scanType:", scanType);
-  
+  console.log("Received target:", target);
+
+  // Assign target value to subnet
+  const subnet = target;
+
   // Map scanType to complexity
   let complexity;
   switch (scanType) {
     case 'simple':
-      complexity = 'simple';
+      complexity = 'classic';
       break;
     case 'classic':
       complexity = 'classic';
@@ -148,8 +157,8 @@ app.post('/nmap', async (req, res) => {
   console.log("Using complexity:", complexity);
 
   try {
-    // Perform Nmap scan with the corresponding complexity level
-    const result = await performNmapScan('localhost', complexity);
+    // Perform Nmap scan with the corresponding complexity level and target (subnet)
+    const result = await performNmapScan(subnet, complexity);
     
     // Send the result as response
     res.status(200).json(result);
@@ -246,6 +255,60 @@ app.get('/fetch-scan-ids', (_req, res) => {
   res.status(200).json({ scanIDs: storedScanIDs });
 });
 //-----------------------------------------------------------------------------------------------------------------------
+
+async function getStoredUser(username) {
+  try {
+      // Execute the StoreUser.py script to get the stored user
+      const pythonProcess = spawn('python', ['StoreUser.py', username]);
+
+      // Capture the output of the Python script
+      pythonProcess.stdout.on('data', (data) => {
+        storedUser = data.toString().trim(); // Store the user in the storedUser variable
+      });
+
+      // Handle any errors that occur during the execution
+      pythonProcess.on('error', (err) => {
+          console.error('Error executing Python script:', err);
+          // Handle the error here, or log it
+      });
+
+      // Wait for the Python script to finish executing
+      await new Promise((resolve, reject) => {
+          pythonProcess.on('close', (code) => {
+              if (code === 0) {
+                  // console.log('Getting stored user:', username);
+                  // console.log('Stored user:', storedUser);
+                  console.log("Stored user retrieved successfully", storedUser);
+                  /*
+                  // Store the user in the storedUser variable
+                  console.log('User in promise:', user);
+                  storedUser =  user;
+                  console.log('Stored user in promise:', storedUser);
+                  */
+                  resolve(); // Resolve when user is stored
+              } else {
+                  reject(new Error(`Python script exited with code ${code}`));
+              }
+          });
+      });
+  } catch (error) {
+      console.error('Error getting stored user:', error);
+      throw error; // Throw error to be caught in the catch block
+  }
+}
+
+// Call the function to retrieve stored user during server startup
+getStoredUser().catch(error => console.error('Error initializing stored user:', error));
+
+// Endpoint to retrieve stored user
+app.get('/fetch-stored-user', (req, res) => {
+  // Return stored user
+  console.log('Stored user in fetch:', storedUser);
+  res.status(200).json({ username: storedUser });
+  // console.log('Sent response:', res);
+});
+
+// -------------------------------------------------------------------------------------------------
 
 // Start the server and connect to MongoDB
 const server = app.listen(port, async () => {
