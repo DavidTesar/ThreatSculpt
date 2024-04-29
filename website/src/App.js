@@ -1,3 +1,5 @@
+//NOTICE: to turn off bcrypt just change fetch for login into localhost:4000/login instead of /server/login
+//Make sure you change back to /server/login afterward for security reason - Thank you
 import React, { useState, useEffect } from 'react';
 import PropTypes from 'prop-types'
 import './App.css';
@@ -79,6 +81,8 @@ function App() {
   useEffect(() => {
     fetchID();
   }, []);
+
+  console.log(userID)
   return (
     <Router>    
     <Navigation isLoggedIn = {isLoggedIn} setIsLoggedIn={setIsLoggedIn}></Navigation>
@@ -125,7 +129,7 @@ function LogIn(props) {
     e.preventDefault();
     setLoggingIn(true);
     try {
-      const response = await fetch('http://localhost:4000/login', {
+      const response = await fetch('http://localhost:4000/server/login', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -138,6 +142,7 @@ function LogIn(props) {
         // Login successful
         setLoginError('');
         setIsLoggedIn(true);
+        navigate('/')
       } else {
         // Login failed
         const errorData = await response.json();

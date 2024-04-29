@@ -46,6 +46,8 @@ async function signup (req, res) { // working without authentication -----------
     const username = req.body.username
     const password = req.body.password
     const user_id = req.body.user_id
+    const scanIDs = []
+    const networkIDs = []
     let is_hashed = true
     const hashPass = await bcrypt.genSalt(salt).then(this_salt => {
       if (password !== null && this_salt !== null) {  
@@ -66,7 +68,7 @@ async function signup (req, res) { // working without authentication -----------
         return
       }
 
-      const insertDoc = await db.collection('User').insertOne({ username, password: hashPass, user_id})
+      const insertDoc = await db.collection('User').insertOne({ username, password: hashPass, userID: user_id, scanIDs, networkIDs})
       if (insertDoc.insertedCount !== null) { 
             res.json({ error: false, message: `User: ${username} Signed Up Successfully` })
          } 
@@ -203,8 +205,8 @@ async function findUser (req, res) {
 
     queryMongoDatabase(async db => {
       const confirmNet = await db.collection('Networks').findOne({host: host, name: name})
-      const networkID = confirmNet.networkID
       if (confirmNet < 1) { res.status(400).json({ error: true, message: 'Network could not be found.' }) } else {
+            const networkID = confirmNet.networkID
             //query to delete a user
             const deleteNet = await db.collection('Network').deleteOne({networkID})
             const deleteScans = await db.collection('ScanResults').deleteMany({networkID: networkID})
@@ -225,7 +227,33 @@ async function findUser (req, res) {
       }, 'ThreatSculpt')
   }
 
-  //TODO delete devices
+  async function deleteDev(req, res) {
+    const ip_add = req.body.ip_add
+
+    queryMongoDatabase(async db => {
+      const confirmDev = await db.collection('Devices').findOne({ip_add})
+      if (confirmDev < 1) { res.status(400).json({ error: true, message: 'Device could not be found.' }) } else {
+            //query to delete a user
+            const dev_id = confirmDev.dev_id
+      
+            const deleteDev = await db.collection('Devices').deleteOne({dev_id})
+            const deleteVuls = await db.collection('Vulnerabilities').deleteMany({device_ip: ip_add})
+            
+            if (deleteNet && deleteVuls){
+              res.status(200).json({error: false, message: 'Successfully delete the account'})
+            } else {
+              let message = 'Something went wrong in the database!'
+              if (!deleteDev) {
+                message += ' Device Delete Failed!'
+              }
+              if (!deleteVuls) {
+                message += ' Vulnerabilities Delete Failed!'
+              }
+              res.status(400).json({error: true, message})
+            }
+        }
+      }, 'ThreatSculpt')
+  }
 
   async function deleteScan(req, res){
     const scanID = req.params.scanID
@@ -353,20 +381,19 @@ async function findUser (req, res) {
   }
 
   //----------------------ADDING-----------------------------------
-  //Add a new device
+  //Add a new device - WORKING
   async function addDevice(req, res) {
-    const type = req.body.type
-    const name = req.body.name
-    const id = req.body.id
+    const ip_add = req.body.ip_add
+    const dev_id = req.body.dev_id
     const user_id = req.body.user_id
 
     queryMongoDatabase(async db => {
-      const findDev = await db.collection('Devices').findOne({ id })
+      const findDev = await db.collection('Devices').findOne({ dev_id })
       if ((findDev) !== null) { // Return error if username already exists
         res.status(404).json({ error: true, message: 'Device Already Exists.' })
         return
       }
-      const insertDoc = await db.collection('Devices').insertOne({ name, type, id, user_id})
+      const insertDoc = await db.collection('Devices').insertOne({ dev_id,  ip_add, user_id})
       if (insertDoc.insertedCount !== null) { 
             res.json({ error: false, message: `Devices Added Successfully` })
          } 
@@ -376,28 +403,36 @@ async function findUser (req, res) {
     }, 'ThreatSculpt')
   }
 
-  //Add a new network TODO
+  //WORKING - Compare with add device
   async function addNetwork(req, res) {
-    const networkID = req.body.networkID
-    const name = req.body.name
-    const host = req.body.host
-    const userID = req.body.userID
-    const scanIDs = []
+    const networkID = req.body.networkID;
+    const host = req.body.host;
+    const userID = req.body.userID;
+    const scanIDs = [];
+    
     queryMongoDatabase(async db => {
-      const findDev = await db.collection('Networks').findOne({ networkID })
-      if ((findDev) !== null) { // Return error if username already exists
-        res.status(404).json({ error: true, message: 'Network Already Exists.' })
-        return
+      const findDev = await db.collection('Networks').findOne({ networkID });
+      if (findDev !== null) { // Return error if networkID already exists
+        res.status(404).json({ error: true, message: 'Network Already Exists.' });
+        return;
       }
-      const insertDoc = await db.collection('Devices').insertOne({ name, networkID, userID, host, scanIDs})
-      if (insertDoc.insertedCount !== null) { 
-            res.json({ error: false, message: `Network Added Successfully` })
-         } 
-        else { 
-            res.status(404).json({ error: true, message: 'Failed to insert network info!' }) 
+      // Insert the network into the Networks collection
+      await db.collection('Networks').insertOne({ networkID, userID, host, scanIDs });
+        // Update the user document in the User collection
+        const updateUser = await db.collection('User').updateOne(
+          { userID: userID },
+          { $push: { networkIDs: networkID } }
+        );
+        
+        if (updateUser !== null) {
+          res.status(200).json({ error: false, message: 'Network Added Successfully' });
+        } else {
+          res.status(404).json({ error: true, message: 'Failed to update user with networkID' });
         }
-    }, 'ThreatSculpt')
+      }
+    , 'ThreatSculpt');
   }
+
 //-----------------------------------------------------
 const dataRouter = new Express.Router()
 dataRouter.post('/login', (req, res) => {

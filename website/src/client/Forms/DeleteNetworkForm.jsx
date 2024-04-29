@@ -3,18 +3,14 @@ import React from 'react'
 export default function DeleteNetworkForm () {
     
   // State for network deletion form
-  const [networksToDelete, setNetworksToDelete] = React.useState([]);
+  const [networksToDelete, setNetworksToDelete] = React.useState({networkID: ''});
 
 
   // Handler for adding networks to delete list
-  const handleAddNetworkToDelete = (networkId) => {
-    setNetworksToDelete((prevState) => [...prevState, networkId]);
+  const handleAddNetworkToDelete = (networkID) => {
+    setNetworksToDelete((prevState) => ({...prevState, networkID}));
   };
 
-  // Handler for removing networks from delete list
-  const handleRemoveNetworkToDelete = (networkId) => {
-    setNetworksToDelete((prevState) => prevState.filter(id => id !== networkId));
-  };
 
   // Handler for submitting network deletion form
   const handleSubmitNetworkDeletion = (e) => {
@@ -29,12 +25,12 @@ export default function DeleteNetworkForm () {
               <form onSubmit={handleSubmitNetworkDeletion}>
                
                 <div className="form-group">
-                  <label htmlFor="networkId">Host</label>
+                  <label htmlFor="networkId">Network ID: </label>
                   <input
                     type="text"
                     className="form-control"
-                    id="host"
-                    name="host"
+                    id="networkID"
+                    name="networkID"
                     onChange={(e) => handleAddNetworkToDelete(e.target.value)}
                   />
                 </div>
