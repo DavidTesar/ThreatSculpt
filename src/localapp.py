@@ -22,7 +22,7 @@ from scan import findHosts as get_scan_result
 from urllib.parse import quote_plus
 from bson.binary import Binary
 import threading
-from uploadResults import uploadScanResults
+from uploadResults import uploadScanResults, create_id
 import uuid
 import time
 
@@ -240,14 +240,13 @@ def open_login_window():
 
     login_window.mainloop()
 
-
 # Function to create a new user
 def create_user(username, password):
     # Save the user information in the MongoDB collection
     user_data = {
         "username": username,
         "password": password,
-        "userID": str(uuid.uuid4()),  
+        "userID": create_id(username),  
         "scanIDs": [],
         "networkIDs": []
     }

@@ -164,6 +164,7 @@ def uploadScanResults(dbusername, dbpassword, username, scanResults):
                                 "cvss": v['CVSS'],
                                 "port_id": port,
                                 "service": service,
+                                "networkID" : networkID,
                                 "device_ip": host
                             }
 
