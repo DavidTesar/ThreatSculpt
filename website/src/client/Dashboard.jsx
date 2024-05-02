@@ -4,18 +4,6 @@ import React, { useState, useEffect } from 'react';
 import ChartsEmbedSDK from '@mongodb-js/charts-embed-dom';
 import ScanModal from './ScanModal';
 
-// Charts render
-const sdk = new ChartsEmbedSDK({
-  baseUrl: "https://charts.mongodb.com/charts-project-0-twdpw",
-  showAttribution: false
-});
-const scanNumChart = sdk.createChart({
-  chartId: "662f1fe9-30a4-4836-84bd-b7fc9be48018"
-});
-const vulnChart = sdk.createChart({
-  chartId: "662f25d5-c731-4961-85a7-5201574d9c20"
-});
-
 function Dashboard({ username: initialUsername}) {
   const [scanResults, setScanResults] = useState([]);
   const [user, setUser] = useState({});
@@ -27,6 +15,20 @@ function Dashboard({ username: initialUsername}) {
   const [target, setTarget] = useState('');
   const [isStoredUsernameFetched, setIsStoredUsernameFetched] = useState(false);
   let scanIDInterval;
+
+
+  // Charts render
+  const sdk = new ChartsEmbedSDK({
+    baseUrl: "https://charts.mongodb.com/charts-project-0-twdpw",
+    showAttribution: false,
+  });
+  const scanNumChart = sdk.createChart({
+    chartId: "662f1fe9-30a4-4836-84bd-b7fc9be48018",
+    filter: { 'userID': userID }
+  });
+  const vulnChart = sdk.createChart({
+    chartId: "662f25d5-c731-4961-85a7-5201574d9c20"
+  });
 
   // Inside handleButtonClick function
 const handleButtonClick = async (scanType) => {
@@ -627,26 +629,6 @@ const handleButtonClick = async (scanType) => {
                 <div className="card-body" style={{ textAlign: "center" }}>
                   <div id="chart-area" style={{ height: 500 }}>
                   </div>
-                  <div className="text-center small mt-4">
-                    <span className="me-2">
-                      <i
-                        className="fas fa-circle text-primary"
-                        style={{
-                          borderColor: "rgb(234,40,40)",
-                          color: "rgb(235,34,46)"
-                        }}
-                      />
-                      Critical
-                    </span>
-                    <span className="me-2">
-                      <i className="fas fa-circle text-success" />
-                      &nbsp;High
-                    </span>
-                    <span className="me-2">
-                      <i className="fas fa-circle text-info" />
-                      &nbsp;Medium
-                    </span>
-                  </div>
                 </div>
               </div>
             </div>
@@ -655,9 +637,9 @@ const handleButtonClick = async (scanType) => {
               <table className="table">
                   <thead>
                     <tr>
-                      <th>Scans ID</th>
-                      <th style={{ width: "429.188px" }}>Scan Date</th>
-                      <th>Number of devices</th>
+                      <th>Scan IDs</th>
+                      <th style={{ width: "429.188px" }}>Details</th>
+                      <th></th>
                     </tr>
                   </thead>
                     <tbody>
