@@ -165,7 +165,8 @@ def uploadScanResults(dbusername, dbpassword, username, scanResults):
                                 "port_id": port,
                                 "service": service,
                                 "networkID" : networkID,
-                                "device_ip": host
+                                "device_ip": host,
+                                "userID": userID
                             }
 
                             vulnerabilitiesdb.insert_one(sample_data)

@@ -12,7 +12,7 @@ def findHosts(subnet, complexity):
     if(complexity == 'classic'):
         options = "-O -sV -T5"
     if(complexity == 'complex'):
-        options = "-sV --script vulners --script-args mincvss=8 -T5"
+        options = "-sV --script vulners --script-args mincvss=5 -T5"
 
     # Perform a ping scan on the specified subnet
     nm.scan(hosts=subnet, arguments=options)

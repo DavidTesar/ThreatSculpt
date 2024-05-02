@@ -27,10 +27,10 @@ function Dashboard({ username: initialUsername}) {
     filter: { 'userID': userID }
   });
   const vulnChart = sdk.createChart({
-    chartId: "662f25d5-c731-4961-85a7-5201574d9c20"
+    chartId: "662f25d5-c731-4961-85a7-5201574d9c20",
+    filter: { 'userID': userID }
   });
 
-  // Inside handleButtonClick function
 const handleButtonClick = async (scanType) => {
   try {
     // Prompt the user for the target input
@@ -43,7 +43,6 @@ const handleButtonClick = async (scanType) => {
     // Set the current scan type
     setCurrentScanType(scanType);
     
-    // Open the ScanModal
     setIsModalOpen(true);
   } catch (error) {
     console.error('Error triggering scan:', error);
