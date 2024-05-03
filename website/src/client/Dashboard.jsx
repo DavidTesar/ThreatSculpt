@@ -4,7 +4,7 @@ import React, { useState, useEffect } from 'react';
 import ChartsEmbedSDK from '@mongodb-js/charts-embed-dom';
 import ScanModal from './ScanModal';
 
-// Charts render
+// Charts
 const sdk = new ChartsEmbedSDK({
   baseUrl: "https://charts.mongodb.com/charts-project-0-twdpw",
   showAttribution: false
@@ -27,20 +27,6 @@ function Dashboard({ username: initialUsername}) {
   const [target, setTarget] = useState('');
   const [isStoredUsernameFetched, setIsStoredUsernameFetched] = useState(false);
   let scanIDInterval;
-
-  // Charts render
-  const sdk = new ChartsEmbedSDK({
-    baseUrl: "https://charts.mongodb.com/charts-project-0-twdpw",
-    showAttribution: false,
-  });
-  const scanNumChart = sdk.createChart({
-    chartId: "662f1fe9-30a4-4836-84bd-b7fc9be48018",
-    filter: { 'userID': userID }
-  });
-  const vulnChart = sdk.createChart({
-    chartId: "662f25d5-c731-4961-85a7-5201574d9c20",
-    filter: { 'userID': userID }
-  });
 
 const handleButtonClick = async (scanType) => {
   try {
@@ -79,9 +65,26 @@ const handleButtonClick = async (scanType) => {
     }
   };
 
+    useEffect(() => {
+      const sdk = new ChartsEmbedSDK({
+          baseUrl: "https://charts.mongodb.com/charts-project-0-twdpw",
+          showAttribution: false
+      });
+      const scanNumChart = sdk.createChart({
+          chartId: "662f1fe9-30a4-4836-84bd-b7fc9be48018",
+          filter: { 'userID': userID }
+      });
+      const vulnChart = sdk.createChart({
+          chartId: "662f25d5-c731-4961-85a7-5201574d9c20",
+          filter: { 'userID': userID }
+      });
+
+      scanNumChart.render(document.getElementById("chart-data"));
+      vulnChart.render(document.getElementById("chart-area"));
+  }, [userID]);
+
   useEffect(() => {
-    scanNumChart.render(document.getElementById("chart-data"));
-    vulnChart.render(document.getElementById("chart-area"));
+
     fetchScanResults();
     // Start polling for new scan IDs every 10 seconds
     scanIDInterval = setInterval(fetchScanIDs, 5000);
