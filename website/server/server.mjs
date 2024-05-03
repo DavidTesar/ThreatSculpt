@@ -20,6 +20,8 @@ storedScanIDs = [];
 let userCollection;
 let userScanCollection; // Define userScanCollection for /getUserData endpoint
 
+let storedUser;
+
 const client = new MongoClient(uri, { useNewUrlParser: true, useUnifiedTopology: true });
 
 async function connectToMongo() {
@@ -55,10 +57,16 @@ app.post('/login', async (req, res) => {
       res.status(200).json({ username });
       console.log('Sent username:', username); // Log the sent username
       console.log(`[start-server] Successful login for username: '${username}'`);
-      // Trigger the '/get-scan-ids' route handler immediately after successful login
-      await getScanIDs(username);
 
-      
+      console.log('User that is getting stored in login:', username)
+      if (username !== undefined) {
+        await getStoredUser(username); // Call the function to retrieve stored user if username is defined
+        console.log('After storing username:', username);
+        
+        // Trigger the '/get-scan-ids' route handler immediately after successful login
+        await getScanIDs(username);
+      }
+
     } else {
       // User not found or incorrect credentials, send error response
       res.status(401).json({ error: 'Invalid username or password' });
@@ -79,7 +87,7 @@ app.post('/getUserInfo', async (req, res) => {
     if (userInfo) {
       res.status(200).json(userInfo);
     } else {
-      res.status(404).json({ error: 'User not found' });
+      res.status(404).json({ error: 'User not found in server getUserInfo' });
     }
   } catch (error) {
     console.error('Error fetching user information:', error);
@@ -124,14 +132,18 @@ app.post('/getUserID', async (req, res) => {
 //-----------------------------------------------------------------------------------------------------
 
 app.post('/nmap', async (req, res) => {
-  const { scanType } = req.body;
+  const { scanType, target } = req.body;
   console.log("Received scanType:", scanType);
-  
+  console.log("Received target:", target);
+
+  // Assign target value to subnet
+  const subnet = target;
+
   // Map scanType to complexity
   let complexity;
   switch (scanType) {
     case 'simple':
-      complexity = 'simple';
+      complexity = 'classic';
       break;
     case 'classic':
       complexity = 'classic';
@@ -148,8 +160,8 @@ app.post('/nmap', async (req, res) => {
   console.log("Using complexity:", complexity);
 
   try {
-    // Perform Nmap scan with the corresponding complexity level
-    const result = await performNmapScan('localhost', complexity);
+    // Perform Nmap scan with the corresponding complexity level and target (subnet)
+    const result = await performNmapScan(subnet, complexity);
     
     // Send the result as response
     res.status(200).json(result);
@@ -246,6 +258,63 @@ app.get('/fetch-scan-ids', (_req, res) => {
   res.status(200).json({ scanIDs: storedScanIDs });
 });
 //-----------------------------------------------------------------------------------------------------------------------
+
+async function getStoredUser(username) {
+  try {
+      // Execute the StoreUser.py script to get the stored user
+      const pythonProcess = spawn('python', ['StoreUser.py', username]);
+
+      // Capture the output of the Python script
+      pythonProcess.stdout.on('data', (data) => {
+        console.log('Data:', data);
+        storedUser = data.toString().trim(); // Store the user in the storedUser variable
+      });
+
+      // Handle any errors that occur during the execution
+      pythonProcess.on('error', (err) => {
+          console.error('Error executing Python script:', err);
+          // Handle the error here, or log it
+      });
+
+      // Wait for the Python script to finish executing
+      await new Promise((resolve, reject) => {
+          pythonProcess.on('close', (code) => {
+              if (code === 0) {
+                  // console.log('Getting stored user:', username);
+                  // console.log('Stored user:', storedUser);
+                  console.log("Stored user retrieved successfully:", storedUser);
+                  /*
+                  // Store the user in the storedUser variable
+                  console.log('User in promise:', user);
+                  storedUser =  user;
+                  console.log('Stored user in promise:', storedUser);
+                  */
+                  resolve(); // Resolve when user is stored
+              } else {
+                  reject(new Error(`Python script exited with code ${code}`));
+              }
+          });
+      });
+  } catch (error) {
+      console.error('Error getting stored user:', error);
+      throw error; // Throw error to be caught in the catch block
+  }
+}
+
+// Call the function to retrieve stored user during server startup
+getStoredUser().catch(error => console.error('Error initializing stored user:', error));
+
+// Endpoint to retrieve stored user
+app.get('/fetch-stored-user', (req, res) => {
+  // Return stored user
+  if (storedUser !== undefined) {
+    console.log('Stored user in fetch:', storedUser);
+    res.status(200).json({ username: storedUser });
+    // console.log('Sent response:', res);
+  }
+});
+
+// -------------------------------------------------------------------------------------------------
 
 // Start the server and connect to MongoDB
 const server = app.listen(port, async () => {

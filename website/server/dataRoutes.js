@@ -33,7 +33,7 @@ router.post('/getUserInfo', async (req, res) => {
       res.status(200).json(userInfo);
     } else {
       // User not found, send error response
-      res.status(404).json({ error: 'User not found' });
+      res.status(404).json({ error: 'User not found in getUserInfo' });
     }
   } catch (error) {
     console.error('Error fetching user information:', error);
