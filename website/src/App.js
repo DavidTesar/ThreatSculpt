@@ -59,13 +59,7 @@ function App() {
 
   const fetchID = async () => {
     try {
-      const response = await fetch('http://localhost:4000/getUserInfo', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ username}),
-      });
+      const response = await fetch(`http://localhost:4000/server/find/${username}`);
       if (response.ok) {
         const data = await response.json()
         setUserID(data.userID)
@@ -82,7 +76,7 @@ function App() {
     fetchID();
   }, []);
 
-  console.log(userID)
+  console.log("User ID:" + userID)
   return (
     <Router>    
     <Navigation isLoggedIn = {isLoggedIn} setIsLoggedIn={setIsLoggedIn}></Navigation>
@@ -110,7 +104,7 @@ function App() {
           />
            <Route
             path = "/setting"
-            element = {<SettingsPage user_id={userID}></SettingsPage>}
+            element = {<SettingsPage user_id={userID} setIsLoggedIn={setIsLoggedIn}></SettingsPage>}
           />
           <Route
             path = "/logout"

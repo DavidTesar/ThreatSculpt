@@ -1,24 +1,52 @@
 // Dashboard.jsx
 import axios from 'axios';
 import React, { useState, useEffect } from 'react';
+import ChartsEmbedSDK from '@mongodb-js/charts-embed-dom';
 import ScanModal from './ScanModal';
+
+// Charts render
+const sdk = new ChartsEmbedSDK({
+  baseUrl: "https://charts.mongodb.com/charts-project-0-twdpw",
+  showAttribution: false
+});
+const scanNumChart = sdk.createChart({
+  chartId: "662f1fe9-30a4-4836-84bd-b7fc9be48018"
+});
+const vulnChart = sdk.createChart({
+  chartId: "662f25d5-c731-4961-85a7-5201574d9c20"
+});
 
 function Dashboard({ username: initialUsername}) {
   const [scanResults, setScanResults] = useState([]);
   const [user, setUser] = useState({});
+  const [username, setUsername] = useState(initialUsername);
   const [scanIDs, setScanIDs] = useState([]);
+  const [userID, setUserID] = useState('');
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [currentScanType, setCurrentScanType] = useState('');
+  const [target, setTarget] = useState('');
+  const [isStoredUsernameFetched, setIsStoredUsernameFetched] = useState(false);
   let scanIDInterval;
 
-  const handleButtonClick = async (scanType) => {
-    try {
-      setCurrentScanType(scanType);
-      setIsModalOpen(true);
-    } catch (error) {
-      console.error('Error triggering scan:', error);
-    }
-  };
+  // Inside handleButtonClick function
+const handleButtonClick = async (scanType) => {
+  try {
+    // Prompt the user for the target input
+    const target = prompt('Choose a target to Scan:');
+    if (!target) return; 
+  
+    // Set the target value in the state
+    setTarget(target);
+
+    // Set the current scan type
+    setCurrentScanType(scanType);
+    
+    // Open the ScanModal
+    setIsModalOpen(true);
+  } catch (error) {
+    console.error('Error triggering scan:', error);
+  }
+};
 
   const fetchScanResults = async () => {
     try {
@@ -40,6 +68,8 @@ function Dashboard({ username: initialUsername}) {
   };
 
   useEffect(() => {
+    scanNumChart.render(document.getElementById("chart-data"));
+    vulnChart.render(document.getElementById("chart-area"));
     fetchScanResults();
     // Start polling for new scan IDs every 10 seconds
     scanIDInterval = setInterval(fetchScanIDs, 5000);
@@ -49,6 +79,96 @@ function Dashboard({ username: initialUsername}) {
     };
   }, []);
 
+  // Function to fetch stored username and set it to the state
+  const fetchStoredUsername = async () => {
+    try {
+      // Fetch stored username first
+      const storedUsernameResponse = await axios.get('http://localhost:4000/fetch-stored-user');
+      const storedUsername = storedUsernameResponse.data.username;
+      console.log('Stored username:', storedUsername);
+
+      // Set the username state with the stored username
+      setUsername(storedUsername);
+      console.log('After Setting Username:', username);
+
+      setIsStoredUsernameFetched(true); // Set flag to true after fetching stored username
+    } catch (error) {
+      console.error('Error fetching stored username:', error);
+    }
+  };
+  
+  // Function to fetch user information, user ID, and scan results
+  const fetchUserData = async () => {
+    try {
+      // Fetch user information
+      console.log('Fetching user information for:', username);
+      const userInfoResponse = await axios.post('http://localhost:4000/getUserInfo', {
+        username,
+      });
+
+      if (userInfoResponse.status === 200) {
+        const userInfo = userInfoResponse.data;
+        console.log('User Info:', userInfo);
+        setUser(userInfo);
+
+        // Now you can set the username state with the username from userInfo
+        setUsername(userInfo.username);
+        console.log('Set Username:', userInfo.username);
+
+        // Fetch user ID
+        const userIDResponse = await axios.post('http://localhost:4000/getUserID', {
+          username: userInfo.username,
+        });
+
+        if (userIDResponse.status === 200) {
+          const userID = userIDResponse.data.userID;
+          console.log('User ID:', userID);
+          setUserID(userID);
+
+          // Fetch scan results
+          const scanResultsResponse = await axios.post('http://localhost:4000/getUserData', {
+            userID,
+          });
+
+          if (scanResultsResponse.status === 200) {
+            setScanResults(scanResultsResponse.data);
+          } else {
+            console.error('Failed to fetch scan results');
+          }
+        } else {
+          console.error('Failed to fetch user ID');
+        }
+      } else {
+        console.error('Failed to fetch user information');
+      }
+    } catch (error) {
+      console.error('Network error:', error);
+    }
+  };
+
+  /*
+  useEffect(() => {
+    if (!isStoredUsernameFetched) { // Check if stored username is not fetched
+      fetchStoredUsername(); // Fetch stored username and set it to the state
+    }
+  }, [isStoredUsernameFetched]); // Run effect whenever isStoredUsernameFetched changes
+  */
+
+  useEffect(() => {
+      fetchStoredUsername(); // Fetch stored username and set it to the state
+  }, []);
+
+  useEffect(() => {
+    if (username != undefined) { // Check if username is set before fetching user data
+      fetchUserData(); // Fetch user information, user ID, and scan results
+    }
+  }, [username]); // Run effect whenever username changes
+  
+  // Add this useEffect to log the username after setting it
+  useEffect(() => {
+    console.log('Username after setting:', username);
+  }, [username]);
+  
   return (
 <>
   <meta charSet="utf-8" />
@@ -439,7 +559,7 @@ function Dashboard({ username: initialUsername}) {
                         <span>Scans&nbsp;</span>
                       </div>
                       <div className="text-dark fw-bold h5 mb-0">
-                        <span>#</span>
+                        <div id="chart-data" style={{ height: 50 }}></div>
                       </div>
                     </div>
                     <div className="col-auto">
@@ -505,8 +625,7 @@ function Dashboard({ username: initialUsername}) {
                   </div>
                 </div>
                 <div className="card-body" style={{ textAlign: "center" }}>
-                  <div className="chart-area">
-                    <canvas data-bss-chart='{"type":"doughnut","data":{"labels":["Direct","Social","Referral"],"datasets":[{"label":"","backgroundColor":["#4e73df","#1cc88a","#36b9cc"],"borderColor":["#ffffff","#ffffff","#ffffff"],"data":["50","30","15"]}]},"options":{"maintainAspectRatio":false,"legend":{"display":false,"labels":{"fontStyle":"normal"}},"title":{"fontStyle":"normal"}}}' />
+                  <div id="chart-area" style={{ height: 500 }}>
                   </div>
                   <div className="text-center small mt-4">
                     <span className="me-2">
@@ -532,18 +651,24 @@ function Dashboard({ username: initialUsername}) {
               </div>
             </div>
             <div className="col">
-            <div className="table-responsive">
+              <div className="table-responsive">
                 <table className="table">
                   <thead>
-                    <tr></tr>
+                    <tr>
+                      <th>Scans ID</th>
+                      <th style={{ width: "429.188px" }}>Scan Date</th>
+                      <th>Number of devices</th>
+                    </tr>
                   </thead>
-                  <tbody>
-                    {scanIDs.map((scanID) => (
-                      <tr key={scanID}>
-                        <td>{scanID}</td>
-                      </tr>
-                    ))}
-                  </tbody>
+                    <tbody>
+                        {scanResults.map((result, index) => (
+                        <tr key={index}>
+                            <td>{result.scanID}</td>
+                            <td>MM/DD/YYYY</td> {/* Replace with actual date if available */}
+                            <td style={{ width: "367.125px" }}></td>
+                        </tr>
+                        ))}
+                    </tbody>
                 </table>
               </div>
             </div>
@@ -561,6 +686,7 @@ function Dashboard({ username: initialUsername}) {
         isOpen={isModalOpen}
         onClose={() => setIsModalOpen(false)} // Close the modal
         scanType={currentScanType} // Pass the current scan type
+        target={target}
       />
     </div>
 </>

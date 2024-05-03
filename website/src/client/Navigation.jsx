@@ -12,7 +12,7 @@ export default function Navigation (props) {
   let content =({})
   if (isLoggedIn) {
     content = (
-      <LinkContainer to="/" >
+      <LinkContainer to="/login" >
             <Nav.Link onClick={handleLogout}> Log Out </Nav.Link>
           </LinkContainer>
     )
