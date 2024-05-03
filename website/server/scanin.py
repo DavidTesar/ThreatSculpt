@@ -2,7 +2,11 @@ import nmap
 import sys
 
 def findHosts(subnet, complexity):
-    print("Finding devices on the local network")
+     # Extracting subnet and complexity from command line arguments
+    subnet = sys.argv[1]
+    complexity = sys.argv[2]
+
+    print("For the Target:", subnet)
 
     # Create a new instance of NmapPortScanner
     nm = nmap.PortScanner()

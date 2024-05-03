@@ -2,7 +2,7 @@ import React from "react";
 import PropTypes from 'prop-types'
 
 export default function DeleteDeviceForm(props) {
-    const {userID} = props 
+    const {userID, onDeviceDeleted} = props 
   // State for device deletion form
   const [devicesToDelete, setDevicesToDelete] = React.useState({
     ip_add: '',
@@ -15,10 +15,24 @@ export default function DeleteDeviceForm(props) {
       };
        
       // Handler for submitting device deletion form
-      const handleSubmitDeviceDeletion = (e) => {
+      const handleSubmitDeviceDeletion = async (e) => {
         e.preventDefault();
-        // Logic for submitting device deletion form data
-        console.log('Devices to delete:', devicesToDelete);
+        // Logic for submitting device deletion form datatry {
+      const response = await fetch('http://localhost:4000/server/device/delete', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          ip_add: devicesToDelete.ip_add
+        })
+      });
+      if (response.ok) {
+        alert('Device delete successfully!');
+        onDeviceDeleted()
+      } else {
+        alert('Failed to delete device');
+      }
       };
     
     return(
@@ -28,7 +42,7 @@ export default function DeleteDeviceForm(props) {
             
               <form onSubmit={handleSubmitDeviceDeletion}>
                 <div className="form-group">
-                  <label htmlFor="deviceId">Device ip</label>
+                  <label htmlFor="deviceId">Device ip:</label>
                   <input
                     type="text"
                     className="form-control"

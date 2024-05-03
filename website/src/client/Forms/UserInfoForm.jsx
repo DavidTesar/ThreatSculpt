@@ -1,6 +1,8 @@
 import { useState } from "react";
-
-export default function UserInfoForm() {
+import { useNavigate } from "react-router-dom";
+import PropTypes from 'prop-types'
+export default function UserInfoForm(props) {
+  const { setIsLoggedIn } = props
   // State for user info form
   const [userInfo, setUserInfo] = useState({
     name: '',
@@ -10,26 +12,109 @@ export default function UserInfoForm() {
     changeName: false,
     changePassword: false
   });
-
+  const navigate = useNavigate()
   // Handler for changing user info form
   const handleUserInfoChange = (e) => {
     const { name, value, type, checked } = e.target;
-    setUserInfo((prevState) => ({
-      ...prevState,
-      [name]: type === 'checkbox' ? checked : value,
-    }));
+    if (name === "changeName" && checked) {
+      setUserInfo(prevState => ({
+        ...prevState,
+        changeName: true,
+        changePassword: false
+      }));
+    } else if (name === "changePassword" && checked) {
+      setUserInfo(prevState => ({
+        ...prevState,
+        changeName: false,
+        changePassword: true
+      }));
+    } else {
+      setUserInfo(prevState => ({
+        ...prevState,
+        [name]: type === 'checkbox' ? checked : value
+      }));
+    }
   };
 
-  // Handler for submitting user info form
-  const handleSubmitUserInfo = (e) => {
+  const handleSubmitUserInfo =async (e) => {
     e.preventDefault();
-    // Logic for submitting user info form data
-    console.log('User info submitted:', userInfo);
+    if (userInfo.changeName) {
+      const response = await fetch('http://localhost:4000/server/acc/name', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          username: userInfo.name,
+          newUsername: userInfo.newName,
+          password: userInfo.password,
+        }),
+      })
+        if (response.ok){
+          alert('Name changed successfully!');
+          setUserInfo((prevState) => ({
+            ...prevState,
+            name: userInfo.newName
+          }));
+      } else {
+        // Show an error message if there is an issue adding the network
+        alert('Error: Failed to change name');
+      }
+    }
+    if (userInfo.changePassword) {
+      const response2 = await fetch('http://localhost:4000/server/acc/password', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          username: userInfo.name,
+          password: userInfo.password,
+          newPassword: userInfo.newPassword,
+        }),
+      })
+      if (response2.ok){
+        alert('Password changed successfully!');
+        setUserInfo((prevState) => ({
+          ...prevState,
+          password: userInfo.newPassword
+        }));
+      } else {
+        // Show an error message if there is an issue adding the network
+        alert('Error: Failed to change password');
+      }
+    }
   };
 
-  const handleDelete = (e) => {
+  const handleDelete = async (e) => {
     e.preventDefault();
-    console.log('Delete User: ' + userInfo.name + ' ' + userInfo.password);
+    const response2 = await fetch('http://localhost:4000/server/acc/delete', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          username: userInfo.name,
+          password: userInfo.password,
+        }),
+      })
+      if (response2.ok){
+        alert('Account is deleted');
+        setUserInfo((prevState) => ({
+          ...prevState,
+          name: '',
+          newName: '',
+          password: '',
+          newPassword: '',
+          changeName: false,
+          changePassword: false
+        }));
+        navigate('/signup')
+        setIsLoggedIn(false)
+      } else {
+        // Show an error message if there is an issue adding the network
+        alert('Error: Failed to delete account');
+      }
   }
 
   return (
@@ -143,3 +228,6 @@ export default function UserInfoForm() {
     </div>
   );
 }
+UserInfoForm.propTypes = {
+  setIsLoggedIn: PropTypes.func
+};

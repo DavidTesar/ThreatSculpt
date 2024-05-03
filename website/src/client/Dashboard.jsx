@@ -4,6 +4,18 @@ import React, { useState, useEffect } from 'react';
 import ChartsEmbedSDK from '@mongodb-js/charts-embed-dom';
 import ScanModal from './ScanModal';
 
+// Charts render
+const sdk = new ChartsEmbedSDK({
+  baseUrl: "https://charts.mongodb.com/charts-project-0-twdpw",
+  showAttribution: false
+});
+const scanNumChart = sdk.createChart({
+  chartId: "662f1fe9-30a4-4836-84bd-b7fc9be48018"
+});
+const vulnChart = sdk.createChart({
+  chartId: "662f25d5-c731-4961-85a7-5201574d9c20"
+});
+
 function Dashboard({ username: initialUsername}) {
   const [scanResults, setScanResults] = useState([]);
   const [user, setUser] = useState({});
@@ -15,7 +27,6 @@ function Dashboard({ username: initialUsername}) {
   const [target, setTarget] = useState('');
   const [isStoredUsernameFetched, setIsStoredUsernameFetched] = useState(false);
   let scanIDInterval;
-
 
   // Charts render
   const sdk = new ChartsEmbedSDK({
@@ -633,6 +644,7 @@ const handleButtonClick = async (scanType) => {
             </div>
             <div className="col">
               <div className="table-responsive">
+
               <table className="table">
                   <thead>
                     <tr>

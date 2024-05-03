@@ -3,7 +3,6 @@ import React from 'react';
 
 export default function AddNetworkForm(props) {
   const { userID, onNetworkAdded } = props;
-
   // Function to generate a random network ID
   const generateRandomNetworkID = () => {
     const characters = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';

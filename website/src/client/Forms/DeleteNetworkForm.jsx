@@ -1,22 +1,42 @@
 import React from 'react'
-
-export default function DeleteNetworkForm () {
-    
+import PropTypes from 'prop-types'
+export default function DeleteNetworkForm (props) {
+    const {onNetworkDeleted} = props
   // State for network deletion form
-  const [networksToDelete, setNetworksToDelete] = React.useState({networkID: ''});
+  const [networksToDelete, setNetworksToDelete] = React.useState('');
 
 
   // Handler for adding networks to delete list
   const handleAddNetworkToDelete = (networkID) => {
-    setNetworksToDelete((prevState) => ({...prevState, networkID}));
+    setNetworksToDelete(networkID);
   };
 
 
   // Handler for submitting network deletion form
-  const handleSubmitNetworkDeletion = (e) => {
+  const handleSubmitNetworkDeletion = async (e) => {
     e.preventDefault();
-    // Logic for submitting network deletion form data
-    console.log('Networks to delete:', networksToDelete);
+    try {
+      const response = await fetch('http://localhost:4000/server/network/delete', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({networkID: networksToDelete}),
+      });
+
+      if (response.ok) {
+        // Show a success message if the network is added successfully
+        alert('Network deleted successfully!');
+        onNetworkDeleted()
+      } else {
+        // Show an error message if there is an issue adding the network
+        alert('Error: Failed to delete network');
+      }
+    } catch (error) {
+      console.error('Error:', error.message);
+      // Show an error message if there is an exception
+      alert('Error: Failed to delete network');
+    }
   };
     return(
         <div className="card">

@@ -26,7 +26,58 @@ function App() {
   const [userInfo, setUserInfo] = useState(null);
   const [scanResults, setScanResults] = useState([]);
 
-  console.log(userID)
+  const handleLogin = async () => {
+    setLoggingIn(true);
+    try {
+      const response = await fetch('http://localhost:4000/login', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ username, password }),
+      });
+      if (response.ok) {
+        // Login successful
+        setLoginError('');
+        setIsLoggedIn(true);
+      } else {
+        // Login failed
+        const errorData = await response.json();
+        setLoginError(errorData.error);
+      }
+    } catch (error) {
+      console.error('Network error:', error);
+      setLoginError('Network error. Please try again later.');
+    }
+    setLoggingIn(false);
+  };
+
+  useEffect(() => {
+    // Automatically login when component mounts
+    handleLogin();
+  }, []); // Empty dependency array ensures it only runs once on mount
+
+  const fetchID = async () => {
+    try {
+      const response = await fetch(`http://localhost:4000/server/find/${username}`);
+      if (response.ok) {
+        const data = await response.json()
+        setUserID(data.userID)
+      } else {
+        console.log("failed to get ID")
+      }
+    } catch (error) {
+      console.error('Network error:', error);
+    }
+  }
+
+  //get ID for the setting page
+  useEffect(() => {
+    fetchID();
+  }, []);
+
+  console.log("User ID:" + userID)
+
   return (
     <Router>    
     <Navigation isLoggedIn = {isLoggedIn} setIsLoggedIn={setIsLoggedIn}></Navigation>
@@ -54,7 +105,7 @@ function App() {
           />
            <Route
             path = "/setting"
-            element = {<SettingsPage user_id={userID}></SettingsPage>}
+            element = {<SettingsPage user_id={userID} setIsLoggedIn={setIsLoggedIn}></SettingsPage>}
           />
           <Route
             path = "/logout"

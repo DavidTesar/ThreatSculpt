@@ -98,10 +98,10 @@ async function findUser (req, res) {
   }
 
   //For cleaning is_exploit field
-  /*
+  
   async function updateVul(req, res){
     queryMongoDatabase(async db => {
-      const response = await db.collection('Vulnerabilities').updateMany({}, {$unset: {"is_exploit": ""}})
+      const response = await db.collection('Vulnerabilities').deleteMany({})
       
       if (response){
         res.status(200).json({error: false, message: "success"})
@@ -110,7 +110,7 @@ async function findUser (req, res) {
       }
     }, 'ThreatSculpt')
   }
-  */
+  
    //FOR SHOWING ALL SCAN OF ONE USER
    async function findScanByUser (req, res) {
     const user_id = req.params.userID 
@@ -172,22 +172,26 @@ async function findUser (req, res) {
             const deleteScans = await db.collection('ScanResults').deleteMany({userID: userID})
             const deleteNetworks = await db.collection('Networks').deleteMany({userID: userID})
             const deleteDevices = await db.collection('Devices').deleteMany({user_id: userID})
-        
-            if (deleteAcc && deleteDevices && deleteNetworks && deleteScans){
+            const deleteVul = await db.collection('Vulnerabilities').deleteMany({ userID })
+            if (deleteAcc.deletedCount >= 0 && deleteDevices.deletedCount >= 0 
+              && deleteNetworks.deletedCount >= 0 && deleteScans.deletedCount >= 0){
               res.status(200).json({error: false, message: 'Successfully delete the account'})
             } else {
               let message = 'Something went wrong in the database!'
-              if (!deleteAcc) {
+              if (!deleteAcc.deletedCount >= 0) {
                 message += ' Account Delete Failed!'
               }
-              if (!deleteDevices) {
+              if (!deleteDevices.deletedCount >= 0) {
                 message += ' Device Delete Failed!'
               }
-              if (!deleteScans) {
+              if (!deleteScans.deletedCount >= 0) {
                 message += ' Scan Delete Failed!'
               }
-              if (!deleteNetworks) {
+              if (!deleteNetworks.deletedCount >= 0) {
                 message += ' Network Delete Failed!'
+              }
+              if (!deleteVul.deletedCount >= 0) {
+                message+= ' Vulnerability Delete Failed'
               }
               res.status(400).json({error: true, message})
             }
@@ -200,26 +204,27 @@ async function findUser (req, res) {
 
   //TODO Postman check
   async function deleteNet(req, res){
-    const host = req.body.host
-    const name = req.body.name
+    const networkID = req.body.networkID
 
     queryMongoDatabase(async db => {
-      const confirmNet = await db.collection('Networks').findOne({host: host, name: name})
+      const confirmNet = await db.collection('Networks').findOne({networkID})
       if (confirmNet < 1) { res.status(400).json({ error: true, message: 'Network could not be found.' }) } else {
-            const networkID = confirmNet.networkID
             //query to delete a user
-            const deleteNet = await db.collection('Network').deleteOne({networkID})
+            const deleteNetwork = await db.collection('Networks').deleteOne({networkID})
             const deleteScans = await db.collection('ScanResults').deleteMany({networkID: networkID})
-            
-            if (deleteNet && deleteScans){
+            const deleteVul = await db.collection('Vulnerabilities').deleteMany({networkID})
+            if (deleteNetwork.deletedCount > 0){
               res.status(200).json({error: false, message: 'Successfully delete the account'})
             } else {
               let message = 'Something went wrong in the database!'
-              if (!deleteNet) {
+              if (!deleteNetwork.deletedCount > 0) {
                 message += ' Network Delete Failed!'
               }
-              if (!deleteScans) {
+              if (!deleteScans.deletedCount >= 0) {
                 message += ' Scan Delete Failed!'
+              }
+              if (!deleteVul.deletedCount >= 0) {
+                message += ' Vulnerabilities Failed!'
               }
               res.status(400).json({error: true, message})
             }
@@ -236,20 +241,20 @@ async function findUser (req, res) {
             //query to delete a user
             const dev_id = confirmDev.dev_id
       
-            const deleteDev = await db.collection('Devices').deleteOne({dev_id})
+            const deleteDevice = await db.collection('Devices').deleteOne({dev_id})
             const deleteVuls = await db.collection('Vulnerabilities').deleteMany({device_ip: ip_add})
             
-            if (deleteNet && deleteVuls){
+            if (deleteDevice.deletedCount >= 0){
               res.status(200).json({error: false, message: 'Successfully delete the account'})
             } else {
               let message = 'Something went wrong in the database!'
-              if (!deleteDev) {
+              if (!deleteDevice.deletedCount >=0 ) {
                 message += ' Device Delete Failed!'
               }
-              if (!deleteVuls) {
+              if (!deleteVuls.deletedCount >= 0) {
                 message += ' Vulnerabilities Delete Failed!'
               }
-              res.status(400).json({error: true, message})
+              res.status(401).json({error: true, message})
             }
         }
       }, 'ThreatSculpt')
@@ -341,9 +346,9 @@ async function findUser (req, res) {
             console.log(loginSuccess.password)
             if (match.valueOf() === true) {
               //Change account name
-              changeName = await db.collection('User')
-                .updateOne({username: username}, {username: newUsername})
-              if (changeName) {
+              const nameChange = await db.collection('User')
+                .updateOne({username: username}, {$set: {username: newUsername}})
+              if (nameChange) {
                 res.status(200).json({error: false, message: 'Successfully change name'})
               } else {
                 res.status(404).json({error: true, message: 'Could not change user name'})
@@ -359,19 +364,32 @@ async function findUser (req, res) {
     const username = req.body.username
     const password = req.body.password
     const newPassword = req.body.newPassword
-
+    let is_hashed = true
+    const hashPass = await bcrypt.genSalt(salt).then(this_salt => {
+      if (newPassword !== null && this_salt !== null) {  
+        return bcrypt.hash(newPassword, this_salt)
+      } else {
+        is_hashed = false
+        return
+      }
+    })
+    if (!is_hashed){
+      res.status(404).json({ error: true, message: 'Error in hashing password' })
+      return
+    }
     queryMongoDatabase(async db => {
         const loginSuccess = await db.collection('User').findOne({username})
-        if (loginSuccess < 1) { res.status(400).json({ error: true, message: 'Username or Password could not be found.' }) } else {
+        if (loginSuccess < 1) {
+          res.status(400).json({ error: true, message: 'Username or Password could not be found.' }) } 
+          else {
             const match = await bcrypt.compare(password, loginSuccess.password)
-            console.log(loginSuccess.password)
             if (match.valueOf() === true) {
               changePass = await db.collection('User')
-                .updateOne({password: password}, {password: newPassword})
+                .updateOne({username: username}, {$set: {password: hashPass}})
               if (changePass) {
-                res.status(200).json({error: false, message: 'Successfully change name'})
+                res.status(200).json({error: false, message: hashPass})
               } else {
-                res.status(404).json({error: true, message: 'Could not change user name'})
+                res.status(404).json({error: true, message: 'Could not change user pass'})
               }
             } else {
               res.status(401).json({ error: true, message: 'Username or Password could not be found.' })
@@ -454,6 +472,7 @@ dataRouter.get('/filter/:filter', filter)
 dataRouter.get(`/scan/delete/:scanID`, deleteScan)
 dataRouter.post('/acc/delete', deleteAcc)
 dataRouter.post('/network/delete', deleteNet)
+dataRouter.post('/device/delete', deleteDev)
 
 //update UserInfo
 dataRouter.post('/acc/name', changeName)
@@ -466,7 +485,8 @@ dataRouter.post('/add/network', addNetwork)
 dataRouter.post('/networks', getNetworkList)
 dataRouter.post('/devices', getDeviceList)
 //Uncomment for cleaning database
-//dataRouter.get('/update/vul', updateVul)
+//FOR DATABASE USAGE ONLY
+dataRouter.get('/update/vul', updateVul)
 export default dataRouter 
 
 //-------------------------------------------------------

@@ -1,24 +1,8 @@
 import React, { useState } from 'react';
+import PropTypes from 'prop-types';
 
 function AddDeviceForm(props) {
-  const { username } = props
-  const findID = async (e) => {
-    try {
-        const response = await fetch(`http://localhost:4000/server/find/${username}`);
-        if (response.ok) {
-          const data = await response.json();
-          console.log(data.user_id)
-          setUserID(data.user_id);
-          return data.user_id
-        } else {
-          console.error('Failed to fetch ID:', response.statusText);
-        }
-      } catch (error) {
-        console.error('Error fetching ID', error);
-      }
-    };
-  
-  const [userID, setUserID] = useState('')
+  const { user_id, onDeviceAdded } = props;
   const [type, setType] = useState('');
   const [deviceId, setDeviceId] = useState(null);
 
@@ -31,14 +15,13 @@ function AddDeviceForm(props) {
     // Generate device ID (for demo purposes, you can use any logic here)
     const generatedId = "80" + Math.floor(Math.random() * 1000) + "05";
     setDeviceId(generatedId);
-    const user_id = await findID()
-    setUserID(user_id)
     // Prepare device data to be sent
     const deviceData = {
       ip_add: type,
       user_id: user_id,
-      deviceID: generatedId
+      dev_id: generatedId
     };
+    console.log(deviceData)
     // Send POST request to the server
     try {
       const response = await fetch('http://localhost:4000/server/add/device', {
@@ -49,11 +32,12 @@ function AddDeviceForm(props) {
         body: JSON.stringify(deviceData)
       });
       if (response.ok) {
-        console.log('Device added successfully!');
+        alert('Device added successfully!');
+        onDeviceAdded()
         // Reset form fields after successful submission
         setType('');
       } else {
-        console.error('Failed to add device');
+        alert('Failed to add device');
       }
     } catch (error) {
       console.error('Network error:', error);
@@ -75,5 +59,7 @@ function AddDeviceForm(props) {
     </div>
   );
 }
-
+AddDeviceForm.propTypes = {
+  user_id: PropTypes.string.isRequired
+}
 export default AddDeviceForm;
