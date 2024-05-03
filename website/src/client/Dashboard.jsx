@@ -28,7 +28,20 @@ function Dashboard({ username: initialUsername}) {
   const [isStoredUsernameFetched, setIsStoredUsernameFetched] = useState(false);
   let scanIDInterval;
 
-  // Inside handleButtonClick function
+  // Charts render
+  const sdk = new ChartsEmbedSDK({
+    baseUrl: "https://charts.mongodb.com/charts-project-0-twdpw",
+    showAttribution: false,
+  });
+  const scanNumChart = sdk.createChart({
+    chartId: "662f1fe9-30a4-4836-84bd-b7fc9be48018",
+    filter: { 'userID': userID }
+  });
+  const vulnChart = sdk.createChart({
+    chartId: "662f25d5-c731-4961-85a7-5201574d9c20",
+    filter: { 'userID': userID }
+  });
+
 const handleButtonClick = async (scanType) => {
   try {
     // Prompt the user for the target input
@@ -41,7 +54,6 @@ const handleButtonClick = async (scanType) => {
     // Set the current scan type
     setCurrentScanType(scanType);
     
-    // Open the ScanModal
     setIsModalOpen(true);
   } catch (error) {
     console.error('Error triggering scan:', error);
@@ -627,46 +639,44 @@ const handleButtonClick = async (scanType) => {
                 <div className="card-body" style={{ textAlign: "center" }}>
                   <div id="chart-area" style={{ height: 500 }}>
                   </div>
-                  <div className="text-center small mt-4">
-                    <span className="me-2">
-                      <i
-                        className="fas fa-circle text-primary"
-                        style={{
-                          borderColor: "rgb(234,40,40)",
-                          color: "rgb(235,34,46)"
-                        }}
-                      />
-                      Critical
-                    </span>
-                    <span className="me-2">
-                      <i className="fas fa-circle text-success" />
-                      &nbsp;High
-                    </span>
-                    <span className="me-2">
-                      <i className="fas fa-circle text-info" />
-                      &nbsp;Medium
-                    </span>
-                  </div>
                 </div>
               </div>
             </div>
             <div className="col">
               <div className="table-responsive">
-                <table className="table">
+
+              <table className="table">
                   <thead>
                     <tr>
-                      <th>Scans ID</th>
-                      <th style={{ width: "429.188px" }}>Scan Date</th>
-                      <th>Number of devices</th>
+                      <th>Scan IDs</th>
+                      <th style={{ width: "429.188px" }}>Details</th>
+                      <th></th>
                     </tr>
                   </thead>
                     <tbody>
-                        {scanResults.map((result, index) => (
-                        <tr key={index}>
-                            <td>{result.scanID}</td>
-                            <td>MM/DD/YYYY</td> {/* Replace with actual date if available */}
-                            <td style={{ width: "367.125px" }}></td>
-                        </tr>
+                    {scanResults.map((output, index) => (
+                      <tr key={index}>
+                        <td>{output.scanID}</td>
+                        <td>
+                          {Array.isArray(output.result) ? (
+                            output.result.map((host, idx) => (
+                              <div key={idx}>
+                                <p>Host: {host.host_num}</p>
+                                <ul>
+                                  {host.ports.map((port, i) => (
+                                    <li key={i}>
+                                      Port {port.port_num} ({port.port_state})
+                                    </li>
+                                  ))}
+                                </ul>
+                              </div>
+                            ))
+                          ) : (
+                            'N/A' // Render default content if result is not an array
+                          )}
+                        </td>
+                        <td style={{ width: "367.125px" }}></td>
+                      </tr>
                         ))}
                     </tbody>
                 </table>

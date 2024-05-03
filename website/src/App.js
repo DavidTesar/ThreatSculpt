@@ -77,6 +77,7 @@ function App() {
   }, []);
 
   console.log("User ID:" + userID)
+
   return (
     <Router>    
     <Navigation isLoggedIn = {isLoggedIn} setIsLoggedIn={setIsLoggedIn}></Navigation>
@@ -123,7 +124,7 @@ function LogIn(props) {
     e.preventDefault();
     setLoggingIn(true);
     try {
-      const response = await fetch('http://localhost:4000/server/login', {
+      const response = await fetch('http://localhost:4000/login', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

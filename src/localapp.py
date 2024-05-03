@@ -22,7 +22,7 @@ from scan import findHosts as get_scan_result
 from urllib.parse import quote_plus
 from bson.binary import Binary
 import threading
-from uploadResults import uploadScanResults
+from uploadResults import uploadScanResults, create_id
 import uuid
 import time
 
@@ -46,6 +46,7 @@ users_collection = db['User']
 def authenticate(username, password):
     user = users_collection.find_one({'username': username, 'password': password})
     if user:
+        entered_username = username
         return True
     else:
         return False
@@ -87,7 +88,7 @@ def perform_scan_and_display_result(target, scanType):
     # We may run into issuses later on with this method
     if scan_thread == True:
         try:
-            uploadScanResults('user_test','CZ66ttLSf5s0GVe4', result_content)
+            uploadScanResults('user_test','CZ66ttLSf5s0GVe4', entered_username, result_content)
 
         except Exception as e:
             print("Error in DB connector")
@@ -96,18 +97,17 @@ def perform_scan_and_display_result(target, scanType):
         # Close the scan progress window after the scan is completed
         scan_progress_window.destroy()
 
-          # Start the React app in a separate process
+        # Start the React app in a separate process
         subprocess.Popen(["python", "open_react_app.py"])
 
         # Add a delay of 10 seconds
         time.sleep(15)
 
-         # Trigger the login
+        # Trigger the login
         trigger_login(entered_username, entered_password)
-       
+
     else:
         print("Scan stopped from cancel button.")
-  
 
 # Function to display the scan progress
 def display_scan_progress():
@@ -143,19 +143,19 @@ def open_scan_window():
     y_coordinate = (screen_height / 2) - (window_height / 2)
     scan_window.geometry(f"{window_width}x{window_height}+{int(x_coordinate)}+{int(y_coordinate)}")
 
-     # Load the logo image from a URL
+    # Load the logo image from a URL
     logo_url = "https://brown-friendly-dragon-577.mypinata.cloud/ipfs/QmcnmTnnHkPXCoKKshGuyhm5tNnkpUHxPGBi32CMD5oDLK"
     response = requests.get(logo_url)
     if response.status_code == 200:
-         logo_data = response.content
-         logo_image = Image.open(BytesIO(logo_data))
-         logo_image = logo_image.resize((100, 100))
-         logo_photo = ImageTk.PhotoImage(logo_image)
-         logo_label = tk.Label(scan_window, image=logo_photo)
-         logo_label.image = logo_photo
-         logo_label.pack(pady=5)
+        logo_data = response.content
+        logo_image = Image.open(BytesIO(logo_data))
+        logo_image = logo_image.resize((100, 100))
+        logo_photo = ImageTk.PhotoImage(logo_image)
+        logo_label = tk.Label(scan_window, image=logo_photo)
+        logo_label.image = logo_photo
+        logo_label.pack(pady=5)
     else:
-         print("Failed to load logo from URL")
+        print("Failed to load logo from URL")
 
     # Label at the center top of the window
     top_label = tk.Label(scan_window, text="Select the type of scan you want to do :", font=("Arial", 12, "bold"))
@@ -167,7 +167,7 @@ def open_scan_window():
     target_entry = tk.Entry(scan_window)
     target_entry.pack()
 
-    # Frame for the buttons
+    # Frame for the buttonsf
     button_frame = tk.Frame(scan_window)
     button_frame.pack(pady=20)
 
@@ -240,14 +240,13 @@ def open_login_window():
 
     login_window.mainloop()
 
-
 # Function to create a new user
 def create_user(username, password):
     # Save the user information in the MongoDB collection
     user_data = {
         "username": username,
         "password": password,
-        "userID": str(uuid.uuid4()),  
+        "userID": create_id(username),  
         "scanIDs": [],
         "networkIDs": []
     }

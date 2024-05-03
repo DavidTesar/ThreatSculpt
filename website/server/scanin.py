@@ -13,11 +13,11 @@ def findHosts(subnet, complexity):
     options = ""
 
     if(complexity == 'simple'):
-        options = "-sL"
+        options = ""
     if(complexity == 'classic'):
-        options = "-O -sV"
-    if(complexity == 'advanced'):
-        options = "-A"
+        options = "-O -sV -T5"
+    if(complexity == 'complex'):
+        options = "-sV --script vulners --script-args mincvss=8 -T5"
 
     # Perform a ping scan on the specified subnet
     nm.scan(hosts=subnet, arguments=options)
@@ -31,12 +31,13 @@ def findHosts(subnet, complexity):
             for port in ports:
                 print("Protocol: ", proto)
                 print("Port: ", port, "State: ", nm[host][proto][port]['state'], "Version: ", nm[host][proto][port]['version'])
+            if 'script' in nm[host][proto][port]:
+                if 'vulners' in nm[host][proto][port]['script']:
+                    # Check for vulnerabilities if the 'vulners' script has output
+                    vulners_output = nm[host][proto][port]['script']['vulners']
 
+                    print('VULNERS OUTPUT:', vulners_output)
     return nm
-
-
-def findVulns():
-    print("finding vulns")
 
 if __name__ == "__main__":
     # If the script is executed directly, call findHosts function
