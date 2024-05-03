@@ -124,7 +124,7 @@ function LogIn(props) {
     e.preventDefault();
     setLoggingIn(true);
     try {
-      const response = await fetch('http://localhost:4000/login', {
+      const response = await fetch('http://localhost:4000/server/login', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
