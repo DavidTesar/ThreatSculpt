@@ -1,0 +1,267 @@
+/*
+ * ThreatSculpt design tokens.
+ *
+ * Direction: "board brief" — an editorial document crossed with an operations console.
+ * Warm paper rather than clinical white, a serif reserved for the executive narrative and
+ * the headline numerals, a grotesk for the analyst surfaces where density matters.
+ *
+ * Every colour, size, and duration used by a component comes from this file. A component
+ * that hardcodes a hex value is a bug: it will not survive the theme switch.
+ */
+
+:root {
+  /* ---------------------------------------------------------------- type */
+  --font-display: 'Iowan Old Style', 'Palatino Linotype', Palatino, Charter, Georgia, serif;
+  --font-ui:
+    -apple-system, BlinkMacSystemFont, 'Segoe UI', Inter, Roboto, 'Helvetica Neue', Arial,
+    sans-serif;
+  --font-mono:
+    ui-monospace, 'SF Mono', SFMono-Regular, Menlo, Consolas, 'Liberation Mono', monospace;
+
+  /* A scale with deliberate jumps. Adjacent steps are visibly different, so hierarchy
+     reads without the reader having to compare. */
+  --text-micro: 0.6875rem; /* 11px — table meta, eyebrow labels */
+  --text-xs: 0.75rem; /* 12px */
+  --text-sm: 0.8125rem; /* 13px — dense table body */
+  --text-base: 0.9375rem; /* 15px — body */
+  --text-md: 1.0625rem; /* 17px — lead paragraph */
+  --text-lg: 1.375rem; /* 22px — card titles */
+  --text-xl: 1.875rem; /* 30px — page titles */
+  --text-2xl: 2.5rem; /* 40px — section headline */
+  --text-hero: clamp(3.25rem, 2.2rem + 4vw, 5rem); /* the risk numeral */
+
+  --leading-tight: 1.15;
+  --leading-snug: 1.35;
+  --leading-normal: 1.6;
+  --leading-relaxed: 1.75;
+
+  --tracking-tight: -0.02em;
+  --tracking-normal: 0;
+  --tracking-wide: 0.02em;
+  --tracking-eyebrow: 0.09em;
+
+  --weight-normal: 400;
+  --weight-medium: 500;
+  --weight-semibold: 600;
+  --weight-bold: 700;
+
+  /* ---------------------------------------------------------------- space
+     Not a uniform 8px grid. Tight steps for intra-component rhythm, big jumps for
+     section separation, so the page has cadence instead of even grey texture. */
+  --space-3xs: 0.125rem;
+  --space-2xs: 0.25rem;
+  --space-xs: 0.5rem;
+  --space-sm: 0.75rem;
+  --space-md: 1rem;
+  --space-lg: 1.5rem;
+  --space-xl: 2rem;
+  --space-2xl: 3rem;
+  --space-3xl: 4.5rem;
+  --space-section: clamp(2rem, 1.4rem + 2.4vw, 3.5rem);
+
+  --radius-xs: 3px;
+  --radius-sm: 5px;
+  --radius-md: 8px;
+  --radius-lg: 12px;
+  --radius-xl: 18px;
+  --radius-pill: 999px;
+
+  --border-hairline: 1px;
+  --border-thick: 2px;
+
+  --layout-max: 1560px;
+  --sidebar-width: 244px;
+  --topbar-height: 60px;
+
+  /* ---------------------------------------------------------------- motion */
+  --duration-instant: 80ms;
+  --duration-fast: 140ms;
+  --duration-normal: 240ms;
+  --duration-slow: 420ms;
+  --ease-out-expo: cubic-bezier(0.16, 1, 0.3, 1);
+  --ease-out-quad: cubic-bezier(0.25, 0.46, 0.45, 0.94);
+  --ease-spring: cubic-bezier(0.34, 1.35, 0.64, 1);
+
+  /* =============================================================== LIGHT (default)
+     Warm paper. A security dashboard that a CFO opens in a lit boardroom should not be
+     a black terminal. */
+  --paper: #fbf9f6;
+  --surface: #ffffff;
+  --surface-raised: #ffffff;
+  --surface-sunken: #f3efe9;
+  --surface-inset: #efeae2;
+  --surface-hover: #f6f2ec;
+  --surface-active: #ede7de;
+
+  --ink: #17161a;
+  --ink-strong: #000000;
+  --ink-muted: #57524b;
+  --ink-subtle: #7d766c;
+  --ink-inverse: #fbf9f6;
+
+  --line: #e2dbd1;
+  --line-strong: #cfc6b9;
+  --line-faint: #eee9e1;
+
+  /* Brand: deep teal. Chosen against the ember risk ramp so "action" and "danger" are
+     never the same hue. */
+  --brand: #0f5f63;
+  --brand-hover: #0c4b4f;
+  --brand-active: #093a3d;
+  --brand-soft: #e2f0ef;
+  --brand-border: #a9cfcd;
+  --brand-on: #ffffff;
+
+  --accent: #b4531b; /* ember — the risk accent, used for emphasis not decoration */
+  --accent-soft: #fbeade;
+
+  /* Severity ramp. Text-safe on --surface at AA. Never the only signal: pair with
+     SeverityMark's shape and the always-present text label. */
+  --sev-critical: #a3122b;
+  --sev-critical-bg: #fbe6e9;
+  --sev-critical-border: #e8a8b3;
+  --sev-high: #9a4409;
+  --sev-high-bg: #fceee2;
+  --sev-high-border: #ecbe95;
+  --sev-medium: #7a5a06;
+  --sev-medium-bg: #faf1d8;
+  --sev-medium-border: #dfc784;
+  --sev-low: #3c5a88;
+  --sev-low-bg: #e7edf7;
+  --sev-low-border: #adc0dc;
+  --sev-none: #6b6660;
+  --sev-none-bg: #f0ece6;
+  --sev-none-border: #d3ccc2;
+
+  --ok: #1f6b45;
+  --ok-bg: #e4f2ea;
+  --ok-border: #a5cdb8;
+  --warn: #8a5a00;
+  --warn-bg: #fbf0d9;
+  --warn-border: #e2c584;
+  --danger: #a3122b;
+  --danger-bg: #fbe6e9;
+  --danger-border: #e8a8b3;
+  --info: #2a5470;
+  --info-bg: #e5eef4;
+  --info-border: #a8c5d6;
+
+  /* Exposure ramp — ordinal, hot to cold. Distinct from the severity ramp on purpose. */
+  --exp-internet: #a3122b;
+  --exp-dmz: #b4531b;
+  --exp-internal: #3c5a88;
+  --exp-isolated: #4a7c68;
+
+  --focus-ring: #0f5f63;
+  --focus-ring-offset: var(--paper);
+
+  --shadow-xs: 0 1px 2px rgb(28 22 14 / 0.05);
+  --shadow-sm: 0 1px 3px rgb(28 22 14 / 0.07), 0 1px 2px rgb(28 22 14 / 0.04);
+  --shadow-md: 0 4px 10px -2px rgb(28 22 14 / 0.09), 0 2px 4px -1px rgb(28 22 14 / 0.05);
+  --shadow-lg: 0 14px 32px -8px rgb(28 22 14 / 0.16), 0 4px 10px -4px rgb(28 22 14 / 0.07);
+  --shadow-xl: 0 28px 64px -16px rgb(28 22 14 / 0.24);
+
+  --chart-grid: #e6e0d7;
+  --chart-axis: #8d867b;
+  --chart-line: #0f5f63;
+  --chart-line-2: #b4531b;
+  --chart-area-from: rgb(15 95 99 / 0.2);
+  --chart-area-to: rgb(15 95 99 / 0.01);
+
+  --graph-bg: #f7f3ed;
+  --graph-edge: rgb(90 82 70 / 0.3);
+  --graph-node-stroke: #fbf9f6;
+
+  --scrim: rgb(24 20 14 / 0.42);
+  color-scheme: light;
+}
+
+/* =================================================================== DARK
+   Not an inverted light theme — a console. Cooler, deeper, lower-chroma surfaces so the
+   severity ramp is the brightest thing on screen. */
+:root[data-theme='dark'] {
+  --paper: #0d1014;
+  --surface: #14181e;
+  --surface-raised: #191e26;
+  --surface-sunken: #0a0d11;
+  --surface-inset: #10141a;
+  --surface-hover: #1c222b;
+  --surface-active: #222933;
+
+  --ink: #e9e6e0;
+  --ink-strong: #ffffff;
+  --ink-muted: #a7a299;
+  --ink-subtle: #837e75;
+  --ink-inverse: #14181e;
+
+  --line: #262d37;
+  --line-strong: #38414e;
+  --line-faint: #1c222b;
+
+  --brand: #4fc3bd;
+  --brand-hover: #6fd4ce;
+  --brand-active: #8ee0db;
+  --brand-soft: #122b2c;
+  --brand-border: #2c5a58;
+  --brand-on: #06201f;
+
+  --accent: #e08a4e;
+  --accent-soft: #2c1d12;
+
+  --sev-critical: #ff8a9b;
+  --sev-critical-bg: #2e1219;
+  --sev-critical-border: #6b2836;
+  --sev-high: #ffab72;
+  --sev-high-bg: #2c1a10;
+  --sev-high-border: #6d3d1e;
+  --sev-medium: #ecc95f;
+  --sev-medium-bg: #262010;
+  --sev-medium-border: #5e4d20;
+  --sev-low: #9dbeea;
+  --sev-low-bg: #151d2b;
+  --sev-low-border: #33465f;
+  --sev-none: #9a958c;
+  --sev-none-bg: #1a1f26;
+  --sev-none-border: #333b46;
+
+  --ok: #62c795;
+  --ok-bg: #12241b;
+  --ok-border: #2c5540;
+  --warn: #e3b862;
+  --warn-bg: #261e10;
+  --warn-border: #574620;
+  --danger: #ff8a9b;
+  --danger-bg: #2e1219;
+  --danger-border: #6b2836;
+  --info: #86b6d4;
+  --info-bg: #131f28;
+  --info-border: #2e4757;
+
+  --exp-internet: #ff8a9b;
+  --exp-dmz: #e08a4e;
+  --exp-internal: #9dbeea;
+  --exp-isolated: #74c3a5;
+
+  --focus-ring: #6fd4ce;
+  --focus-ring-offset: var(--paper);
+
+  --shadow-xs: 0 1px 2px rgb(0 0 0 / 0.4);
+  --shadow-sm: 0 1px 3px rgb(0 0 0 / 0.5), 0 1px 2px rgb(0 0 0 / 0.35);
+  --shadow-md: 0 4px 12px -2px rgb(0 0 0 / 0.55), 0 2px 5px -1px rgb(0 0 0 / 0.4);
+  --shadow-lg: 0 16px 36px -10px rgb(0 0 0 / 0.7), 0 4px 12px -4px rgb(0 0 0 / 0.5);
+  --shadow-xl: 0 32px 70px -18px rgb(0 0 0 / 0.8);
+
+  --chart-grid: #232a34;
+  --chart-axis: #7d786f;
+  --chart-line: #4fc3bd;
+  --chart-line-2: #e08a4e;
+  --chart-area-from: rgb(79 195 189 / 0.26);
+  --chart-area-to: rgb(79 195 189 / 0.01);
+
+  --graph-bg: #0c1015;
+  --graph-edge: rgb(150 165 185 / 0.22);
+  --graph-node-stroke: #0d1014;
+
+  --scrim: rgb(0 0 0 / 0.66);
+  color-scheme: dark;
+}
