@@ -1,0 +1,97 @@
+"""Privileges for the application role, including append-only ``audit_log``.
+
+The role name comes from ``-x app_role=`` or ``TS_DB_APP_ROLE``. If the role does
+not exist this migration is a no-op, so a developer running against a local
+superuser database is not blocked — but production must create the role (see
+``scripts/bootstrap_db.sql``) *before* migrating, or the application will have no
+privileges at all.
+
+``audit_log`` gets INSERT and SELECT only. UPDATE and DELETE are never granted,
+so the application physically cannot rewrite its own audit trail — that is what
+"append-only" has to mean to be worth anything.
+
+Revision ID: 0003
+Revises: 0002
+"""
+
+from __future__ import annotations
+
+import os
+import re
+from collections.abc import Sequence
+
+from alembic import context, op
+from sqlalchemy import text
+
+revision: str = "0003"
+down_revision: str | None = "0002"
+branch_labels: str | Sequence[str] | None = None
+depends_on: str | Sequence[str] | None = None
+
+APPEND_ONLY_TABLES: tuple[str, ...] = ("audit_log",)
+
+READ_ONLY_TABLES: tuple[str, ...] = ("vulnerabilities",)
+
+FULL_ACCESS_TABLES: tuple[str, ...] = (
+    "orgs",
+    "users",
+    "refresh_tokens",
+    "agents",
+    "enrollment_tokens",
+    "networks",
+    "business_services",
+    "assets",
+    "asset_services",
+    "scan_jobs",
+    "scan_results",
+    "ports",
+    "findings",
+)
+
+
+#: A role name is interpolated into DDL, where bind parameters are not allowed.
+#: Restricting it to an identifier-shaped string is what keeps that safe.
+_ROLE_NAME = re.compile(r"^[A-Za-z_][A-Za-z0-9_]{0,62}$")
+
+
+def app_role() -> str:
+    """``-x app_role=`` beats ``TS_DB_APP_ROLE`` beats the default."""
+    override = context.get_x_argument(as_dictionary=True).get("app_role")
+    role = override or os.environ.get("TS_DB_APP_ROLE", "threatsculpt_app")
+    if not _ROLE_NAME.match(role):
+        raise ValueError(f"invalid database role name: {role!r}")
+    return role
+
+
+def _role_exists(role: str) -> bool:
+    connection = op.get_bind()
+    result = connection.execute(
+        text("SELECT 1 FROM pg_roles WHERE rolname = :role"), {"role": role}
+    )
+    return result.first() is not None
+
+
+def upgrade() -> None:
+    role = app_role()
+    if not _role_exists(role):
+        print(f"[0003] role {role!r} does not exist; skipping grants")
+        return
+
+    op.execute(f"GRANT USAGE ON SCHEMA public TO {role}")
+    for table in FULL_ACCESS_TABLES:
+        op.execute(f"GRANT SELECT, INSERT, UPDATE, DELETE ON {table} TO {role}")
+    for table in READ_ONLY_TABLES:
+        op.execute(f"GRANT SELECT ON {table} TO {role}")
+    for table in APPEND_ONLY_TABLES:
+        op.execute(f"GRANT SELECT, INSERT ON {table} TO {role}")
+        op.execute(f"REVOKE UPDATE, DELETE, TRUNCATE ON {table} FROM {role}")
+
+
+def downgrade() -> None:
+    role = app_role()
+    if not _role_exists(role):
+        return
+
+    for table in APPEND_ONLY_TABLES + READ_ONLY_TABLES + FULL_ACCESS_TABLES:
+        op.execute(f"REVOKE ALL ON {table} FROM {role}")
+    op.execute(f"REVOKE USAGE ON SCHEMA public FROM {role}")

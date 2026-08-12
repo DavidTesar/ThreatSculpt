@@ -1,0 +1,83 @@
+[build-system]
+requires = ["setuptools>=69"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "threatsculpt-control-plane"
+version = "2.0.0"
+description = "ThreatSculpt v2 control plane — multi-tenant API, tenancy enforcement, risk scoring"
+requires-python = ">=3.13"
+license = { text = "MIT" }
+
+dependencies = [
+    "fastapi>=0.115",
+    "uvicorn[standard]>=0.32",
+    "sqlalchemy[asyncio]>=2.0.36",
+    "alembic>=1.14",
+    "psycopg[binary]>=3.2",
+    "pydantic>=2.9",
+    "pydantic-settings>=2.6",
+    "email-validator>=2.2",
+    "argon2-cffi>=23.1",
+    "pyjwt>=2.9",
+    "python-multipart>=0.0.17",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=8.3",
+    "pytest-asyncio>=0.24",
+    "pytest-cov>=6.0",
+    "httpx>=0.27",
+    "ruff>=0.7",
+    "mypy>=1.13",
+]
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+asyncio_mode = "auto"
+asyncio_default_fixture_loop_scope = "session"
+filterwarnings = ["error::DeprecationWarning:threatsculpt.*"]
+
+[tool.coverage.run]
+source = ["src/threatsculpt"]
+omit = ["*/migrations/*"]
+# SQLAlchemy's asyncio layer runs sync work in a greenlet. Without this the
+# tracer stops at the first `await session.execute(...)` and reports the rest of
+# every service function as unreached — coverage numbers that look like missing
+# tests but are a measurement artefact.
+concurrency = ["thread", "greenlet"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py313"
+src = ["src", "tests"]
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "N", "UP", "B", "S", "C4", "SIM", "RUF"]
+ignore = ["S101"]
+
+[tool.ruff.lint.isort]
+known-first-party = ["threatsculpt", "tests"]
+
+[tool.ruff.lint.per-file-ignores]
+"tests/*" = ["S105", "S106", "S311"]
+# Migrations interpolate validated identifiers into DDL, where bind parameters
+# are not permitted, and print progress for the operator running them.
+"migrations/*" = ["E501", "S608", "T201"]
+
+[tool.mypy]
+python_version = "3.13"
+# `mypy_path` + `explicit_package_bases` make `src/threatsculpt/x.py` resolve as
+# `threatsculpt.x` rather than `src.threatsculpt.x`, so `mypy .` — what CI runs —
+# checks the same modules as a bare `mypy`.
+mypy_path = "src"
+explicit_package_bases = true
+packages = ["threatsculpt"]
+strict_optional = true
+warn_unused_ignores = true
+disallow_untyped_defs = true
+plugins = ["pydantic.mypy"]
