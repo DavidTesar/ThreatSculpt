@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE nmaprun>
+<?xml-stylesheet href="file:///usr/share/nmap/nmap.xsl" type="text/xsl"?>
+<!-- Nmap 7.99 scan initiated Wed Aug 12 17:25:28 2026 as: /usr/lib/nmap/nmap -&#45;privileged -sn -PE -PS443,80 -T3 -oX - 127.0.0.1/32 -->
+<nmaprun scanner="nmap" args="/usr/lib/nmap/nmap -&#45;privileged -sn -PE -PS443,80 -T3 -oX - 127.0.0.1/32" start="1786573528" startstr="Wed Aug 12 17:25:28 2026" version="7.99" xmloutputversion="1.05">
+<verbose level="0"/>
+<debugging level="0"/>
+<host><status state="up" reason="localhost-response" reason_ttl="0"/>
+<address addr="127.0.0.1" addrtype="ipv4"/>
+<hostnames>
+<hostname name="localhost" type="PTR"/>
+</hostnames>
+</host>
+<runstats><finished time="1786573528" timestr="Wed Aug 12 17:25:28 2026" summary="Nmap done at Wed Aug 12 17:25:28 2026; 1 IP address (1 host up) scanned in 0.00 seconds" elapsed="0.00" exit="success"/><hosts up="1" down="0" total="1"/>
+</runstats>
+</nmaprun>

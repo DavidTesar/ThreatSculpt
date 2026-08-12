@@ -1,0 +1,74 @@
+[Unit]
+Description=ThreatSculpt on-prem scan agent
+Documentation=file:/opt/threatsculpt-agent/README.md
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=exec
+User=threatsculpt
+Group=threatsculpt
+ExecStart=/opt/threatsculpt-agent/venv/bin/threatsculpt-agent --config /etc/threatsculpt/agent.toml
+
+# Secrets live here, mode 0600, owned by the threatsculpt user. Never in ExecStart:
+# anything on the command line is visible to every user on the host via `ps`.
+EnvironmentFile=-/etc/threatsculpt/agent.env
+
+Restart=on-failure
+RestartSec=10s
+
+# A clean stop: SIGTERM lets the agent finish or explicitly release an in-flight scan.
+# Keep this comfortably above the agent's shutdown_grace_seconds (default 30).
+KillSignal=SIGTERM
+TimeoutStopSec=120
+
+# --- capabilities -----------------------------------------------------------------
+#
+# NoNewPrivileges=yes and setcap'd binaries are mutually exclusive: with NNP set, an
+# exec'd binary cannot GAIN capabilities from its file capability set, so a setcap'd nmap
+# silently loses CAP_NET_RAW and SYN scans fail. Rather than weaken NNP, the capability is
+# granted through systemd's ambient set and confined by the bounding set. The agent still
+# runs as an unprivileged user and is never root; it holds exactly the two capabilities
+# nmap needs to put packets on the wire, and nothing else.
+#
+# If you would rather rely on the file capability (as the container image does), invert
+# this: comment out AmbientCapabilities and set NoNewPrivileges=no.
+NoNewPrivileges=yes
+CapabilityBoundingSet=CAP_NET_RAW CAP_NET_ADMIN
+AmbientCapabilities=CAP_NET_RAW CAP_NET_ADMIN
+
+# --- filesystem -------------------------------------------------------------------
+ProtectSystem=strict
+ProtectHome=yes
+PrivateTmp=yes
+StateDirectory=threatsculpt-agent
+StateDirectoryMode=0700
+ReadWritePaths=/var/lib/threatsculpt-agent
+UMask=0077
+
+# --- kernel and process isolation --------------------------------------------------
+PrivateDevices=yes
+ProtectProc=invisible
+ProcSubset=pid
+ProtectClock=yes
+ProtectHostname=yes
+ProtectKernelLogs=yes
+ProtectKernelModules=yes
+ProtectKernelTunables=yes
+ProtectControlGroups=yes
+RestrictNamespaces=yes
+RestrictRealtime=yes
+RestrictSUIDSGID=yes
+LockPersonality=yes
+MemoryDenyWriteExecute=yes
+RemoveIPC=yes
+SystemCallArchitectures=native
+SystemCallFilter=@system-service
+SystemCallErrorNumber=EPERM
+
+# AF_PACKET and AF_NETLINK are required by nmap for raw packet capture and for reading
+# the local routing table. AF_UNIX is used for DNS resolution via nsswitch.
+RestrictAddressFamilies=AF_INET AF_INET6 AF_UNIX AF_NETLINK AF_PACKET
+
+[Install]
+WantedBy=multi-user.target

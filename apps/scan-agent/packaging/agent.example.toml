@@ -1,0 +1,76 @@
+# ThreatSculpt scan agent configuration.
+# Install at /etc/threatsculpt/agent.toml, owned root:threatsculpt, mode 0640.
+#
+# Every setting here can also be given as an environment variable with a TS_AGENT_
+# prefix (TS_AGENT_POLL_INTERVAL_SECONDS=15), which takes precedence over this file.
+#
+# SECRETS DO NOT GO IN THIS FILE. The API key and enrollment token are read from
+# TS_AGENT_API_KEY / TS_AGENT_ENROLLMENT_TOKEN or from a 0600 file, never from argv.
+
+# --- required ----------------------------------------------------------------------
+
+control_plane_url = "https://api.threatsculpt.example"
+agent_name = "hq-dc-scanner-01"
+
+# The local allowlist. THIS IS THE SECURITY BOUNDARY.
+#
+# A scan target is only executed if it is contained by one of these ranges, checked with
+# real network arithmetic. The control plane also sends an allowlist; that one may only
+# ever narrow this list, never widen it. Anything outside these ranges is rejected back
+# to the server and never scanned, even if the control plane insists.
+#
+# Keep this as tight as the agent's actual job. An agent that only scans one datacentre
+# VLAN should list only that VLAN.
+allowlist = [
+    "10.0.0.0/8",
+    "192.168.0.0/16",
+    # "2001:db8::/32",
+]
+
+# --- paths --------------------------------------------------------------------------
+
+# Holds agent.key (mode 0600) and, before first enrollment, enrollment.token.
+state_dir = "/var/lib/threatsculpt-agent"
+# api_key_file = "/var/lib/threatsculpt-agent/agent.key"
+# enrollment_token_file = "/var/lib/threatsculpt-agent/enrollment.token"
+
+nmap_path = "/usr/bin/nmap"
+
+# --- poll loop ----------------------------------------------------------------------
+
+# The control plane can override this per heartbeat.
+poll_interval_seconds = 30
+
+# How many jobs to lease at once.
+capacity = 1
+
+# Exponential backoff with jitter, applied to control-plane failures.
+backoff_base_seconds = 1.0
+backoff_max_seconds = 300.0
+backoff_multiplier = 2.0
+backoff_jitter_ratio = 0.5
+max_request_attempts = 5
+
+# How long a SIGTERM waits for an in-flight scan before killing nmap and handing the job
+# back. Keep the systemd unit's TimeoutStopSec above this.
+shutdown_grace_seconds = 30
+
+# --- scanning -----------------------------------------------------------------------
+
+# Hard kill for a single nmap run. A hung scan must never hold a job lease forever.
+# A /16 with the `vulnerability` profile can legitimately take hours; size accordingly.
+nmap_timeout_seconds = 3600
+
+# Which port states are worth submitting. Closed and filtered ports are observed but not
+# reported: a top-1000 scan yields ~1000 closed ports per host and no actionable signal.
+include_port_states = ["open", "open|filtered"]
+
+# --- submission ---------------------------------------------------------------------
+
+# Results are chunked to stay under the protocol's 10 MB per-POST cap.
+max_payload_bytes = 9437184
+
+# --- misc ---------------------------------------------------------------------------
+
+verify_tls = true
+log_level = "INFO"
