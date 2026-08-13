@@ -21,20 +21,29 @@ the intent behind it.
      "field": "network_id" } }
    ```
 4. All collections paginate. Default 50, max 200. No unbounded query reaches the database.
-5. Rate limits: `10/min` on auth endpoints per IP, `100/min` general per user.
+5. Rate limits: `10/min` on auth endpoints per IP, `100/min` general per authenticated
+   principal, and a separate smaller bucket per IP for callers with no usable credential.
+   The per-user limit is charged once authentication has resolved a principal, so
+   unauthenticated traffic — including requests carrying a bad token — cannot spend a real
+   user's allowance, and colleagues behind one NAT do not share one.
 
 ## Auth
 
 | Method | Path | Notes |
 |---|---|---|
-| POST | `/auth/register` | Creates org + owner user. Trial plan. |
+| POST | `/auth/register` | Creates org + owner user. Trial plan. The address starts **unverified**: the caller keeps the session this returns, but no password login against that address succeeds until it is verified, and the account holds no slot and is not a login candidate until then. |
+| POST | `/auth/verify-email` | Unauthenticated; body is `{"token": "tsv_…"}`. Proves control of the address. Unknown, spent and expired tokens are one error. |
+| POST | `/auth/verify-email/resend` | Authenticated; re-issues the caller's own token and invalidates the previous one. Never accepts an address, so it cannot be aimed at a third party. |
 | POST | `/auth/login` | → access token (body) + refresh token (`HttpOnly`, `Secure`, `SameSite=Lax` cookie) |
 | POST | `/auth/refresh` | Rotates. Reuse of a spent token revokes the whole family. |
-| POST | `/auth/logout` | Revokes the refresh family. |
+| POST | `/auth/logout` | Revokes the refresh family. Access tokens already issued keep working until they expire — see SECURITY.md. |
 | GET | `/auth/me` | Current user + org + role. |
 
-Login responses are constant-time with respect to whether the email exists, and identical for
-"no such user" and "wrong password". Failed attempts are rate-limited per account and per IP.
+Login responses are constant-time with respect to whether the email exists, whether it is
+locked out, and whether it exists in more than one org; they are identical for "no such
+user" and "wrong password". Failed attempts are rate-limited per account and per IP.
+`org_slug` is optional and only narrows the candidate set — one address may legitimately
+hold an account in several orgs.
 
 ## Resources
 
@@ -55,8 +64,11 @@ Login responses are constant-time with respect to whether the email exists, and 
 | PATCH | `/findings/{id}` | analyst — status transitions only |
 | GET/POST | `/agents` | admin — POST issues an enrollment token |
 | DELETE | `/agents/{id}` | admin — revoke |
-| GET/POST | `/users` | admin |
-| PATCH/DELETE | `/users/{id}` | admin — cannot remove the last owner |
+| GET/POST | `/users` | admin — POST cannot grant a role above the caller's own, and the new account starts unverified like a self-service sign-up |
+| PATCH/DELETE | `/users/{id}` | admin — cannot remove or demote the last owner; DELETE deactivates rather than deleting, so the audit trail keeps naming the user |
+| POST | `/users/me/password` | any role — requires the current password; revokes the caller's refresh families |
+| POST | `/users/{id}/password-reset` | admin — returns a one-time temporary password, shown once; clears any lockout and revokes the target's sessions |
+| POST | `/users/{id}/unlock` | admin — clears a failed-login lockout without touching the password |
 
 ## The views that make this a product
 

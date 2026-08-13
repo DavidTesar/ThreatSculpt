@@ -6,7 +6,13 @@ password" is not a control:
 1. Any log record *field* whose name looks sensitive is replaced with
    ``"[redacted]"`` before serialisation.
 2. Any string value that looks like one of our credential formats
-   (``tsa_``/``tse_`` keys, JWTs) is masked wherever it appears.
+   (``tsa_``/``tse_``/``tsr_``/``tsv_`` credentials, JWTs) is masked wherever it appears.
+
+Rule 2 exists because rule 1 only catches values the caller happened to file
+under a sensitive-looking name. A refresh token quoted inside a message, or
+filed under ``note``, is exactly as much of a credential and matches no key
+pattern at all — so the prefix list here must cover every prefix
+``security.tokens`` and ``auth.refresh`` can mint.
 """
 
 from __future__ import annotations
@@ -29,7 +35,7 @@ _SENSITIVE_KEY_PATTERN = re.compile(
 )
 
 _SECRET_VALUE_PATTERNS = (
-    re.compile(r"\b(?:tsa|tse)_[A-Za-z0-9_\-]{8,}"),
+    re.compile(r"\b(?:tsa|tse|tsr|tsv)_[A-Za-z0-9_\-]{8,}"),
     re.compile(r"\beyJ[A-Za-z0-9_\-]{8,}\.[A-Za-z0-9_\-]+\.[A-Za-z0-9_\-]+"),
     re.compile(r"(?i)\bbearer\s+[A-Za-z0-9._\-]{8,}"),
 )

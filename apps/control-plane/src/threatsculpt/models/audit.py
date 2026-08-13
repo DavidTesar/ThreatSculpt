@@ -33,11 +33,21 @@ class AuditAction(StrEnum):
     AUTH_REFRESH = "auth.refresh"
     AUTH_REFRESH_REUSE_DETECTED = "auth.refresh_reuse_detected"
     AUTH_LOGOUT = "auth.logout"
+    AUTH_EMAIL_VERIFIED = "auth.email_verified"
+    AUTH_VERIFICATION_RESENT = "auth.verification_resent"
+    USER_CREATED = "user.created"
+    USER_UPDATED = "user.updated"
+    USER_DEACTIVATED = "user.deactivated"
+    USER_PASSWORD_CHANGED = "user.password_changed"  # noqa: S105 - an action name
+    USER_PASSWORD_RESET = "user.password_reset"  # noqa: S105 - an action name
     AGENT_AUTHENTICATED = "agent.authenticated"
     AGENT_ENROLLMENT_TOKEN_ISSUED = "agent.enrollment_token_issued"  # noqa: S105 - an action name
     AGENT_ENROLLED = "agent.enrolled"
     AGENT_ENROLLMENT_REJECTED = "agent.enrollment_rejected"
     AGENT_REVOKED = "agent.revoked"
+    #: The single operator action that changes what a scanner may point at, so
+    #: the single one an incident most wants a before/after for.
+    AGENT_ALLOWLIST_UPDATED = "agent.allowlist_updated"
     NETWORK_CREATED = "network.created"
     NETWORK_UPDATED = "network.updated"
     NETWORK_DELETED = "network.deleted"
@@ -48,6 +58,11 @@ class AuditAction(StrEnum):
     SCAN_JOB_CLAIMED = "scan_job.claimed"
     SCAN_JOB_REJECTED = "scan_job.rejected"
     SCAN_JOB_CANCELLED = "scan_job.cancelled"
+    #: A job stopped because the org withdrew authorisation for its target — the
+    #: network was de-authorised or deleted while the job was still open. Kept
+    #: distinct from an operator cancelling one job by hand: this one answers
+    #: "was that range still being scanned after permission was revoked".
+    SCAN_JOB_AUTHORIZATION_WITHDRAWN = "scan_job.authorization_withdrawn"
     SCAN_JOB_LEASE_EXPIRED = "scan_job.lease_expired"
     SCAN_RESULTS_INGESTED = "scan_result.ingested"
     #: A host the agent submitted that was outside the job's target or the org's

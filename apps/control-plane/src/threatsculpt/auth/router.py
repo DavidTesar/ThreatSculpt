@@ -20,6 +20,8 @@ from threatsculpt.auth.schemas import (
     RegisterResponse,
     TokenResponse,
     UserSummary,
+    VerificationStateResponse,
+    VerifyEmailRequest,
 )
 from threatsculpt.auth.service import AuthOutcome, RequestFacts
 from threatsculpt.config import Settings
@@ -58,6 +60,14 @@ def _user_summary(user: User) -> UserSummary:
     )
 
 
+def _verification_state(user: User) -> VerificationStateResponse:
+    return VerificationStateResponse(
+        email=user.email,
+        verified=user.is_verified,
+        verification_expires_at=user.verification_expires_at,
+    )
+
+
 def _org_summary(org: Org) -> OrgSummary:
     return OrgSummary(id=org.id, name=org.name, slug=org.slug, plan=org.plan, status=org.status)
 
@@ -85,7 +95,9 @@ async def register(
     settings: SettingsDep,
     codec: CodecDep,
 ) -> Envelope[RegisterResponse]:
-    outcome = await service.register(session, settings, codec, payload, _facts(request))
+    outcome = await service.register(
+        session, settings, codec, payload, _facts(request), request.app.state.email_sender
+    )
     _attach_refresh_cookie(response, settings, outcome)
     return ok(
         RegisterResponse(
@@ -138,7 +150,13 @@ async def refresh(
     """
     presented = request.cookies.get(settings.refresh_cookie_name, "")
     outcome = await service.rotate_refresh(
-        session, settings, codec, presented, None, _facts(request)
+        session,
+        request.app.state.session_factory,
+        settings,
+        codec,
+        presented,
+        None,
+        _facts(request),
     )
     _attach_refresh_cookie(response, settings, outcome)
     return ok(
@@ -162,6 +180,56 @@ async def logout(
     revoked = await service.logout(session, presented, None, _facts(request))
     clear_refresh_cookie(response, settings)
     return ok(LogoutResponse(revoked=revoked))
+
+
+@router.post(
+    "/verify-email",
+    response_model=Envelope[VerificationStateResponse],
+    summary="Prove control of the address an account was registered with",
+)
+async def verify_email(
+    request: Request,
+    payload: VerifyEmailRequest,
+    session: SessionDep,
+) -> Envelope[VerificationStateResponse]:
+    """Unauthenticated: the token *is* the credential, and it names its own account.
+
+    Until this succeeds the account cannot be logged into and does not occupy one
+    of the address's slots, so registering an address somebody else owns takes
+    nothing from them.
+    """
+    user = await service.verify_email(session, payload.token, _facts(request))
+    return ok(_verification_state(user))
+
+
+@router.post(
+    "/verify-email/resend",
+    response_model=Envelope[VerificationStateResponse],
+    summary="Re-issue the verification token for your own account",
+)
+async def resend_verification(
+    request: Request,
+    principal: CurrentUser,
+    session: SessionDep,
+    settings: SettingsDep,
+) -> Envelope[VerificationStateResponse]:
+    """Authenticated, and only ever for the caller's own address.
+
+    Sending to an address named in the request would make this an open relay
+    pointed at whoever the caller chose.
+    """
+    org = await session.get(Org, principal.scope.org_id)
+    assert org is not None  # the principal could not have authenticated otherwise
+    await service.resend_verification(
+        session,
+        settings,
+        principal.scope,
+        principal.user,
+        org,
+        request.app.state.email_sender,
+        _facts(request),
+    )
+    return ok(_verification_state(principal.user))
 
 
 @router.get(

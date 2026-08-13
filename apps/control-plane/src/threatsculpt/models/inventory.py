@@ -43,6 +43,14 @@ class Network(TenantModel):
     cidr: Mapped[str] = mapped_column(Cidr, nullable=False)
     authorized: Mapped[bool] = mapped_column(nullable=False, default=False, server_default="false")
     authorization_note: Mapped[str | None] = mapped_column(String(1000))
+    #: Who asserted permission to scan this range, and when. Together with the
+    #: note these are the "authorization record" docs/SECURITY.md describes; a
+    #: boolean on its own records nothing. Required for public address space,
+    #: optional for RFC1918 — see ``scanning.authorization``.
+    authorized_by_user_id: Mapped[uuid.UUID | None] = mapped_column(
+        PgUUID(as_uuid=True), ForeignKey("users.id", ondelete="SET NULL")
+    )
+    authorized_at: Mapped[datetime | None] = mapped_column()
 
 
 class BusinessService(TenantModel):

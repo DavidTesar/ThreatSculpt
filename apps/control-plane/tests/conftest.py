@@ -191,6 +191,11 @@ def settings(database: str) -> Settings:
         log_level="WARNING",
         auth_rate_limit_per_minute=1000,
         general_rate_limit_per_minute=1000,
+        anonymous_rate_limit_per_minute=1000,
+        # There is no mail infrastructure here, so the suite reads the
+        # verification token out of the in-process sender instead. The flow
+        # under test is the real one; only delivery is a stand-in.
+        email_delivery="memory",
     )
 
 

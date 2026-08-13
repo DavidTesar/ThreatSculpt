@@ -9,6 +9,14 @@ from tests.factories import API, DEFAULT_PASSWORD, register_tenant
 REFRESH_COOKIE = "ts_refresh"
 COOKIE_PATH = "/api/v1/auth"
 
+#: ``http.cookiejar`` appends ``.local`` to a dotless host, so the cookie the
+#: server sets to ``testserver`` is stored under ``testserver.local``. Setting one
+#: by hand under the bare name produces a cookie that matches no request: it is
+#: silently never sent, and every assertion that a replayed token is rejected
+#: passes because *no* token was presented. That is how a refresh family that was
+#: never actually revoked kept a green test.
+COOKIE_DOMAIN = "testserver.local"
+
 
 def _current_refresh_cookie(client: AsyncClient) -> str:
     """The refresh cookie currently in the jar.
@@ -27,9 +35,14 @@ def _replace_refresh_cookie(client: AsyncClient, token: str) -> None:
 
     ``cookies.set`` alone would leave the rotated cookie in place alongside the
     replayed one, and the test would silently assert on the wrong credential.
+
+    Asserts that the jar will actually hand the cookie back, because a cookie
+    stored under a domain that matches nothing is indistinguishable from a
+    correct rejection at the assertion.
     """
     client.cookies.clear()
-    client.cookies.set(REFRESH_COOKIE, token, domain="testserver", path=COOKIE_PATH)
+    client.cookies.set(REFRESH_COOKIE, token, domain=COOKIE_DOMAIN, path=COOKIE_PATH)
+    assert client.cookies.get(REFRESH_COOKIE, domain=COOKIE_DOMAIN) == token
 
 
 async def test_register_creates_org_and_owner(client: AsyncClient) -> None:

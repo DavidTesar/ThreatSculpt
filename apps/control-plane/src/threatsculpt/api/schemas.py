@@ -67,6 +67,10 @@ class NetworkOut(FromAttributes):
     cidr: str
     authorized: bool
     authorization_note: str | None
+    #: Who asserted permission to scan this range, and when. Null on a network
+    #: that is not authorized, and on rows registered before this was tracked.
+    authorized_by_user_id: UUID | None = None
+    authorized_at: datetime | None = None
     created_at: datetime
     updated_at: datetime
 

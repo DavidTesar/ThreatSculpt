@@ -19,6 +19,7 @@ from typing import Annotated
 from fastapi import Depends, Request
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from threatsculpt.api.limits import charge_anonymous, charge_principal
 from threatsculpt.auth.principals import AgentPrincipal, UserPrincipal
 from threatsculpt.config import Settings
 from threatsculpt.core.errors import AuthenticationError, PermissionDeniedError
@@ -81,7 +82,25 @@ async def current_user(
     settings: SettingsDep,
     codec: Annotated[JwtCodec, Depends(get_jwt_codec)],
 ) -> UserPrincipal:
-    """Authenticate a dashboard caller and bind the request's tenant scope."""
+    """Authenticate a dashboard caller and bind the request's tenant scope.
+
+    Also the first point in the request where a principal exists, so it is where
+    the ``100/min`` per-user limit is charged — see ``api.limits``.
+    """
+    try:
+        principal = await _authenticate_user(request, session, codec)
+    except AuthenticationError:
+        # A credential that authenticates nobody buys the anonymous allowance,
+        # never a real user's.
+        charge_anonymous(request)
+        raise
+    charge_principal(request, f"user:{principal.user.id}")
+    return principal
+
+
+async def _authenticate_user(
+    request: Request, session: AsyncSession, codec: JwtCodec
+) -> UserPrincipal:
     token = bearer_credential(request)
     if token.startswith(AGENT_KEY_PREFIX):
         # An agent key is not a weaker user token; it is a different credential
@@ -119,6 +138,16 @@ async def current_agent(
     Built here for the agent routes another agent will add on top; this module
     owns the verification, not the endpoints.
     """
+    try:
+        principal = await _authenticate_agent(request, session)
+    except AuthenticationError:
+        charge_anonymous(request)
+        raise
+    charge_principal(request, f"agent:{principal.agent.id}")
+    return principal
+
+
+async def _authenticate_agent(request: Request, session: AsyncSession) -> AgentPrincipal:
     presented = bearer_credential(request)
     if not presented.startswith(AGENT_KEY_PREFIX):
         raise AuthenticationError("Agent routes require an agent API key.")

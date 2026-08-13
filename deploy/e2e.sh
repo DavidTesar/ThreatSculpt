@@ -206,6 +206,30 @@ ORG_ID=$(jq -r '.data.org.id' "$WORK_DIR/register.json")
 assert_eq "owner" "$(jq -r '.data.user.role' "$WORK_DIR/register.json")" "registered role"
 info "org_id = $ORG_ID"
 
+# A new account is created unverified and cannot log in until its address is
+# proved. That is what stops an attacker claiming someone else's email, so the
+# e2e must not weaken it — it has to satisfy the check the way a real user does.
+#
+# The verification token is stored as a SHA-256 hash and is deliberately never
+# logged (it is a credential that grants control of an account), so there is no
+# way to recover the plaintext here. This branch also has no mail delivery: the
+# sender is a documented no-op. So the only honest option is to complete the
+# out-of-band step directly in the database, exactly as clicking the emailed
+# link would.
+#
+# This is the one assertion in this script that does not exercise a real code
+# path, and it is called out here so nobody mistakes it for coverage. When a
+# real delivery provider is wired, replace this with a fetch of the sent
+# message and a POST to /auth/verify-email.
+assert_eq "f" \
+  "$(psql -d "$E2E_DB" -tAc "select email_verified_at is not null from users where email='$USER_EMAIL'")" \
+  "a new account starts unverified"
+psql -q -d "$E2E_DB" -c \
+  "update users set email_verified_at = now(), verification_token_hash = null,
+                    verification_expires_at = null
+     where email = '$USER_EMAIL'" >/dev/null
+pass "owner's email marked verified out of band (no mail provider on this branch)"
+
 step "4. Log in over the real HTTP API"
 curl -sS -X POST "$API/auth/login" -H 'Content-Type: application/json' \
   -d "{\"email\":\"$USER_EMAIL\",\"password\":\"$USER_PASSWORD\"}" > "$WORK_DIR/login.json"

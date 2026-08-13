@@ -50,7 +50,15 @@ jobs:
         with:
           python-version: "3.13"
           cache: pip
-      - run: pip install -e ".[dev]"
+          cache-dependency-path: apps/control-plane/requirements-dev.lock
+      # --require-hashes makes pip reject anything not pinned to a hash in the lock,
+      # so what CI tests is byte-identical to what a release installs. The app itself
+      # goes in separately and --no-deps: its dependencies come from the lock, never
+      # from a fresh resolution of pyproject.toml.
+      - name: Install pinned dependencies
+        run: pip install --require-hashes -r requirements-dev.lock
+      - name: Install the application
+        run: pip install -e . --no-deps
       - name: Lint
         run: ruff check . && ruff format --check .
       - name: Type check
@@ -72,8 +80,12 @@ jobs:
         with:
           python-version: "3.13"
           cache: pip
+          cache-dependency-path: apps/scan-agent/requirements-dev.lock
       - run: sudo apt-get update && sudo apt-get install -y nmap
-      - run: pip install -e ".[dev]"
+      - name: Install pinned dependencies
+        run: pip install --require-hashes -r requirements-dev.lock
+      - name: Install the application
+        run: pip install -e . --no-deps
       - name: Lint
         run: ruff check . && ruff format --check .
       - name: Type check
@@ -97,9 +109,44 @@ jobs:
       - run: npm ci
       - run: npm run lint
       - name: Type check
-        run: npx tsc --noEmit
+        # `tsc -b`, not a bare `tsc --noEmit`. tsconfig.json is a solution file with
+        # `"files": []` and two project references, so `tsc --noEmit` resolved zero
+        # input files and passed unconditionally — it reported success on a tree that
+        # `npm run build` refused to compile.
+        run: npx tsc -b --noEmit
       - run: npm run test -- --run
       - run: npm run build
+
+  web-image:
+    name: Web image and security headers
+    runs-on: ubuntu-latest
+    # Nothing else in this workflow ever runs nginx.conf. The `web` job builds the
+    # bundle but never serves it, so the whole serving layer — the Dockerfile and the
+    # nginx config — shipped untested. That is how the SPA came to be served with none
+    # of its security headers while the config file plainly listed them: the headers
+    # were declared once at server level, which nginx does not inherit into a location
+    # that declares its own add_header, and both SPA locations do.
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build the image
+        run: docker build -t threatsculpt-web:ci apps/web
+      - name: Start it
+        run: |
+          docker run -d --name web -p 8080:8080 threatsculpt-web:ci
+          for _ in $(seq 1 60); do
+            curl -sf -o /dev/null http://127.0.0.1:8080/ && exit 0
+            sleep 1
+          done
+          echo "the web container never became ready"
+          docker logs web
+          exit 1
+      # No control plane here, so /api/ answers 502 — which is the point: `always`
+      # means the headers have to be present on error responses too.
+      - name: Security headers on every route class
+        run: apps/web/check-security-headers.sh http://127.0.0.1:8080
+      - name: Container logs on failure
+        if: failure()
+        run: docker logs web
 
   e2e:
     name: End-to-end (control plane + agent + nmap + postgres)
@@ -131,6 +178,9 @@ jobs:
         with:
           python-version: "3.13"
           cache: pip
+          cache-dependency-path: |
+            apps/control-plane/requirements.lock
+            apps/scan-agent/requirements.lock
 
       - name: Install nmap and the postgres client
         run: sudo apt-get update && sudo apt-get install -y nmap postgresql-client jq
@@ -146,11 +196,14 @@ jobs:
           getcap "$NMAP_BIN"
 
       - name: Install both applications
+        # Runtime locks only — the end-to-end run needs neither app's dev tooling.
         run: |
           python -m venv apps/control-plane/.venv
-          apps/control-plane/.venv/bin/pip install -e apps/control-plane
+          apps/control-plane/.venv/bin/pip install --require-hashes -r apps/control-plane/requirements.lock
+          apps/control-plane/.venv/bin/pip install -e apps/control-plane --no-deps
           python -m venv apps/scan-agent/.venv
-          apps/scan-agent/.venv/bin/pip install -e apps/scan-agent
+          apps/scan-agent/.venv/bin/pip install --require-hashes -r apps/scan-agent/requirements.lock
+          apps/scan-agent/.venv/bin/pip install -e apps/scan-agent --no-deps
 
       - name: End-to-end
         run: deploy/e2e.sh
@@ -158,19 +211,41 @@ jobs:
   dependency-audit:
     name: Dependency audit
     runs-on: ubuntu-latest
+    # Nothing in this job may swallow a non-zero exit. An audit that cannot fail is
+    # worse than no audit: it reads as coverage on the dashboard while auditing
+    # nothing, which is exactly how a `pip-audit -r <file that never existed> || true`
+    # survived here unnoticed. To accept a specific advisory, add
+    # `--ignore-vuln GHSA-xxxx` with a comment saying why it is not reachable —
+    # never `|| true`, and never by raising the severity threshold.
     steps:
       - uses: actions/checkout@v4
+      # No dependency cache: this job never installs anything. `npm audit` reads
+      # package-lock.json and queries the registry directly.
       - uses: actions/setup-node@v4
         with:
           node-version: "24"
+      # moderate, not high. Every advisory this project has actually had was
+      # moderate, so --audit-level=high walked straight past all of them.
       - name: npm audit
         working-directory: apps/web
-        run: npm audit --audit-level=high
+        run: npm audit --audit-level=moderate
+
       - uses: actions/setup-python@v5
         with:
           python-version: "3.13"
       - name: pip-audit
+        # Audits the lockfiles, which are the versions that actually get installed.
+        #   --no-deps  the locks are complete and fully pinned, so audit exactly them
+        #              rather than letting pip-audit re-resolve a different set
+        #   --strict   fail when a package cannot be audited, instead of skipping it
+        #              and reporting success
         run: |
-          pip install pip-audit
-          pip-audit -r apps/control-plane/requirements.txt || true
-          pip-audit -r apps/scan-agent/requirements.txt || true
+          pip install pip-audit==2.10.1
+          for lock in apps/control-plane/requirements.lock \
+                      apps/control-plane/requirements-dev.lock \
+                      apps/scan-agent/requirements.lock \
+                      apps/scan-agent/requirements-dev.lock; do
+            echo "::group::pip-audit $lock"
+            pip-audit --strict --no-deps -r "$lock"
+            echo "::endgroup::"
+          done

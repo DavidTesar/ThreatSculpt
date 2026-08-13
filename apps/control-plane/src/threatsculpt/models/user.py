@@ -58,9 +58,22 @@ class User(TenantModel):
     failed_login_count: Mapped[int] = mapped_column(nullable=False, default=0, server_default="0")
     locked_until: Mapped[datetime | None] = mapped_column()
 
+    #: When control of ``email`` was proved. NULL means the address was claimed
+    #: and never confirmed, which counts for nothing: such an account is not a
+    #: login candidate and does not occupy one of the address's slots.
+    email_verified_at: Mapped[datetime | None] = mapped_column()
+    #: SHA-256 of the outstanding verification token. The plaintext goes to the
+    #: delivery interface once and is never stored.
+    verification_token_hash: Mapped[str | None] = mapped_column(String(64))
+    verification_expires_at: Mapped[datetime | None] = mapped_column()
+
     @property
     def is_active(self) -> bool:
         return self.status == UserStatus.ACTIVE
+
+    @property
+    def is_verified(self) -> bool:
+        return self.email_verified_at is not None
 
     def has_role(self, required: str) -> bool:
         return outranks_or_equals(self.role, required)

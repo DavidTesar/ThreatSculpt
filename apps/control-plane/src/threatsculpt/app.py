@@ -15,6 +15,7 @@ from threatsculpt.api.limits import AUTH_LIMITER_ATTR, GENERAL_LIMITER_ATTR
 from threatsculpt.api.middleware import RequestContextMiddleware
 from threatsculpt.api.router import api_router
 from threatsculpt.api.routes import health
+from threatsculpt.auth.delivery import build_email_sender
 from threatsculpt.config import Settings, get_settings
 from threatsculpt.db.engine import build_engine, build_session_factory
 from threatsculpt.db.privileges import assert_database_role_is_unprivileged
@@ -60,6 +61,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     )
     setattr(app.state, AUTH_LIMITER_ATTR, SlidingWindowLimiter())
     setattr(app.state, GENERAL_LIMITER_ATTR, SlidingWindowLimiter())
+    app.state.email_sender = build_email_sender(resolved.email_delivery)
 
     _install_middleware(app, resolved)
     register_exception_handlers(app)

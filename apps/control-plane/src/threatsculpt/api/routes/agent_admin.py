@@ -17,6 +17,7 @@ from uuid import UUID
 
 from fastapi import APIRouter, Depends, Path, Request
 
+from threatsculpt.agents.allowlist import authorized_networks
 from threatsculpt.agents.enrollment import issue_enrollment_token
 from threatsculpt.agents.schemas import (
     AgentAllowlistUpdate,
@@ -29,10 +30,11 @@ from threatsculpt.api.limits import enforce_general_rate_limit
 from threatsculpt.api.middleware import client_ip
 from threatsculpt.audit.writer import record_audit
 from threatsculpt.core.envelope import Envelope, ok
-from threatsculpt.core.errors import ConflictError
+from threatsculpt.core.errors import ConflictError, SemanticValidationError
 from threatsculpt.core.pagination import PaginationParams, pagination_params
 from threatsculpt.models.agent import Agent, AgentStatus
 from threatsculpt.models.audit import AuditAction
+from threatsculpt.scanning.targets import narrow_to
 from threatsculpt.tenancy.repository import ScopedRepository
 
 router = APIRouter(
@@ -98,13 +100,66 @@ async def get_agent(
     summary="Narrow an agent to a subset of the authorized networks",
 )
 async def update_allowlist(
-    principal: RequireAdmin, session: SessionDep, agent_id: AgentId, payload: AgentAllowlistUpdate
+    request: Request,
+    principal: RequireAdmin,
+    session: SessionDep,
+    agent_id: AgentId,
+    payload: AgentAllowlistUpdate,
 ) -> Envelope[AgentOut]:
-    """Stored as-is; ranges outside the org's authorized networks are dropped
-    when the effective list is computed, so this can only ever narrow."""
+    """Store the **effective** list, not the submitted one.
+
+    The narrowing itself was always correct — ``agents.allowlist`` may only ever
+    subtract from the org's authorized networks, and ``effective_allowlist``
+    enforces that on every heartbeat. What was wrong was the record of it. The
+    submitted list was stored verbatim, so ``GET /agents/{id}`` reported
+    ``['0.0.0.0/0', '8.8.8.0/24', '10.1.0.0/16']`` while the agent was being sent
+    ``['10.1.0.0/16']`` — an operator reading the API during an incident would
+    have concluded the scanner was pointed at the internet. Narrowing before the
+    write makes the stored value the value that is in force.
+
+    A request whose entries all fall outside the authorized networks is refused
+    rather than stored empty. Empty means *no per-agent restriction*, which
+    widens the agent to every authorized network — the exact opposite of what
+    somebody submitting a list of ranges intended. Clearing the restriction is
+    still available, by sending an empty list explicitly.
+    """
     repository = ScopedRepository(session, principal.scope, Agent)
     agent = await repository.get_or_404(agent_id)
-    updated = await repository.update(agent, {"allowlist": list(payload.allowlist)})
+    before = tuple(agent.allowlist or ())
+
+    requested = tuple(payload.allowlist)
+    authorized = await authorized_networks(session, principal.scope)
+    effective = narrow_to(authorized, requested) if requested else ()
+    dropped = tuple(entry for entry in requested if entry not in effective)
+
+    if requested and not effective:
+        raise SemanticValidationError(
+            "None of the requested ranges are inside a network this organisation has "
+            "registered and marked authorized, so the agent would be left unrestricted. "
+            "Send an empty list to deliberately remove the restriction.",
+            field="allowlist",
+            code="allowlist_outside_authorized_networks",
+        )
+
+    updated = await repository.update(agent, {"allowlist": list(effective)})
+    await record_audit(
+        session,
+        principal.scope,
+        AuditAction.AGENT_ALLOWLIST_UPDATED,
+        target_type="agent",
+        target_id=agent_id,
+        # Before and after, plus what the org's authorisation removed from the
+        # request. During an incident the dropped entries are the interesting
+        # part: they are what somebody asked a scanner to point at.
+        metadata={
+            "name": agent.name,
+            "before": list(before),
+            "after": list(effective),
+            "requested": list(requested),
+            "dropped_outside_authorized_networks": list(dropped),
+        },
+        ip=client_ip(request),
+    )
     return ok(AgentOut.model_validate(updated))
 
 

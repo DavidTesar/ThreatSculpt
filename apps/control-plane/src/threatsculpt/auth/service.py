@@ -7,6 +7,7 @@ handles HTTP shape only.
 from __future__ import annotations
 
 import logging
+from collections.abc import Sequence
 from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
 from uuid import UUID
@@ -15,7 +16,9 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from threatsculpt.audit.writer import record_audit
+from threatsculpt.auth import accounts, verification
 from threatsculpt.auth import refresh as refresh_tokens
+from threatsculpt.auth.delivery import EmailSender
 from threatsculpt.auth.schemas import LoginRequest, RegisterRequest
 from threatsculpt.config import Settings
 from threatsculpt.core.errors import (
@@ -63,8 +66,20 @@ async def register(
     codec: JwtCodec,
     payload: RegisterRequest,
     facts: RequestFacts,
+    sender: EmailSender,
 ) -> AuthOutcome:
-    """Create an org and its first ``owner`` user, then log them in."""
+    """Create an org and its first ``owner`` user, then log them in.
+
+    Registration is deliberately open: refusing it is how one party denies
+    another a sign-up, which is what an earlier capacity check on unverified
+    claims did. The address starts unproved instead, and an unproved address
+    counts for nothing anywhere — see ``auth.accounts``.
+
+    The registrant keeps the session this returns, because they are holding the
+    browser that made the request. What they do not get until the address is
+    proved is the ability to *log in* to it by password, which is the thing that
+    would let a claim on somebody else's address matter.
+    """
     org = Org(
         name=payload.org_name,
         slug=payload.org_slug,
@@ -82,6 +97,7 @@ async def register(
     scope = OrgScope.for_system(org.id)
     await bind_scope(session, scope)
 
+    issued = verification.issue_token(settings.email_verification_ttl_hours)
     users = ScopedRepository(session, scope, User)
     user = await users.create(
         email=str(payload.email),
@@ -89,6 +105,7 @@ async def register(
         full_name=payload.full_name,
         role=Role.OWNER.value,
         status=UserStatus.ACTIVE.value,
+        **verification.pending_columns(issued),
     )
 
     outcome = await _complete_login(session, settings, codec, user, org, facts)
@@ -101,7 +118,68 @@ async def register(
         metadata={"org_slug": org.slug, "email": user.email},
         ip=facts.ip,
     )
+    verification.dispatch(sender, email=user.email, org_slug=org.slug, issued=issued)
     return outcome
+
+
+async def verify_email(
+    session: AsyncSession,
+    presented_token: str,
+    facts: RequestFacts,
+) -> User:
+    """Turn a claim on an address into a proved account.
+
+    Unknown, spent and expired tokens are one error: telling them apart is the
+    only thing a caller holding a guessed value could learn. The capacity check
+    lands here rather than at registration, because this is the moment a slot is
+    actually taken.
+    """
+    user = await credentials.find_user_by_verification_hash(session, hash_token(presented_token))
+    if user is None or verification.is_expired(user):
+        raise verification.VerificationTokenInvalidError()
+
+    scope = OrgScope.for_system(user.org_id)
+    await bind_scope(session, scope)
+    await accounts.assert_email_has_capacity(session, user.email)
+    verified = await verification.mark_verified(session, scope, user)
+    await record_audit(
+        session,
+        scope,
+        AuditAction.AUTH_EMAIL_VERIFIED,
+        target_type="user",
+        target_id=verified.id,
+        ip=facts.ip,
+    )
+    return verified
+
+
+async def resend_verification(
+    session: AsyncSession,
+    settings: Settings,
+    scope: OrgScope,
+    user: User,
+    org: Org,
+    sender: EmailSender,
+    facts: RequestFacts,
+) -> None:
+    """Re-issue the token for the caller's own unverified account.
+
+    Scoped to the authenticated principal on purpose: an endpoint that resent to
+    any address on request would be an open relay for anybody who wanted to
+    aim this service's mail at a third party.
+    """
+    issued = await verification.replace_token(
+        session, scope, user, settings.email_verification_ttl_hours
+    )
+    await record_audit(
+        session,
+        scope,
+        AuditAction.AUTH_VERIFICATION_RESENT,
+        target_type="user",
+        target_id=user.id,
+        ip=facts.ip,
+    )
+    verification.dispatch(sender, email=user.email, org_slug=org.slug, issued=issued)
 
 
 async def login(
@@ -116,7 +194,18 @@ async def login(
 
     Unknown email and wrong password produce the same exception, the same status
     code, and the same body. The unknown-email branch still spends one Argon2
-    verification so the two paths cost the same wall-clock time.
+    verification so the two paths cost the same wall-clock time, and so does the
+    locked-account branch — otherwise a sub-10ms reply would confirm that the
+    address is real and currently locked.
+
+    One address may exist in several orgs (``users`` is unique on
+    ``(org_id, email)``), so every candidate is verified against the row already
+    in hand. **No candidate loop touches the database**: password verification
+    and the lockout check are pure functions of rows already loaded, and the
+    session's tenant scope is bound exactly once, for the winner. Binding per
+    candidate is what used to turn a second candidate into a
+    ``TenancyViolationError`` — a 500 on a correct password, an unauthenticated
+    CRITICAL log, and an oracle for "this address exists in more than one org".
 
     ``session_factory`` is needed because a rejected login still has to *record*
     something: the request transaction is rolled back when the error propagates,
@@ -130,33 +219,78 @@ async def login(
         passwords.burn_dummy_verification()
         raise InvalidCredentialsError()
 
-    for candidate in candidates:
-        scope = OrgScope.for_user(candidate)
-        await bind_scope(session, scope)
-        if _is_locked(candidate):
-            continue
-        if passwords.verify_password(payload.password, candidate.password_hash):
-            org = await _load_org(session, candidate)
-            if org is None or org.status != OrgStatus.ACTIVE.value:
-                raise AuthenticationError("This organisation is not active.")
-            await _clear_failures(session, scope, candidate)
-            outcome = await _complete_login(session, settings, codec, candidate, org, facts)
-            await record_audit(
-                session,
-                scope,
-                AuditAction.AUTH_LOGIN,
-                target_type="user",
-                target_id=candidate.id,
-                ip=facts.ip,
+    attempt = _verify_against_candidates(payload.password, candidates)
+    if attempt.matched is None:
+        # Charged to the accounts the wrong password was actually presented
+        # against, not to whichever row happened to sort first.
+        for candidate in attempt.failed:
+            await _record_failure(
+                session_factory, OrgScope.for_user(candidate), candidate.id, settings, facts
             )
-            return outcome
-        await _record_failure(session_factory, scope, candidate.id, settings, facts)
+        for candidate in attempt.locked:
+            await _record_attempt_while_locked(
+                session_factory, OrgScope.for_user(candidate), candidate.id, facts
+            )
+        raise InvalidCredentialsError()
+    matched = attempt.matched
 
-    raise InvalidCredentialsError()
+    # The password was right for one of the candidates, so this is the account
+    # holder rather than somebody guessing: the near-misses are not charged a
+    # failure. Without that, one org's routine logins would lock out an
+    # unrelated org that happens to share the address.
+    scope = OrgScope.for_user(matched)
+    await bind_scope(session, scope)
+
+    org = await _load_org(session, matched)
+    if org is None or org.status != OrgStatus.ACTIVE.value:
+        raise AuthenticationError("This organisation is not active.")
+    await _clear_failures(session, scope, matched)
+    outcome = await _complete_login(session, settings, codec, matched, org, facts)
+    await record_audit(
+        session,
+        scope,
+        AuditAction.AUTH_LOGIN,
+        target_type="user",
+        target_id=matched.id,
+        ip=facts.ip,
+    )
+    return outcome
+
+
+@dataclass(frozen=True, slots=True)
+class _LoginAttempt:
+    """How one presented password fared against each candidate account."""
+
+    matched: User | None
+    failed: tuple[User, ...]
+    locked: tuple[User, ...]
+
+
+def _verify_against_candidates(password: str, candidates: Sequence[User]) -> _LoginAttempt:
+    """Sort the candidates into matched, wrong-password, and locked-out.
+
+    Pure: no database access, no scope binding. Every branch spends exactly one
+    Argon2 verification per candidate, including the locked one — skipping it
+    made a locked account answer in a fraction of the time of any other outcome,
+    which turned "spray ten guesses, then time one request" into a confirmation
+    that the address is real.
+    """
+    failed: list[User] = []
+    locked: list[User] = []
+    for candidate in candidates:
+        if accounts.is_locked(candidate):
+            passwords.burn_dummy_verification()
+            locked.append(candidate)
+            continue
+        if passwords.verify_password(password, candidate.password_hash):
+            return _LoginAttempt(candidate, tuple(failed), tuple(locked))
+        failed.append(candidate)
+    return _LoginAttempt(None, tuple(failed), tuple(locked))
 
 
 async def rotate_refresh(
     session: AsyncSession,
+    session_factory: async_sessionmaker[AsyncSession],
     settings: Settings,
     codec: JwtCodec,
     presented_token: str,
@@ -169,20 +303,7 @@ async def rotate_refresh(
         raise AuthenticationError("Refresh token is invalid or expired.")
 
     if record.is_spent:
-        revoked = await refresh_tokens.revoke_family(session, scope, record.id)
-        await record_audit(
-            session,
-            scope,
-            AuditAction.AUTH_REFRESH_REUSE_DETECTED,
-            target_type="user",
-            target_id=record.user_id,
-            metadata={"tokens_revoked": revoked},
-            ip=facts.ip,
-        )
-        logger.warning(
-            "refresh token reuse detected; family revoked",
-            extra={"org_id": str(scope.org_id), "tokens_revoked": revoked},
-        )
+        await _revoke_family_on_reuse(session_factory, scope, record.id, record.user_id, facts)
         raise AuthenticationError("Refresh token is invalid or expired.")
 
     if record.expires_at <= datetime.now(tz=UTC):
@@ -238,10 +359,45 @@ async def logout(
         AuditAction.AUTH_LOGOUT,
         target_type="user",
         target_id=record.user_id,
-        metadata={"tokens_revoked": revoked},
+        metadata={"revoked_count": revoked},
         ip=facts.ip,
     )
     return revoked > 0
+
+
+async def _revoke_family_on_reuse(
+    session_factory: async_sessionmaker[AsyncSession],
+    scope: OrgScope,
+    seed_id: UUID,
+    user_id: UUID,
+    facts: RequestFacts,
+) -> int:
+    """Kill the family and record the detection, then let the caller raise.
+
+    Same reasoning as ``_record_failure``: the caller is about to raise
+    ``AuthenticationError``, and ``api.dependencies.get_session`` rolls the
+    request transaction back on any exception. Writing the revocation into that
+    transaction meant the stolen token survived its own detection — the attacker
+    kept a 30-day session and the ``auth.refresh_reuse_detected`` row the SOC
+    watches for was discarded with it. Both writes therefore commit in their own
+    transaction, before the raise.
+    """
+    async with scoped_session(session_factory, scope) as bookkeeping:
+        revoked = await refresh_tokens.revoke_family(bookkeeping, scope, seed_id)
+        await record_audit(
+            bookkeeping,
+            scope,
+            AuditAction.AUTH_REFRESH_REUSE_DETECTED,
+            target_type="user",
+            target_id=user_id,
+            metadata={"revoked_count": revoked},
+            ip=facts.ip,
+        )
+    logger.warning(
+        "refresh token reuse detected; family revoked",
+        extra={"org_id": str(scope.org_id), "revoked_count": revoked},
+    )
+    return revoked
 
 
 async def _complete_login(
@@ -303,10 +459,6 @@ async def _load_org(session: AsyncSession, user: User) -> Org | None:
     return await session.get(Org, user.org_id)
 
 
-def _is_locked(user: User) -> bool:
-    return user.locked_until is not None and user.locked_until > datetime.now(tz=UTC)
-
-
 async def _record_failure(
     session_factory: async_sessionmaker[AsyncSession],
     scope: OrgScope,
@@ -343,6 +495,33 @@ async def _record_failure(
             target_type="user",
             target_id=user_id,
             metadata={"attempts": attempts, "locked": "locked_until" in changes},
+            ip=facts.ip,
+        )
+
+
+async def _record_attempt_while_locked(
+    session_factory: async_sessionmaker[AsyncSession],
+    scope: OrgScope,
+    user_id: UUID,
+    facts: RequestFacts,
+) -> None:
+    """Log an attempt against an already-locked account, without extending it.
+
+    Two jobs. It is the signal a SOC wants — somebody is still guessing at an
+    account that has already tripped its threshold — and it gives the locked
+    branch the same one-transaction database cost as the wrong-password branch,
+    so the response time no longer says which of the two happened. Deliberately
+    does *not* touch ``locked_until``: a stranger who can extend a lockout for as
+    long as they keep guessing has an indefinite denial of service.
+    """
+    async with scoped_session(session_factory, scope) as bookkeeping:
+        await record_audit(
+            bookkeeping,
+            scope,
+            AuditAction.AUTH_LOGIN_FAILED,
+            target_type="user",
+            target_id=user_id,
+            metadata={"locked": True, "attempts": 0},
             ip=facts.ip,
         )
 

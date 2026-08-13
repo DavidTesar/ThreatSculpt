@@ -26,7 +26,7 @@ from tests.factories import API, Tenant, create_network, register_tenant
 from threatsculpt.core.pagination import PaginationParams
 from threatsculpt.db.session import scoped_session
 from threatsculpt.models.audit import AuditLog
-from threatsculpt.models.inventory import Asset
+from threatsculpt.models.inventory import Asset, Network
 from threatsculpt.models.scan import Port, ScanResult
 from threatsculpt.scanning.ingest import MAX_RESULT_PAYLOAD_BYTES
 from threatsculpt.tenancy.repository import ScopedRepository
@@ -106,18 +106,24 @@ async def test_a_host_outside_every_registered_network_is_rejected(
 ) -> None:
     """Second half of the §5 check.
 
-    The network is deleted after the job is created, so the target range is no
-    longer one the org claims. The submission is then refused even though the
-    address is inside the job's own target.
+    The network row is removed **behind the API**, so the job keeps its lease and
+    the submission actually reaches ingest. Going through ``DELETE /networks``
+    would cancel the job first (see
+    ``test_deleting_a_network_through_the_api_cancels_the_job_instead``), which is
+    the better outcome operationally but means this branch never runs — and this
+    branch is the §5 promise that the control plane re-validates what an agent
+    sends regardless of how the org's networks came to be in that state.
     """
     tenant = await register_tenant(client, "acme")
-    network_id = await create_network(client, tenant)
+    await create_network(client, tenant)
     job_id = await create_scan(client, tenant)
     agent = await enroll_agent(client, tenant)
     await claim_one(client, agent)
-    assert (
-        await client.delete(f"{API}/networks/{network_id}", headers=tenant.auth_header)
-    ).status_code == 200
+
+    scope = OrgScope.for_system(tenant.org_id)
+    async with scoped_session(session_factory, scope) as session:
+        networks = ScopedRepository(session, scope, Network)
+        assert await networks.delete_where() == 1
 
     response = await client.post(
         f"{API}/agent/jobs/{job_id}/results",
@@ -129,6 +135,39 @@ async def test_a_host_outside_every_registered_network_is_rejected(
     body = response.json()["data"]
     assert body["hosts_ingested"] == 0
     assert body["hosts_rejected"] == [{"ip": "10.0.4.12", "reason": "outside_registered_networks"}]
+
+
+async def test_deleting_a_network_through_the_api_cancels_the_job_instead(
+    client: AsyncClient, session_factory: async_sessionmaker[AsyncSession]
+) -> None:
+    """Withdrawing authorisation stops the scan rather than letting it report back.
+
+    The agent is holding the lease when the operator deletes the network. The job
+    is cancelled, so the agent's results are refused with the 409 that
+    docs/AGENT-PROTOCOL.md §6 tells it to treat as "drop it and re-poll".
+    """
+    tenant = await register_tenant(client, "acme")
+    network_id = await create_network(client, tenant)
+    job_id = await create_scan(client, tenant)
+    agent = await enroll_agent(client, tenant)
+    await claim_one(client, agent)
+
+    deleted = await client.delete(f"{API}/networks/{network_id}", headers=tenant.auth_header)
+    assert deleted.status_code == 200, deleted.text
+
+    response = await client.post(
+        f"{API}/agent/jobs/{job_id}/results",
+        json=results_body((host("10.0.4.12"),)),
+        headers=agent.auth_header,
+    )
+
+    assert response.status_code == 409, response.text
+    assert (await read_job(session_factory, tenant.org_id, job_id))["status"] == "cancelled"
+
+    scope = OrgScope.for_system(tenant.org_id)
+    async with scoped_session(session_factory, scope) as session:
+        assets = ScopedRepository(session, scope, Asset)
+        assert await assets.count() == 0
 
 
 async def test_a_rejected_host_is_audit_logged(

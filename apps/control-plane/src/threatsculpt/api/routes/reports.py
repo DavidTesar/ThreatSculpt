@@ -30,7 +30,7 @@ from threatsculpt.core.errors import NotFoundError, SemanticValidationError
 from threatsculpt.core.pagination import PaginationParams, pagination_params
 from threatsculpt.models.audit import AuditAction
 from threatsculpt.models.report import Report, ReportFormat, ReportStatus
-from threatsculpt.reports import runner
+from threatsculpt.reports import intake, runner
 from threatsculpt.reports.schemas import (
     ReportCreate,
     ReportCreated,
@@ -62,7 +62,14 @@ async def request_report(
     session: SessionDep,
     payload: ReportCreate,
 ) -> Envelope[ReportCreated]:
-    """202 and a report id. The render happens on the event loop, not here."""
+    """202 and a report id. The render happens on the event loop, not here.
+
+    Three things happen before a row is created, all of them cheap and all of
+    them there because a render is not: an identical request already queued is
+    returned as-is rather than rendered twice, an org past its concurrent-render
+    ceiling is refused with 429, and this org's expired artifacts are purged.
+    See ``reports.intake`` for the measurements that motivated each.
+    """
     if payload.format not in SUPPORTED_FORMATS:
         raise SemanticValidationError(
             f"Only {', '.join(SUPPORTED_FORMATS)} reports are supported. "
@@ -71,12 +78,28 @@ async def request_report(
             code="unsupported_report_format",
         )
 
+    report_scope = payload.scope.model_dump(mode="json")
+    existing = await intake.coalesce(
+        session,
+        principal.scope,
+        type_=payload.type.value,
+        format_=payload.format,
+        report_scope=report_scope,
+    )
+    if existing is not None:
+        # No new row, no new task, no audit row: nothing happened that the
+        # already-recorded request did not already record.
+        return ok(ReportCreated(report_id=existing.id, status=ReportStatus.QUEUED))
+
+    await intake.assert_capacity(session, principal.scope)
+    await intake.purge_expired(session, principal.scope)
+
     repository = ScopedRepository(session, principal.scope, Report)
     report = await repository.create(
         type=payload.type.value,
         format=payload.format,
         status=ReportStatus.QUEUED.value,
-        scope=payload.scope.model_dump(mode="json"),
+        scope=report_scope,
         requested_by_user_id=principal.user.id,
     )
     await record_audit(

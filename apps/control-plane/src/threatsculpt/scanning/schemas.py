@@ -13,7 +13,7 @@ from datetime import datetime
 from typing import Annotated
 from uuid import UUID
 
-from pydantic import Field, field_validator
+from pydantic import Field, field_validator, model_validator
 
 from threatsculpt.api.schemas import FromAttributes, StrictModel
 from threatsculpt.models.scan import ScanProfile, ScanStatus
@@ -25,6 +25,18 @@ from threatsculpt.scanning.targets import parse_address, parse_network
 MAX_HOSTS_PER_BATCH = 4_096
 MAX_PORTS_PER_HOST = 1_024
 MAX_CPES_PER_PORT = 32
+
+#: The per-host cap multiplied out is 4,194,304 ports in one batch, which no cap
+#: on this list was ever meant to permit — a submission of 368,640 ports, well
+#: inside every other limit, held one connection and one write transaction for
+#: five and a half minutes. The per-host cap bounds the wrong thing: a busy host
+#: with 1,024 open ports is plausible, 4,096 such hosts at once is not.
+#:
+#: 20,000 is deliberately above any honest batch. A ``-p-`` sweep of a /24 that
+#: found 64 open ports on every one of its 254 live hosts submits 16,256, and a
+#: scan that genuinely finds more is a scan that should be chunked — §5 provides
+#: for exactly that and the ingest endpoint is idempotent across chunks.
+MAX_PORTS_PER_SUBMISSION = 20_000
 
 #: docs/AGENT-PROTOCOL.md §3 — one poll returns at most this many jobs.
 MAX_CLAIM_CAPACITY = 10
@@ -180,6 +192,22 @@ class ResultsSubmission(StrictModel):
     nmap_version: Annotated[str | None, Field(max_length=64)] = None
     hosts: Annotated[tuple[HostObservation, ...], Field(max_length=MAX_HOSTS_PER_BATCH)]
     final: bool = True
+
+    @model_validator(mode="after")
+    def _check_total_ports(self) -> ResultsSubmission:
+        """Bound the batch as a whole, not just each host in it.
+
+        Rejected in the schema rather than in the handler so the work is refused
+        before a transaction is open, which is the whole point of the cap.
+        """
+        total = sum(len(host.ports) for host in self.hosts)
+        if total > MAX_PORTS_PER_SUBMISSION:
+            raise ValueError(
+                f"this batch carries {total} ports; at most {MAX_PORTS_PER_SUBMISSION} may be "
+                "submitted at once. Split the scan across several batches with 'final': false "
+                "on all but the last."
+            )
+        return self
 
 
 class RejectedHost(StrictModel):

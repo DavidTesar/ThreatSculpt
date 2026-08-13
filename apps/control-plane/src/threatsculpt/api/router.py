@@ -20,12 +20,14 @@ from threatsculpt.api.routes import (
     findings,
     networks,
     reports,
+    users,
 )
 from threatsculpt.auth.router import router as auth_router
 from threatsculpt.scanning.router import router as scans_router
 
 api_router = APIRouter()
 api_router.include_router(auth_router)
+api_router.include_router(users.router)
 api_router.include_router(networks.router)
 api_router.include_router(business_services.router)
 api_router.include_router(assets.router)

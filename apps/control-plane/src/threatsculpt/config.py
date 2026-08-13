@@ -56,6 +56,16 @@ class Settings(BaseSettings):
     refresh_cookie_name: str = "ts_refresh"
     cookie_secure: bool = True
     cookie_domain: str | None = None
+    #: How long a verification token stays usable. Short by design: an unverified
+    #: account is inert, and one that is never proved should stop being
+    #: verifiable rather than remain claimable indefinitely.
+    email_verification_ttl_hours: Annotated[int, Field(ge=1, le=168)] = 24
+    #: Delivery mechanism for verification messages. **Neither option delivers
+    #: mail** — this branch has no mail infrastructure. ``none`` drops the
+    #: message and logs that it did; ``memory`` retains it in-process for
+    #: development and tests. Wiring a real provider means one class in
+    #: ``auth.delivery`` and one new value here. See SECURITY.md.
+    email_delivery: Literal["none", "memory"] = "none"
 
     # --- http -------------------------------------------------------------
     # NoDecode: pydantic-settings would otherwise try to JSON-parse a tuple
@@ -68,6 +78,10 @@ class Settings(BaseSettings):
     # --- limits -----------------------------------------------------------
     auth_rate_limit_per_minute: Annotated[int, Field(ge=1)] = 10
     general_rate_limit_per_minute: Annotated[int, Field(ge=1)] = 100
+    #: Bucket for callers with no usable credential, keyed on source address.
+    #: Deliberately separate from — and smaller than — the per-user limit, so an
+    #: unauthenticated flood cannot spend a real user's allowance.
+    anonymous_rate_limit_per_minute: Annotated[int, Field(ge=1)] = 30
     max_failed_logins: Annotated[int, Field(ge=1)] = 10
     login_lockout_minutes: Annotated[int, Field(ge=1)] = 15
 

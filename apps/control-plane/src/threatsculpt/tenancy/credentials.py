@@ -6,7 +6,7 @@ in a tenant table. Rather than leaving RLS permissive when the GUC is unset —
 which would make every unscoped bug a silent cross-tenant read — the exception
 is made explicit and narrow:
 
-* exactly four functions, all in this module;
+* exactly five functions, all in this module;
 * SELECT only, enforced by the guard (see ``_assert_credential_lookup_is_a_select``);
 * the predicate is always equality on a SHA-256 hash or an email, never a
   caller-controlled ``org_id``;
@@ -33,7 +33,11 @@ AUTHN_GUC = "threatsculpt.authn"
 
 #: Bound so a single email shared across many orgs cannot be used to force an
 #: unbounded number of Argon2 verifications in one request.
-MAX_LOGIN_CANDIDATES = 3
+#:
+#: The same number caps how many active accounts may hold one address — see
+#: ``auth.accounts``. Enforcing it at account creation is what stops this
+#: ``LIMIT`` from silently dropping a legitimate account past the window.
+MAX_LOGIN_CANDIDATES = 10
 
 _ENABLE_AUTHN_SQL = text("SELECT set_config(:guc, 'on', true)")
 _DISABLE_AUTHN_SQL = text("SELECT set_config(:guc, '', true)")
@@ -54,18 +58,29 @@ def _as_credential_lookup[StatementT: Select](statement: StatementT) -> Statemen
 async def find_login_candidates(
     session: AsyncSession, email: str, *, org_slug: str | None = None
 ) -> Sequence[User]:
-    """Active users matching ``email``, optionally narrowed to one org.
+    """Active, **verified** users matching ``email``, optionally narrowed to one org.
 
     Returns a sequence because ``users`` is unique on ``(org_id, email)``, not on
     ``email`` — the same address can legitimately exist in two customers. The
     caller verifies the password against each candidate, so an extra candidate
     grants nothing without the password.
+
+    The verification predicate is load-bearing rather than cosmetic. Registration
+    is open, so anyone can create a row claiming any address; if such a row were a
+    candidate, a stranger's unproved claim would sit in the same candidate set as
+    the address's real owner, absorbing failed attempts and reaching lockout on
+    an account nobody involved controls. An unproved claim is not a credential
+    and does not appear here.
     """
     from threatsculpt.models.org import Org  # local import: avoids a cycle at module load
 
     statement = (
         select(User)
-        .where(User.email == email, User.status == UserStatus.ACTIVE.value)
+        .where(
+            User.email == email,
+            User.status == UserStatus.ACTIVE.value,
+            User.email_verified_at.is_not(None),
+        )
         .order_by(User.created_at)
         .limit(MAX_LOGIN_CANDIDATES)
     )
@@ -105,6 +120,29 @@ async def find_refresh_token_by_hash(session: AsyncSession, token_hash: str) -> 
     anything the caller supplied.
     """
     statement = select(RefreshToken).where(RefreshToken.token_hash == token_hash).limit(1)
+    await _enable_authn_window(session)
+    try:
+        result = await session.execute(_as_credential_lookup(statement))
+        return result.scalar_one_or_none()
+    finally:
+        await _disable_authn_window(session)
+
+
+async def find_user_by_verification_hash(session: AsyncSession, token_hash: str) -> User | None:
+    """Resolve the account a verification token belongs to.
+
+    Same bootstrap problem as a refresh token: the value is opaque and carries no
+    org, so the row has to be found before a scope can exist. The column is
+    UNIQUE where non-NULL, so this matches at most one row, and the caller
+    derives its scope from that row. Expiry is checked by the caller against the
+    row it gets back, not here, so that an expired token and an unknown one take
+    the same path.
+    """
+    statement = (
+        select(User)
+        .where(User.verification_token_hash == token_hash, User.status == UserStatus.ACTIVE.value)
+        .limit(1)
+    )
     await _enable_authn_window(session)
     try:
         result = await session.execute(_as_credential_lookup(statement))

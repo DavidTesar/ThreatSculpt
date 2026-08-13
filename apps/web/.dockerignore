@@ -1,0 +1,14 @@
+# Without this, the `COPY . .` in the Dockerfile copies the host's node_modules over
+# the tree that `npm ci` just installed from package-lock.json, so a local image build
+# ships whatever happened to be on the developer's disk. CI never noticed because a
+# fresh checkout has no node_modules to copy.
+node_modules
+dist
+coverage
+
+# Nothing here is part of the served bundle.
+.git
+.gitignore
+Dockerfile
+.dockerignore
+*.tsbuildinfo

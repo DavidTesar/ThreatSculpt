@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from datetime import UTC, datetime
+
 import pytest
 from httpx import AsyncClient
 from sqlalchemy.ext.asyncio import async_sessionmaker
@@ -15,7 +17,13 @@ from threatsculpt.tenancy.scope import OrgScope
 
 
 async def _add_user(session_factory: async_sessionmaker, tenant: Tenant, role: Role) -> str:
-    """Insert a second user in ``tenant``'s org with the given role."""
+    """Insert a second user in ``tenant``'s org with the given role.
+
+    ``email_verified_at`` is set because these tests are about roles, not about
+    onboarding: an unverified account is not a login candidate at all, so this
+    would build a user who cannot authenticate and every role assertion below
+    would fail on the wrong thing.
+    """
     email = f"{role.value}@{tenant.org_slug}.example"
     scope = OrgScope.for_system(tenant.org_id)
     async with scoped_session(session_factory, scope) as session:
@@ -26,6 +34,7 @@ async def _add_user(session_factory: async_sessionmaker, tenant: Tenant, role: R
             full_name=f"{role.value} user",
             role=role.value,
             status="active",
+            email_verified_at=datetime.now(tz=UTC),
         )
     return email
 

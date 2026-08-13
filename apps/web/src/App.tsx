@@ -10,7 +10,9 @@ const queryClient = createQueryClient();
 export function App() {
   return (
     <QueryClientProvider client={queryClient}>
-      <BrowserRouter future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
+      {/* The v7_startTransition / v7_relativeSplatPath flags are gone in react-router
+          v7: they were v6 opt-ins for what is now the only behaviour. */}
+      <BrowserRouter>
         <ToastProvider>
           <AuthProvider>
             <AppRoutes />

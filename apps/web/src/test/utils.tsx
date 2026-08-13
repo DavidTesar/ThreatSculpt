@@ -40,10 +40,9 @@ export function renderApp(ui: ReactElement, options: RenderAppOptions = {}) {
     const inner = <ToastProvider>{children}</ToastProvider>;
     return (
       <QueryClientProvider client={queryClient}>
-        <MemoryRouter
-          initialEntries={[route]}
-          future={{ v7_startTransition: true, v7_relativeSplatPath: true }}
-        >
+        {/* No `future` flags: react-router v7 removed them, having made the v6
+            opt-in behaviour the default. */}
+        <MemoryRouter initialEntries={[route]}>
           {withAuth ? <AuthProvider>{inner}</AuthProvider> : inner}
         </MemoryRouter>
       </QueryClientProvider>

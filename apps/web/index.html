@@ -9,24 +9,11 @@
       content="ThreatSculpt translates vulnerability scan output into business impact — which services are exposed, and what it costs."
     />
     <title>ThreatSculpt</title>
-    <script>
-      // Applies the stored theme before first paint, so a dark-mode user never sees a
-      // white flash on load. Kept inline and tiny for that reason.
-      (function () {
-        try {
-          var stored = localStorage.getItem('ts.theme');
-          var theme =
-            stored === 'light' || stored === 'dark'
-              ? stored
-              : window.matchMedia('(prefers-color-scheme: dark)').matches
-                ? 'dark'
-                : 'light';
-          document.documentElement.setAttribute('data-theme', theme);
-        } catch (e) {
-          document.documentElement.setAttribute('data-theme', 'light');
-        }
-      })();
-    </script>
+    <!--
+      Sets data-theme before first paint. Render-blocking and not deferred on purpose,
+      and in a separate file rather than inline so the CSP can keep script-src 'self'.
+    -->
+    <script src="/theme-init.js"></script>
   </head>
   <body>
     <div id="root"></div>

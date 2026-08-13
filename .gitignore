@@ -21,3 +21,6 @@ dist/
 agent-key
 # OS
 .DS_Store
+
+# Build artifacts
+*.egg-info/

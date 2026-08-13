@@ -11,8 +11,8 @@ function readInitialTheme(): Theme {
 }
 
 /**
- * Theme state, kept in sync with the `data-theme` attribute that the inline script in
- * index.html already set before first paint.
+ * Theme state, kept in sync with the `data-theme` attribute that the boot script
+ * (public/theme-init.js) already set before first paint.
  */
 export function useTheme() {
   const [theme, setTheme] = useState<Theme>(readInitialTheme);

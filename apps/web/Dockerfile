@@ -22,6 +22,9 @@ FROM nginxinc/nginx-unprivileged:1.27-alpine
 # The unprivileged image already runs as UID 101 and listens on 8080.
 COPY --from=builder /build/dist /usr/share/nginx/html
 COPY nginx.conf /etc/nginx/conf.d/default.conf
+# Not named *.conf: conf.d/*.conf is auto-included at http level by the base image's
+# nginx.conf, and this file is meant to be included explicitly, per location.
+COPY security-headers.inc /etc/nginx/conf.d/security-headers.inc
 
 EXPOSE 8080
 

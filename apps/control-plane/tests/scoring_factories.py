@@ -205,7 +205,14 @@ async def add_user_and_login(
     slug: str,
     role: str,
 ) -> dict[str, str]:
-    """A second user in the org with ``role``, plus its auth header."""
+    """A second user in the org with ``role``, plus its auth header.
+
+    Inserted already verified: an unverified account is excluded from the login
+    candidate set, so the login below would fail on onboarding state rather than
+    on anything these fixtures are about.
+    """
+    from datetime import UTC, datetime
+
     from tests.factories import API, DEFAULT_PASSWORD
     from threatsculpt.models.user import User
     from threatsculpt.security.passwords import hash_password
@@ -219,6 +226,7 @@ async def add_user_and_login(
             full_name=f"{role} user",
             role=role,
             status="active",
+            email_verified_at=datetime.now(tz=UTC),
         )
     response = await client.post(
         f"{API}/auth/login", json={"email": email, "password": DEFAULT_PASSWORD}

@@ -13,6 +13,15 @@ org, so a report can only ever be built from the requesting tenant's data.
 Tasks are held in a registry rather than fire-and-forgotten: an ``asyncio.Task``
 with no strong reference can be garbage-collected mid-flight, which would show
 up as reports that stay ``generating`` forever under load.
+
+**They are also held behind a semaphore.** "Not on the request's task" is not the
+same as "not on the request's event loop": a render takes 4.1 s of mostly
+awaited database time on a tenant with 30,000 findings, and sixty of them
+scheduled at once made an unrelated ``POST`` on the same worker wait 37 seconds.
+The scheduling was never the expensive part — the *concurrency* was. Admission
+control lives in ``reports.intake``; this is the second half, bounding how many
+of the admitted renders run at any moment so a worker keeps serving requests
+while it works through them.
 """
 
 from __future__ import annotations
@@ -42,12 +51,33 @@ from threatsculpt.tenancy.scope import OrgScope
 logger = logging.getLogger(__name__)
 
 TASKS_ATTR: Final = "report_tasks"
+SEMAPHORE_ATTR: Final = "report_semaphore"
+
+#: Renders running at once on one worker, across every tenant. Two, because the
+#: work is database-bound and the pool is small (10+5): more concurrent renders
+#: buy no throughput and cost the connections the HTTP routes need.
+MAX_CONCURRENT_RENDERS: Final = 2
 
 #: Truncated before logging; the column never receives it.
 MAX_ERROR_LENGTH: Final = 2000
 
 #: What a client is told when a render fails. Never the exception text.
 GENERIC_FAILURE_MESSAGE: Final = "Report generation failed. Try requesting it again."
+
+
+def render_permit(app_state: Any) -> asyncio.Semaphore:
+    """The worker's render permit, created on first use.
+
+    Held on ``app.state`` rather than as a module global so it belongs to the
+    application that owns the loop it will be awaited on — a module-level
+    semaphore outlives the loop a test created it under.
+    """
+    existing = getattr(app_state, SEMAPHORE_ATTR, None)
+    if isinstance(existing, asyncio.Semaphore):
+        return existing
+    created = asyncio.Semaphore(MAX_CONCURRENT_RENDERS)
+    setattr(app_state, SEMAPHORE_ATTR, created)
+    return created
 
 
 def schedule(
@@ -57,10 +87,27 @@ def schedule(
     registry: set[asyncio.Task[None]] = getattr(app_state, TASKS_ATTR, None) or set()
     setattr(app_state, TASKS_ATTR, registry)
 
-    task = asyncio.create_task(generate(session_factory, org_id, report_id))
+    task = asyncio.create_task(
+        _generate_when_permitted(render_permit(app_state), session_factory, org_id, report_id)
+    )
     registry.add(task)
     task.add_done_callback(registry.discard)
     return task
+
+
+async def _generate_when_permitted(
+    permit: asyncio.Semaphore,
+    session_factory: async_sessionmaker[AsyncSession],
+    org_id: UUID,
+    report_id: UUID,
+) -> None:
+    """Wait for a render slot, then generate.
+
+    The row stays ``queued`` while waiting, which is exactly what a poller should
+    see: the request was accepted and the work has not started.
+    """
+    async with permit:
+        await generate(session_factory, org_id, report_id)
 
 
 async def drain(app_state: Any) -> None:

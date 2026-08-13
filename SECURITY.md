@@ -45,9 +45,55 @@ Cross-tenant access returns `404`, never `403` — a `403` would confirm the res
 ### Authentication
 Argon2id password hashing. Short-lived JWT access tokens with rotating refresh tokens stored
 hashed and delivered as `HttpOnly`, `Secure`, `SameSite=Lax` cookies. Reuse of a rotated
-refresh token revokes the entire family, which is the detection signal for a stolen token.
-Login is constant-time with respect to whether an account exists. Auth endpoints are rate
-limited per IP and per account.
+refresh token revokes the entire family, which is the detection signal for a stolen token;
+the revocation and its audit record are committed before the request is rejected, so the
+detection survives the rejection that triggered it. Login is constant-time with respect to
+whether an account exists, and with respect to whether an account is locked out. Auth
+endpoints are rate limited per IP; everything else is rate limited per authenticated
+principal, with a separate, smaller bucket for callers presenting no usable credential.
+
+**Access tokens are stateless and are not revoked.** Logout, a password change, a password
+reset and deactivating a user all revoke the refresh-token family immediately, so no new
+access token can be minted — but an access token already issued stays valid until it
+expires, which is at most `TS_ACCESS_TOKEN_TTL_MINUTES` (15 by default). There is no
+denylist. That is the deliberate trade for statelessness: a denylist consulted on every
+request needs shared state across workers, and the in-process store this service ships with
+would enforce it on one worker and not the others — worse than not claiming it at all. Treat
+15 minutes as the window in which a stolen access token remains usable, and revoke at the
+refresh layer, which is where revocation is real.
+
+An email address may hold an account in several organisations; `users` is unique on
+`(org_id, email)`. Login verifies the presented password against every such account and
+binds a tenant scope only for the one that matched.
+
+### Email verification
+
+Registration is open — anyone may submit any address — so **a claim on an address counts for
+nothing until control of it is proved**. An unverified account is not a login candidate, so it
+can neither authenticate nor absorb another account's failed attempts, and it does not occupy
+one of the address's slots. Registering an address somebody else owns therefore takes nothing
+away from them: not a sign-up, not a login, not a place in the candidate window. An
+administrator adding a colleague is the same kind of assertion and is treated the same way.
+
+Verification tokens are opaque random values stored as SHA-256, shown once, replaced rather
+than accumulated, and expired after `TS_EMAIL_VERIFICATION_TTL_HOURS` (24 by default). An
+expired claim can no longer be verified.
+
+The number of accounts one address may hold is capped as a backstop, and the cap is applied
+at **verification** — the moment a slot is actually taken — never at registration. Applying it
+at registration is what an earlier revision did, and it converted an account-lockout attack
+into a denial of onboarding: ten unauthenticated registrations against a prospect's address
+and its real owner met a conflict they had not caused and could not clear.
+
+> **Delivery is not wired.** This branch has no mail infrastructure. The verification state
+> machine is fully enforced, but `TS_EMAIL_DELIVERY` ships as `none`, which logs that a
+> message was wanted and drops it — the token is never logged, because it is a credential.
+> **An operator running this as-is cannot complete a sign-up**: the registrant keeps the
+> session the registration returned, but no password login against that address will succeed
+> until somebody verifies it. Wiring a provider is one class implementing `EmailSender` in
+> `auth/delivery.py` and one new value for `TS_EMAIL_DELIVERY`; nothing that decides whether
+> an address is proved changes with it. Until then, treat onboarding as unavailable rather
+> than as working.
 
 Users and agents are separate principal types with separate credentials and separate
 authentication dependency chains — not two roles sharing one mechanism.
