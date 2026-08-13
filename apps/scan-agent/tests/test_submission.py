@@ -35,7 +35,9 @@ def test_an_empty_scan_still_submits_one_chunk() -> None:
 
 
 def test_a_large_scan_is_split_and_every_chunk_fits() -> None:
-    scan = make_scan(tuple(make_host(f"10.0.{n // 250}.{n % 250}", port_count=20) for n in range(500)))
+    scan = make_scan(
+        tuple(make_host(f"10.0.{n // 250}.{n % 250}", port_count=20) for n in range(500))
+    )
     chunks = build_submissions(scan, max_bytes=64 * 1024)
 
     assert len(chunks) > 1

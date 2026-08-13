@@ -11,14 +11,40 @@ Rewriting those as repository calls would mean pulling rows into Python to count
 them, which is the N+1 the dashboard cannot afford. So they are built as Core
 statements and run through here.
 
+It is also the only supported way to run the handful of raw ``text()``
+statements the ORM cannot express at all — ``scanning.sql`` holds those, and the
+distinction below is the reason they are routed through here rather than run on
+a bare session.
+
 This is a narrower thing than it looks. It does **not** loosen tenancy:
 
-1. ``execute`` refuses unless the session is already bound to the same scope.
-2. Every statement still carries the guard's execution option, so the ORM guard
-   in ``tenancy.guard`` is satisfied honestly rather than bypassed.
+1. ``execute_scoped`` refuses unless the session is already bound to the same
+   scope. This holds for **every** statement kind, and for raw SQL it is the
+   only Python-side check there is.
+2. Every statement carries the guard's execution option — but be precise about
+   what that buys. ``tenancy.guard`` inspects ``Select``/``Insert``/``Update``/
+   ``Delete``; ``_tenant_tables_in`` returns an empty set for anything else and
+   the listener bails before it reads the option. So a ``text()`` clause is
+   **invisible to the guard**, and stamping it satisfies nothing. Measured, with
+   the guard installed and a scope bound:
+
+       select(Network)                    -> refused by the guard
+       text("SELECT id FROM networks")    -> executed, never inspected
+
+   For Core constructs the guard is a real fence. For raw SQL it is not a fence
+   at all, and treating it as one is the mistake this note exists to prevent.
 3. Callers still write the ``org_id`` predicate themselves, and RLS is still
    underneath — a statement that forgot its predicate returns nothing rather
    than another tenant's rows, because the policy is evaluated in the database.
+   This is the layer that actually covers raw SQL, and it is why point 2 being
+   weaker than it looks is survivable rather than a hole.
+
+``text()`` is deliberately *not* rejected here: ``CLAIM_JOBS`` needs
+``FOR UPDATE SKIP LOCKED`` inside a subquery and the host check needs the native
+``cidr >>= inet`` operator, and neither has a Core equivalent. The cost is that
+those statements rely on point 1 plus point 3, with point 2 contributing
+nothing — so their ``org_id`` predicate is load-bearing in a way a Core
+statement's is not.
 
 The cross-tenant tests exercise the endpoints built on this, not just the
 repository, precisely because an aggregate is an easy place to leak a count.

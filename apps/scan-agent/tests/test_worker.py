@@ -258,7 +258,8 @@ def _many_hosts(service_xml: bytes, count: int) -> bytes:
     head, host_block = service_xml.split(b"<host ", 1)
     host_block, tail = host_block.rsplit(b"</host>", 1)
     hosts = b"".join(
-        b"<host " + host_block.replace(b'addr="127.0.0.1"', f'addr="10.0.4.{n}"'.encode())
+        b"<host "
+        + host_block.replace(b'addr="127.0.0.1"', f'addr="10.0.4.{n}"'.encode())
         + b"</host>"
         for n in range(1, count + 1)
     )
@@ -355,9 +356,7 @@ async def test_a_transient_submission_failure_is_retried(
 
 
 @respx.mock
-async def test_release_hands_the_job_back(
-    tmp_path: Path, client: ControlPlaneClient
-) -> None:
+async def test_release_hands_the_job_back(tmp_path: Path, client: ControlPlaneClient) -> None:
     _mock_job_endpoints()
     reject = respx.post(f"{API_PREFIX}/jobs/job-1/reject")
     executor = build_executor(tmp_path, client, SpyRunner())

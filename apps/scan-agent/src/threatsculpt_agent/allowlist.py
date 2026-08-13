@@ -125,8 +125,7 @@ def evaluate_target(
             False,
             target,
             REASON_NOT_IN_LOCAL,
-            f"{parsed} not within configured ranges "
-            f"({', '.join(str(n) for n in local)})",
+            f"{parsed} not within configured ranges ({', '.join(str(n) for n in local)})",
         )
 
     effective = narrow(local, server)

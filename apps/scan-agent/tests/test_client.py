@@ -358,8 +358,6 @@ async def test_an_empty_202_body_is_accepted(client: ControlPlaneClient) -> None
     moment = datetime.now(tz=UTC)
     ack = await client.submit_results(
         "job-1",
-        ResultSubmission(
-            started_at=moment, finished_at=moment, nmap_version="7.99", hosts=()
-        ),
+        ResultSubmission(started_at=moment, finished_at=moment, nmap_version="7.99", hosts=()),
     )
     assert ack.accepted

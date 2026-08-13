@@ -177,9 +177,7 @@ class AgentDaemon:
         """Run one job as a task so shutdown can bound it rather than abandon it."""
         task = asyncio.create_task(self.executor.execute(job, self._state.server_allowlist))
         waiter = asyncio.create_task(self._shutdown.wait())
-        done, _pending = await asyncio.wait(
-            {task, waiter}, return_when=asyncio.FIRST_COMPLETED
-        )
+        done, _pending = await asyncio.wait({task, waiter}, return_when=asyncio.FIRST_COMPLETED)
         if task in done:
             waiter.cancel()
             return task.result()

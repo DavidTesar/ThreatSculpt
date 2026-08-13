@@ -49,9 +49,7 @@ async def detect_nmap_version(nmap_path: Path | str) -> str:
             stdout=asyncio.subprocess.PIPE,
             stderr=asyncio.subprocess.DEVNULL,
         )
-        stdout, _ = await asyncio.wait_for(
-            process.communicate(), timeout=VERSION_TIMEOUT_SECONDS
-        )
+        stdout, _ = await asyncio.wait_for(process.communicate(), timeout=VERSION_TIMEOUT_SECONDS)
     except (OSError, TimeoutError) as exc:
         log.warning("could not determine nmap version from %s: %s", nmap_path, exc)
         return "unknown"
@@ -105,8 +103,7 @@ class NmapRunner:
 
         if len(stdout) > self.max_output_bytes:
             raise NmapOutputTooLargeError(
-                f"nmap produced {len(stdout)} bytes, over the "
-                f"{self.max_output_bytes}-byte limit"
+                f"nmap produced {len(stdout)} bytes, over the {self.max_output_bytes}-byte limit"
             )
         if process.returncode != 0:
             raise NmapFailedError(

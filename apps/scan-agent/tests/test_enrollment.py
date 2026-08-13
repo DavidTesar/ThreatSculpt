@@ -57,9 +57,7 @@ async def test_a_fresh_agent_trades_its_token_for_a_key(
 async def test_the_new_key_is_persisted_at_0600(
     tmp_path: Path, keystore: KeyStore, client: ControlPlaneClient
 ) -> None:
-    respx.post(f"{API_PREFIX}/enroll").mock(
-        return_value=httpx.Response(201, json=ENROLL_RESPONSE)
-    )
+    respx.post(f"{API_PREFIX}/enroll").mock(return_value=httpx.Response(201, json=ENROLL_RESPONSE))
     await ensure_enrolled(_settings_with_token(tmp_path), client, keystore)
 
     assert keystore.read() == "tsa_permanent_key"
@@ -167,9 +165,7 @@ async def test_a_rejected_token_surfaces_as_an_enrollment_error(
 async def test_the_enrollment_token_is_never_written_to_the_key_file(
     tmp_path: Path, keystore: KeyStore, client: ControlPlaneClient
 ) -> None:
-    respx.post(f"{API_PREFIX}/enroll").mock(
-        return_value=httpx.Response(201, json=ENROLL_RESPONSE)
-    )
+    respx.post(f"{API_PREFIX}/enroll").mock(return_value=httpx.Response(201, json=ENROLL_RESPONSE))
     await ensure_enrolled(_settings_with_token(tmp_path), client, keystore)
 
     assert "tse_" not in keystore.path.read_text()
@@ -182,9 +178,7 @@ async def test_no_secret_is_logged_during_enrollment(
     client: ControlPlaneClient,
     caplog: pytest.LogCaptureFixture,
 ) -> None:
-    respx.post(f"{API_PREFIX}/enroll").mock(
-        return_value=httpx.Response(201, json=ENROLL_RESPONSE)
-    )
+    respx.post(f"{API_PREFIX}/enroll").mock(return_value=httpx.Response(201, json=ENROLL_RESPONSE))
     with caplog.at_level("DEBUG"):
         await ensure_enrolled(_settings_with_token(tmp_path), client, keystore)
 

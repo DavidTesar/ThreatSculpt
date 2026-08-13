@@ -59,9 +59,7 @@ def _redact_value(value: Any) -> Any:
 def configure_logging(level: str = "INFO", stream: Any = None) -> None:
     """Install a single stderr handler carrying the redaction filter."""
     handler = logging.StreamHandler(stream or sys.stderr)
-    handler.setFormatter(
-        logging.Formatter("%(asctime)s %(levelname)-7s %(name)s %(message)s")
-    )
+    handler.setFormatter(logging.Formatter("%(asctime)s %(levelname)-7s %(name)s %(message)s"))
     handler.addFilter(SecretRedactingFilter())
 
     root = logging.getLogger()

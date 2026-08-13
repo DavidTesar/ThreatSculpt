@@ -223,9 +223,7 @@ async def test_consecutive_failures_reset_after_a_good_cycle(
     respx.post(f"{API_PREFIX}/heartbeat").mock(
         side_effect=[httpx.Response(503)] * 3 + [httpx.Response(200, json={"revoked": False})]
     )
-    respx.post(f"{API_PREFIX}/jobs/claim").mock(
-        return_value=httpx.Response(200, json={"jobs": []})
-    )
+    respx.post(f"{API_PREFIX}/jobs/claim").mock(return_value=httpx.Response(200, json={"jobs": []}))
     daemon = build_daemon(tmp_path, client)
 
     await daemon.run(max_cycles=2)

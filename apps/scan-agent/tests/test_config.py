@@ -77,7 +77,9 @@ def test_allowlist_entries_are_parsed_as_networks_not_strings(tmp_path: Path) ->
 @pytest.mark.parametrize("entry", ["10.0.0.0/33", "not-a-cidr", "10.0.4.12/24"])
 def test_a_bad_allowlist_entry_fails_at_load(tmp_path: Path, entry: str) -> None:
     """Fail at startup, not on the first job that would have been mis-validated."""
-    config = _write_config(tmp_path, f'control_plane_url="https://c.test"\nagent_name="a"\nallowlist=["{entry}"]\n')
+    config = _write_config(
+        tmp_path, f'control_plane_url="https://c.test"\nagent_name="a"\nallowlist=["{entry}"]\n'
+    )
     with pytest.raises(ConfigError):
         load_settings(config)
 

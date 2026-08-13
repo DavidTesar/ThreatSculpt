@@ -48,9 +48,7 @@ def parse_nmap_xml(
 
     hosts = tuple(
         host
-        for host in (
-            _parse_host(el, include_port_states) for el in root.findall("host")
-        )
+        for host in (_parse_host(el, include_port_states) for el in root.findall("host"))
         if host is not None and (include_down_hosts or host.state == UP)
     )
 

@@ -51,9 +51,7 @@ class _StatementRecorder:
         self._sync_engine = engine.sync_engine
         self.statements: list[str] = []
 
-    def _record(
-        self, conn: Any, cursor: Any, statement: str, *args: Any, **kwargs: Any
-    ) -> None:
+    def _record(self, conn: Any, cursor: Any, statement: str, *args: Any, **kwargs: Any) -> None:
         self.statements.append(statement)
 
     def __enter__(self) -> _StatementRecorder:

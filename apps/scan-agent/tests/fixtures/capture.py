@@ -24,8 +24,17 @@ CAPTURES = (("service", "service-localhost.xml"), ("discovery", "discovery-local
 # real output. This capture is intentionally not a profile: profiles are the fixed set the
 # protocol defines, and this is a parser fixture, not a scan the agent would ever run.
 SMALL_PORT_ARGV = (
-    "/usr/bin/nmap", "-sS", "-sV", "--version-intensity", "5", "-T3",
-    "-p", "22,80,8080", "-oX", "-", TARGET,
+    "/usr/bin/nmap",
+    "-sS",
+    "-sV",
+    "--version-intensity",
+    "5",
+    "-T3",
+    "-p",
+    "22,80,8080",
+    "-oX",
+    "-",
+    TARGET,
 )
 
 

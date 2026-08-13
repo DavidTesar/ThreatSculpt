@@ -95,9 +95,7 @@ class JobExecutor:
         await self._report(job, "running", 5)
         try:
             run = await self.runner.run(job.target, job.profile)
-            scan = parse_nmap_xml(
-                run.stdout, include_port_states=self.settings.include_port_states
-            )
+            scan = parse_nmap_xml(run.stdout, include_port_states=self.settings.include_port_states)
         except (NmapError, XmlParseError) as exc:
             detail = str(exc)[:_ERROR_DETAIL_LIMIT]
             log.error("job %s: scan failed: %s", job.job_id, detail)
@@ -133,9 +131,7 @@ class JobExecutor:
             if not chunk.final:
                 await self._report(job, "running", _progress(chunk.chunk_index, len(chunks)))
 
-        log.info(
-            "job %s: submitted %d host(s) in %d chunk(s)", job.job_id, submitted, len(chunks)
-        )
+        log.info("job %s: submitted %d host(s) in %d chunk(s)", job.job_id, submitted, len(chunks))
         return JobOutcome(job.job_id, "completed", hosts_submitted=submitted)
 
     async def _submit_chunk(self, job: ClaimedJob, chunk: ResultSubmission) -> None:

@@ -29,12 +29,15 @@ def _config(tmp_path: Path, body: str = VALID_CONFIG) -> Path:
 
 def test_there_is_no_flag_for_the_api_key_or_token() -> None:
     """argv is world-readable via `ps`; a flag here would be a credential leak by design."""
-    options = {
-        option
-        for action in build_parser()._actions
-        for option in action.option_strings
-    }
-    for forbidden in ("--api-key", "--apikey", "--key", "--token", "--enrollment-token", "--secret"):
+    options = {option for action in build_parser()._actions for option in action.option_strings}
+    for forbidden in (
+        "--api-key",
+        "--apikey",
+        "--key",
+        "--token",
+        "--enrollment-token",
+        "--secret",
+    ):
         assert forbidden not in options
 
 
@@ -123,7 +126,13 @@ def test_the_filter_scrubs_messages_and_arguments() -> None:
 def test_the_filter_scrubs_dict_arguments() -> None:
     # A single mapping arg is passed as a 1-tuple, exactly as logging.Logger does it.
     record = logging.LogRecord(
-        "test", logging.INFO, __file__, 1, "headers %(auth)s", ({"auth": "Bearer tsa_secret"},), None
+        "test",
+        logging.INFO,
+        __file__,
+        1,
+        "headers %(auth)s",
+        ({"auth": "Bearer tsa_secret"},),
+        None,
     )
     SecretRedactingFilter().filter(record)
 
