@@ -46,6 +46,10 @@ class ScanJob(TenantModel):
         CheckConstraint(
             f"attempts >= 0 AND attempts <= {MAX_JOB_ATTEMPTS}", name="scan_jobs_attempts_bounded"
         ),
+        CheckConstraint(
+            "progress_percent IS NULL OR (progress_percent >= 0 AND progress_percent <= 100)",
+            name="scan_jobs_progress_in_range",
+        ),
         Index("ix_scan_jobs_org_id_status", "org_id", "status"),
         # Partial index backing the claim query in docs/AGENT-PROTOCOL.md §3.
         Index(
@@ -70,6 +74,8 @@ class ScanJob(TenantModel):
     )
     lease_expires_at: Mapped[datetime | None] = mapped_column()
     attempts: Mapped[int] = mapped_column(nullable=False, default=0, server_default="0")
+    #: Self-reported by the agent while the scan runs (docs/AGENT-PROTOCOL.md §5).
+    progress_percent: Mapped[int | None] = mapped_column()
     requested_by_user_id: Mapped[uuid.UUID | None] = mapped_column(
         PgUUID(as_uuid=True), ForeignKey("users.id", ondelete="SET NULL")
     )

@@ -31,6 +31,21 @@ ORG_ID_COLUMN = "org_id"
 class Base(DeclarativeBase):
     metadata = MetaData(naming_convention=NAMING_CONVENTION)
 
+    #: Fetch server-computed values with ``RETURNING`` as part of the INSERT or
+    #: UPDATE, instead of leaving them expired for a later lazy refresh.
+    #:
+    #: This is load-bearing, not a tuning knob. ``updated_at`` uses a SQL-side
+    #: ``onupdate``, so without this SQLAlchemy cannot know what the database
+    #: computed and expires the attribute after every flush. The next read —
+    #: typically ``model_validate`` on a response schema — triggers a lazy
+    #: refresh, which is an ORM SELECT carrying no scope, and the tenancy guard
+    #: correctly refuses it. Every successful UPDATE in the service would 500.
+    #:
+    #: PostgreSQL supports RETURNING on UPDATE, so the value arrives with the
+    #: statement that produced it: no expiry, no second round trip, and nothing
+    #: for callers to remember.
+    __mapper_args__ = {"eager_defaults": True}  # noqa: RUF012 - SQLAlchemy API
+
     #: Every ``datetime`` column is ``timestamptz``. A naive timestamp column
     #: silently reinterprets values against the server's TimeZone setting, which
     #: for lease expiry and token expiry means an availability bug in one

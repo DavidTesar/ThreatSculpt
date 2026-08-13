@@ -28,6 +28,28 @@ class FindingStatus(StrEnum):
     FALSE_POSITIVE = "false_positive"
 
 
+#: Statuses that count as resolved. Used by the dashboard's open-findings
+#: aggregates and by the transition rules, so "what counts as open" is decided
+#: in one place rather than re-listed at each call site.
+RESOLVED_STATUSES: frozenset[str] = frozenset(
+    {FindingStatus.REMEDIATED.value, FindingStatus.FALSE_POSITIVE.value}
+)
+
+
+class MatchConfidence(StrEnum):
+    """How sure the CPE matcher was that this CVE applies to this service.
+
+    Persisted on the finding rather than buried in ``score_factors`` for two
+    reasons: it survives a re-score (which rewrites the factors), and it is a
+    filter an operator actually wants — "show me only what you are sure about"
+    is the first question a sceptical analyst asks.
+    """
+
+    HIGH = "high"
+    MEDIUM = "medium"
+    LOW = "low"
+
+
 class Vulnerability(TimestampMixin, Base):
     """Global CVE reference data. **Not tenant-scoped** — no ``org_id``.
 
@@ -79,9 +101,24 @@ class Finding(TenantModel):
             name="findings_status_valid",
         ),
         CheckConstraint("business_risk_score >= 0", name="findings_score_non_negative"),
+        CheckConstraint(
+            "match_confidence IN ('high','medium','low')", name="findings_match_confidence_valid"
+        ),
         Index("ix_findings_org_id_status", "org_id", "status"),
         Index("ix_findings_org_id_business_risk_score", "org_id", "business_risk_score"),
         Index("ix_findings_asset_id", "asset_id"),
+        # Backs the default `/findings` listing and the dashboard's worst-score
+        # aggregates: both filter on status and order by score descending.
+        Index(
+            "ix_findings_org_id_status_score",
+            "org_id",
+            "status",
+            text("business_risk_score DESC"),
+        ),
+        Index("ix_findings_org_id_cve_id", "org_id", "cve_id"),
+        # Remediation progress windows scan these two columns directly.
+        Index("ix_findings_org_id_first_seen_at", "org_id", "first_seen_at"),
+        Index("ix_findings_org_id_resolved_at", "org_id", "resolved_at"),
     )
 
     asset_id: Mapped[uuid.UUID] = mapped_column(
@@ -104,6 +141,18 @@ class Finding(TenantModel):
     score_factors: Mapped[dict[str, Any]] = mapped_column(
         JSONB, nullable=False, server_default=text("'{}'")
     )
+    #: How confident the CPE match was, and which rule produced it. Recorded
+    #: rather than implied: a low-confidence match presented as fact is how a
+    #: scanner loses its audience.
+    match_confidence: Mapped[str] = mapped_column(
+        String(16), nullable=False, default=MatchConfidence.HIGH.value, server_default="high"
+    )
+    match_method: Mapped[str | None] = mapped_column(String(64))
+    match_rationale: Mapped[str | None] = mapped_column(String(1000))
     first_seen_at: Mapped[datetime | None] = mapped_column()
     last_seen_at: Mapped[datetime | None] = mapped_column()
     resolved_at: Mapped[datetime | None] = mapped_column()
+
+    @property
+    def is_open(self) -> bool:
+        return self.status not in RESOLVED_STATUSES

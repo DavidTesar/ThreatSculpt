@@ -51,7 +51,9 @@ TEST_JWT_SECRET = "test-only-jwt-secret-value-that-is-long-enough-01234"
 #: Truncated between tests, children first so cascade order is obvious.
 _ALL_TABLES = (
     "audit_log",
+    "reports",
     "findings",
+    "vulnerability_cpe_matches",
     "ports",
     "scan_results",
     "scan_jobs",

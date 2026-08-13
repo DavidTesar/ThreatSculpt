@@ -34,7 +34,9 @@ class AuditAction(StrEnum):
     AUTH_REFRESH_REUSE_DETECTED = "auth.refresh_reuse_detected"
     AUTH_LOGOUT = "auth.logout"
     AGENT_AUTHENTICATED = "agent.authenticated"
+    AGENT_ENROLLMENT_TOKEN_ISSUED = "agent.enrollment_token_issued"  # noqa: S105 - an action name
     AGENT_ENROLLED = "agent.enrolled"
+    AGENT_ENROLLMENT_REJECTED = "agent.enrollment_rejected"
     AGENT_REVOKED = "agent.revoked"
     NETWORK_CREATED = "network.created"
     NETWORK_UPDATED = "network.updated"
@@ -43,7 +45,22 @@ class AuditAction(StrEnum):
     BUSINESS_SERVICE_UPDATED = "business_service.updated"
     BUSINESS_SERVICE_DELETED = "business_service.deleted"
     SCAN_JOB_CREATED = "scan_job.created"
+    SCAN_JOB_CLAIMED = "scan_job.claimed"
+    SCAN_JOB_REJECTED = "scan_job.rejected"
+    SCAN_JOB_CANCELLED = "scan_job.cancelled"
+    SCAN_JOB_LEASE_EXPIRED = "scan_job.lease_expired"
+    SCAN_RESULTS_INGESTED = "scan_result.ingested"
+    #: A host the agent submitted that was outside the job's target or the org's
+    #: registered networks. Security-relevant: it means a client sent data it was
+    #: never asked to collect.
+    SCAN_RESULT_HOST_REJECTED = "scan_result.host_rejected"
     FINDING_STATUS_CHANGED = "finding.status_changed"
+    ASSET_UPDATED = "asset.updated"
+    ASSET_SERVICES_UPDATED = "asset.services_updated"
+    REPORT_REQUESTED = "report.requested"
+    REPORT_GENERATED = "report.generated"
+    REPORT_FAILED = "report.failed"
+    REPORT_DOWNLOADED = "report.downloaded"
     TENANCY_VIOLATION = "security.tenancy_violation"
 
 

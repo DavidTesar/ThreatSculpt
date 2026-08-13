@@ -7,7 +7,12 @@ from httpx import ASGITransport, AsyncClient
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncEngine
 
-from tests.factories import API, create_network, register_tenant
+from tests.factories import (
+    API,
+    create_business_service,
+    create_network,
+    register_tenant,
+)
 from threatsculpt.config import Settings
 from threatsculpt.core.pagination import MAX_PER_PAGE
 
@@ -239,3 +244,76 @@ async def test_audit_log_is_append_only_for_the_application_role(
         )
         with pytest.raises(DBAPIError, match="permission denied"):
             await connection.execute(text("DELETE FROM audit_log"))
+
+
+# --- successful writes -----------------------------------------------------
+
+
+async def test_successful_patch_returns_the_updated_row(client: AsyncClient) -> None:
+    """Regression: a successful update used to 500.
+
+    ``TimestampMixin.updated_at`` carries ``onupdate=func.now()``, a SQL-side
+    default, so SQLAlchemy expires the attribute after flush. Serialising the
+    response then triggered a lazy refresh — an ORM SELECT with no scoped
+    execution option — which the tenancy guard correctly refused. Every PATCH
+    route in the service sits on this path.
+    """
+    tenant = await register_tenant(client, "acme")
+    network_id = await create_network(client, tenant, name="HQ")
+
+    response = await client.patch(
+        f"{API}/networks/{network_id}",
+        json={"name": "HQ renamed", "authorized": False},
+        headers=tenant.auth_header,
+    )
+
+    assert response.status_code == 200, response.text
+    data = response.json()["data"]
+    assert data["name"] == "HQ renamed"
+    assert data["authorized"] is False
+    assert data["updated_at"] is not None
+
+
+async def test_successful_patch_persists(client: AsyncClient) -> None:
+    tenant = await register_tenant(client, "acme")
+    network_id = await create_network(client, tenant, name="HQ")
+
+    await client.patch(
+        f"{API}/networks/{network_id}",
+        json={"name": "HQ renamed"},
+        headers=tenant.auth_header,
+    )
+    refetched = await client.get(f"{API}/networks/{network_id}", headers=tenant.auth_header)
+
+    assert refetched.json()["data"]["name"] == "HQ renamed"
+
+
+async def test_successful_patch_advances_updated_at(client: AsyncClient) -> None:
+    """The column exists to record when the row changed; prove it does."""
+    tenant = await register_tenant(client, "acme")
+    network_id = await create_network(client, tenant, name="HQ")
+    before = (await client.get(f"{API}/networks/{network_id}", headers=tenant.auth_header)).json()[
+        "data"
+    ]["updated_at"]
+
+    patched = await client.patch(
+        f"{API}/networks/{network_id}",
+        json={"name": "HQ renamed"},
+        headers=tenant.auth_header,
+    )
+
+    assert patched.json()["data"]["updated_at"] >= before
+
+
+async def test_successful_patch_on_business_services(client: AsyncClient) -> None:
+    tenant = await register_tenant(client, "acme")
+    service_id = await create_business_service(client, tenant)
+
+    response = await client.patch(
+        f"{API}/business-services/{service_id}",
+        json={"criticality": "low", "revenue_at_risk": "125000.00"},
+        headers=tenant.auth_header,
+    )
+
+    assert response.status_code == 200, response.text
+    assert response.json()["data"]["criticality"] == "low"
