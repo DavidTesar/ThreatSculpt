@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from collections.abc import AsyncIterator
 from datetime import UTC, datetime, timedelta
 from email.utils import format_datetime
 
@@ -34,7 +35,7 @@ HEARTBEAT = HeartbeatRequest(version="2.0.0", nmap_version="7.99")
 
 
 @pytest.fixture
-async def client() -> ControlPlaneClient:
+async def client() -> AsyncIterator[ControlPlaneClient]:
     async with ControlPlaneClient(BASE_URL, api_key=API_KEY) as instance:
         yield instance
 
@@ -86,6 +87,78 @@ async def test_an_authenticated_call_without_a_key_fails_loudly() -> None:
     async with ControlPlaneClient(BASE_URL) as anonymous:
         with pytest.raises(ApiError, match="requires an API key"):
             await anonymous.heartbeat(HEARTBEAT)
+
+
+# --- the response envelope -------------------------------------------------------------
+#
+# The control plane wraps every response, agent routes included, in the
+# {"data", "error", "meta"} envelope of docs/API.md. These tests use that real
+# shape rather than the bare body the protocol document illustrates: mocking the
+# bare form is what let an agent that could not enrol against a live server ship
+# with a green suite.
+
+
+@respx.mock
+async def test_an_enveloped_response_is_unwrapped() -> None:
+    respx.post(f"{API_PREFIX}/enroll").mock(
+        return_value=httpx.Response(
+            201,
+            json={
+                "data": {
+                    "agent_id": "a",
+                    "api_key": "tsa_new",
+                    "org_id": "o",
+                    "allowlist": ["10.0.0.0/8"],
+                    "poll_interval_seconds": 30,
+                },
+                "error": None,
+                "meta": None,
+            },
+        )
+    )
+    async with ControlPlaneClient(BASE_URL) as anonymous:
+        from threatsculpt_agent.models import EnrollRequest
+
+        response = await anonymous.enroll(
+            EnrollRequest(enrollment_token="tse_x", name="a", version="2.0.0", hostname="h")
+        )
+
+    assert response.api_key == "tsa_new"
+    assert response.allowlist == ("10.0.0.0/8",)
+
+
+@respx.mock
+async def test_an_enveloped_claim_yields_the_jobs(client: ControlPlaneClient) -> None:
+    """`jobs` defaults to empty, so a missed unwrap here polls forever and never works."""
+    respx.post(f"{API_PREFIX}/jobs/claim").mock(
+        return_value=httpx.Response(
+            200,
+            json={
+                "data": {
+                    "jobs": [{"job_id": "job-1", "target": "10.0.4.0/24", "profile": "service"}]
+                },
+                "error": None,
+                "meta": None,
+            },
+        )
+    )
+    response = await client.claim_jobs(1)
+
+    assert [job.job_id for job in response.jobs] == ["job-1"]
+
+
+@respx.mock
+async def test_a_bare_body_still_parses(client: ControlPlaneClient) -> None:
+    """Unwrapping keys off the exact envelope key set, so an unenveloped
+    deployment — or a payload of its own carrying a `data` field — is untouched."""
+    respx.post(f"{API_PREFIX}/heartbeat").mock(
+        return_value=httpx.Response(
+            200, json={"allowlist": ["10.0.0.0/8"], "poll_interval_seconds": 15, "revoked": False}
+        )
+    )
+    response = await client.heartbeat(HEARTBEAT)
+
+    assert response.poll_interval_seconds == 15
 
 
 async def test_with_api_key_returns_a_new_client_and_leaves_the_original_alone() -> None:

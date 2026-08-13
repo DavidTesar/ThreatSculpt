@@ -1,0 +1,185 @@
+# ThreatSculpt v2 — local and single-host deployment.
+#
+# Two deployment domains live in this file, and they are NOT the same trust zone:
+#
+#   * postgres, migrate, control-plane, web  — the ThreatSculpt cloud stack.
+#   * scan-agent                             — runs on the CUSTOMER's network.
+#
+# The agent is behind the `agent` profile so it never starts as part of the cloud
+# stack. It is not a cloud service: it holds a customer credential, needs raw-socket
+# access to the customer's LAN, and in production is installed on customer hardware
+# from apps/scan-agent/packaging. It is included here only so a developer can bring
+# up a complete loop on one machine. Starting it by default would both misrepresent
+# the architecture and put a scanner on whatever network the cloud stack runs in.
+#
+#   docker compose up -d                    # cloud stack only
+#   docker compose --profile agent up -d    # add a local agent for development
+#
+# Secrets come from the environment. Copy deploy/.env.example to deploy/.env and
+# fill it in; .env is gitignored and must never be committed.
+
+name: threatsculpt
+
+services:
+  postgres:
+    image: postgres:18-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:?set POSTGRES_USER in deploy/.env}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in deploy/.env}
+      POSTGRES_DB: ${POSTGRES_DB:?set POSTGRES_DB in deploy/.env}
+      # Postgres refuses to start as a non-root UID unless PGDATA is a subdirectory
+      # it owns, rather than the mount point itself.
+      PGDATA: /var/lib/postgresql/data/pgdata
+    user: "70:70"  # the alpine image's postgres user
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $$POSTGRES_USER -d $$POSTGRES_DB"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+    # Not published to the host by default: nothing outside this network needs it.
+    expose:
+      - "5432"
+    security_opt:
+      - no-new-privileges:true
+
+  # Migrations are a one-shot job, not a start-up hook in the API container.
+  # Two API replicas booting together would otherwise race each other through
+  # Alembic. `depends_on: service_completed_successfully` makes the API wait.
+  migrate:
+    build:
+      context: ../apps/control-plane
+    image: threatsculpt/control-plane:${TS_IMAGE_TAG:-2.0.0}
+    restart: "no"
+    command: ["alembic", "upgrade", "head"]
+    environment:
+      TS_DATABASE_URL: postgresql+psycopg://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}
+      # Alembic loads Settings, which requires a JWT secret even though migrations
+      # never mint a token.
+      TS_JWT_SECRET: ${TS_JWT_SECRET:?set TS_JWT_SECRET in deploy/.env}
+      TS_ENVIRONMENT: ${TS_ENVIRONMENT:-production}
+    depends_on:
+      postgres:
+        condition: service_healthy
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+
+  control-plane:
+    build:
+      context: ../apps/control-plane
+    image: threatsculpt/control-plane:${TS_IMAGE_TAG:-2.0.0}
+    restart: unless-stopped
+    environment:
+      TS_DATABASE_URL: postgresql+psycopg://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}
+      TS_JWT_SECRET: ${TS_JWT_SECRET:?set TS_JWT_SECRET in deploy/.env}
+      TS_ENVIRONMENT: ${TS_ENVIRONMENT:-production}
+      TS_LOG_LEVEL: ${TS_LOG_LEVEL:-INFO}
+      TS_LOG_JSON: ${TS_LOG_JSON:-true}
+      TS_CORS_ORIGINS: ${TS_CORS_ORIGINS:-}
+      # The API sits behind nginx here, so it must trust exactly one hop of
+      # X-Forwarded-For — no more, or a client can spoof its own source IP and
+      # defeat the per-IP rate limits.
+      TS_TRUSTED_PROXY_COUNT: ${TS_TRUSTED_PROXY_COUNT:-1}
+      # Cookies are Secure in production; only turn this off for plain-HTTP local dev.
+      TS_COOKIE_SECURE: ${TS_COOKIE_SECURE:-true}
+      TS_COOKIE_DOMAIN: ${TS_COOKIE_DOMAIN:-}
+    depends_on:
+      postgres:
+        condition: service_healthy
+      migrate:
+        condition: service_completed_successfully
+    expose:
+      - "8000"
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    read_only: true
+    tmpfs:
+      - /tmp
+
+  # Returns expired leases to `queued` and fails jobs past their attempt limit.
+  # A separate process on purpose: a sweeper inside the API would run once per
+  # replica and fight itself.
+  sweeper:
+    build:
+      context: ../apps/control-plane
+    image: threatsculpt/control-plane:${TS_IMAGE_TAG:-2.0.0}
+    restart: unless-stopped
+    command: ["python", "-m", "threatsculpt.scanning"]
+    environment:
+      TS_DATABASE_URL: postgresql+psycopg://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}
+      TS_JWT_SECRET: ${TS_JWT_SECRET:?set TS_JWT_SECRET in deploy/.env}
+      TS_ENVIRONMENT: ${TS_ENVIRONMENT:-production}
+      TS_LOG_JSON: ${TS_LOG_JSON:-true}
+    depends_on:
+      postgres:
+        condition: service_healthy
+      migrate:
+        condition: service_completed_successfully
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    read_only: true
+
+  web:
+    build:
+      context: ../apps/web
+      args:
+        # Same-origin: nginx proxies /api to the control plane, which keeps the
+        # refresh cookie first-party.
+        VITE_API_BASE_URL: ${VITE_API_BASE_URL:-/api/v1}
+    image: threatsculpt/web:${TS_IMAGE_TAG:-2.0.0}
+    restart: unless-stopped
+    depends_on:
+      control-plane:
+        condition: service_healthy
+    ports:
+      - "${WEB_PUBLISH_ADDR:-127.0.0.1}:${WEB_PORT:-8080}:8080"
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+
+  # ---------------------------------------------------------------------------
+  # CUSTOMER-SIDE. Profiled out of the default stack — see the header.
+  # ---------------------------------------------------------------------------
+  scan-agent:
+    profiles: ["agent"]
+    build:
+      context: ../apps/scan-agent
+    image: threatsculpt/scan-agent:${TS_IMAGE_TAG:-2.0.0}
+    restart: unless-stopped
+    environment:
+      TS_AGENT_CONTROL_PLANE_URL: ${TS_AGENT_CONTROL_PLANE_URL:?set TS_AGENT_CONTROL_PLANE_URL in deploy/.env}
+      TS_AGENT_AGENT_NAME: ${TS_AGENT_NAME:-compose-agent-01}
+      # One-time token, consumed on first start. After that the agent runs from the
+      # key in its state volume and this value is ignored.
+      TS_AGENT_ENROLLMENT_TOKEN: ${TS_AGENT_ENROLLMENT_TOKEN:-}
+      # THE security boundary: the agent refuses any target outside this list, no
+      # matter what the control plane sends. Never widen it to 0.0.0.0/0.
+      TS_AGENT_ALLOWLIST: ${TS_AGENT_ALLOWLIST:?set TS_AGENT_ALLOWLIST in deploy/.env}
+    volumes:
+      - agent-state:/var/lib/threatsculpt-agent
+    # Raw-socket scanning needs NET_RAW in the bounding set for nmap's file
+    # capability to be usable — and nothing else.
+    cap_drop:
+      - ALL
+    cap_add:
+      - NET_RAW
+    security_opt:
+      - no-new-privileges:true
+    # A scan agent that cannot see the customer's LAN is useless, so real
+    # installs use host networking. Uncomment for anything beyond scanning
+    # containers on this bridge:
+    # network_mode: host
+
+volumes:
+  postgres-data:
+  agent-state:

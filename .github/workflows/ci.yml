@@ -101,6 +101,60 @@ jobs:
       - run: npm run test -- --run
       - run: npm run build
 
+  e2e:
+    name: End-to-end (control plane + agent + nmap + postgres)
+    runs-on: ubuntu-latest
+    # Runs the three apps against each other for real: real HTTP, real agent
+    # enrollment, real nmap against loopback, real ingest, real dashboard reads.
+    # deploy/e2e.sh asserts at every step and exits non-zero on the first failure,
+    # so this job fails when the apps stop interoperating.
+    needs: [control-plane, scan-agent]
+    services:
+      postgres:
+        image: postgres:18
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: ci-only-not-a-real-secret
+          POSTGRES_DB: postgres
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd pg_isready --health-interval 10s
+          --health-timeout 5s --health-retries 5
+    env:
+      PGHOST: 127.0.0.1
+      PGPORT: "5432"
+      PGUSER: postgres
+      PGPASSWORD: ci-only-not-a-real-secret
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+          cache: pip
+
+      - name: Install nmap and the postgres client
+        run: sudo apt-get update && sudo apt-get install -y nmap postgresql-client jq
+
+      - name: Grant nmap raw-socket capability
+        # The agent must not run as root (AGENT-PROTOCOL.md), so the capability
+        # goes on the binary. On Debian /usr/bin/nmap may be a wrapper script,
+        # so resolve to the real ELF first.
+        run: |
+          NMAP_BIN="$(readlink -f "$(command -v nmap)")"
+          if [ -x /usr/lib/nmap/nmap ]; then NMAP_BIN=/usr/lib/nmap/nmap; fi
+          sudo setcap cap_net_raw,cap_net_admin,cap_net_bind_service+eip "$NMAP_BIN"
+          getcap "$NMAP_BIN"
+
+      - name: Install both applications
+        run: |
+          python -m venv apps/control-plane/.venv
+          apps/control-plane/.venv/bin/pip install -e apps/control-plane
+          python -m venv apps/scan-agent/.venv
+          apps/scan-agent/.venv/bin/pip install -e apps/scan-agent
+
+      - name: End-to-end
+        run: deploy/e2e.sh
+
   dependency-audit:
     name: Dependency audit
     runs-on: ubuntu-latest

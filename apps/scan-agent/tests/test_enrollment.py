@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from collections.abc import AsyncIterator
 from pathlib import Path
 
 import httpx
@@ -25,7 +26,7 @@ ENROLL_RESPONSE = {
 
 
 @pytest.fixture
-async def client() -> ControlPlaneClient:
+async def client() -> AsyncIterator[ControlPlaneClient]:
     async with ControlPlaneClient(BASE_URL) as instance:
         yield instance
 

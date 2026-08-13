@@ -6,6 +6,17 @@ Transport: HTTPS only, outbound from the agent. The agent never listens on a por
 Base path: `/api/v1/agent`. All requests carry `Authorization: Bearer <agent_api_key>`
 except enrollment.
 
+**Every response is wrapped in the envelope from [API.md](API.md), agent routes included:**
+
+```json
+{ "data": <the body shown below>, "error": null, "meta": null }
+```
+
+The response bodies in this document are the contents of `data`, shown unwrapped for
+readability. Errors use the same envelope with `data: null` and a populated `error`.
+There is no route on this service, machine-facing or not, that returns a bare body —
+an agent that parses these examples literally will not be able to enrol.
+
 ## 1. Enrollment
 
 An operator creates an enrollment token in the dashboard and configures it on the agent host.
@@ -49,6 +60,8 @@ and tells a revoked agent to shut down. An agent receiving `revoked: true` delet
 key and exits.
 
 ## 3. Claiming work
+
+`capacity` is between 1 and 10; a larger value is refused with `400`.
 
 ```
 POST /api/v1/agent/jobs/claim
@@ -101,14 +114,20 @@ Because the local allowlist wins, it cannot.
 
 ```
 POST /api/v1/agent/jobs/{job_id}/status
-{ "status": "running", "progress_percent": 40 }
+{ "status": "running", "progress_percent": 40, "detail": null }
 ```
+
+Only `running` and `failed` are reportable. A job is completed by submitting its
+results, never by announcing it — so a job cannot be marked done without its data.
+Reporting `completed`, or reporting anything at all once the final results batch has
+landed, is refused with `409`. `detail` carries the reason on `failed`.
 
 ```
 POST /api/v1/agent/jobs/{job_id}/results
 {
   "started_at": "...", "finished_at": "...",
   "nmap_version": "7.94",
+  "final": true,
   "hosts": [{
     "ip": "10.0.4.12",
     "hostname": "db01.corp.local",
@@ -131,7 +150,10 @@ requirement to exactly one host and lets historical scans improve as the CVE mir
 
 Result payloads are capped (10 MB). Larger scans are submitted in chunked batches keyed by
 job id; the ingest endpoint is idempotent on `(job_id, host_ip)` so a retried batch does not
-double-insert.
+double-insert. **`final` is what ends the job:** every batch but the last carries
+`"final": false`, and the batch carrying `"final": true` moves the job to `completed`.
+The submission schema rejects fields it does not define, so a chunk counter that is
+purely a client concern must not be sent.
 
 The control plane **re-validates** every submitted host IP against the job's target CIDR and
 the org's registered networks. Results outside that range are rejected and audit-logged. Never

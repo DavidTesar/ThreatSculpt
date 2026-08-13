@@ -137,7 +137,7 @@ def test_settings_are_frozen(tmp_path: Path) -> None:
 
     settings = load_settings(_write_config(tmp_path))
     with pytest.raises(ValidationError):
-        settings.allowlist = ()  # type: ignore[misc]
+        settings.allowlist = ()
 
 
 def test_the_key_file_defaults_inside_the_state_directory(tmp_path: Path) -> None:

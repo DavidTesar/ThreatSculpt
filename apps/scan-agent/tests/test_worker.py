@@ -6,6 +6,7 @@ allowlist must be rejected *without nmap ever being invoked*.
 
 from __future__ import annotations
 
+from collections.abc import AsyncIterator
 from pathlib import Path
 
 import httpx
@@ -53,7 +54,7 @@ def build_executor(tmp_path: Path, client: ControlPlaneClient, runner: SpyRunner
 
 
 @pytest.fixture
-async def client() -> ControlPlaneClient:
+async def client() -> AsyncIterator[ControlPlaneClient]:
     async with ControlPlaneClient(BASE_URL, api_key="tsa_test") as instance:
         yield instance
 
@@ -208,11 +209,18 @@ async def test_submitted_results_carry_no_cve_or_severity(
 
 
 @respx.mock
-async def test_progress_is_reported_and_completion_is_final(
+async def test_progress_is_reported_and_results_are_what_complete_the_job(
     tmp_path: Path, client: ControlPlaneClient, service_xml: bytes
 ) -> None:
+    """Only ``running``/``failed`` are reportable (AGENT-PROTOCOL.md §5).
+
+    The final results chunk carries ``final: true`` and is what completes the job;
+    a separate "completed" status POST is refused with 409 on an already-finished
+    job, which the agent would surface as a lost lease.
+    """
     _mock_job_endpoints()
     status = respx.post(f"{API_PREFIX}/jobs/job-1/status")
+    results = respx.post(f"{API_PREFIX}/jobs/job-1/results")
     executor = build_executor(tmp_path, client, SpyRunner(stdout=service_xml))
 
     await executor.execute(
@@ -221,8 +229,8 @@ async def test_progress_is_reported_and_completion_is_final(
 
     bodies = [call.request.read().decode() for call in status.calls]
     assert any('"status":"running"' in body for body in bodies)
-    assert '"status":"completed"' in bodies[-1]
-    assert '"progress_percent":100' in bodies[-1]
+    assert not any('"status":"completed"' in body for body in bodies)
+    assert '"final":true' in results.calls.last.request.read().decode()
 
 
 @respx.mock

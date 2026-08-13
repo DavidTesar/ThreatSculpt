@@ -35,10 +35,10 @@ firewall ports, which is what makes the product installable in an enterprise at 
 
 | Decision | Rationale |
 |---|---|
-| Python/FastAPI control plane | Same language as the agent; one set of result-parsing models shared by both sides. OpenAPI schema generated from the code, so the frontend client is generated, not hand-written. |
+| Python/FastAPI control plane | Same language as the agent, so both sides of the ingest contract are written against the same Pydantic idiom. FastAPI also publishes an OpenAPI schema at `/openapi.json`, which is what makes the contract checkable — see the caveat below. |
 | PostgreSQL, not MongoDB | Tenancy isolation is the core security property. Row-level scoping against a relational schema with foreign keys is enforceable and auditable; the v1 Mongo schema had no constraint preventing cross-tenant reads, and that is exactly the bug it shipped. |
 | Agent polls, never listens | No inbound firewall rules at the customer. Also means a compromised control plane cannot be used to make agents scan arbitrary targets without passing job validation. |
-| React + TypeScript + Vite | Types generated from the OpenAPI schema, so a backend contract change breaks the frontend build instead of failing silently at runtime. |
+| React + TypeScript + Vite | Strict TypeScript across the client, so a shape the frontend gets wrong *about itself* fails at build time. Note this does **not** extend to the backend contract — see the caveat below. |
 
 ## Tenancy model
 
@@ -61,10 +61,33 @@ canonical example of the bug this rules out.
 apps/control-plane/     FastAPI service — API, tenancy, risk scoring, reports
 apps/scan-agent/        On-prem daemon — job poller, nmap runner, result submitter
 apps/web/               React + TS dashboard
-packages/contracts/     Shared result/job schemas (Pydantic → JSON Schema → TS types)
-deploy/                 docker-compose for local dev, agent packaging
+deploy/                 docker-compose, environment template, end-to-end proof
 docs/                   This directory
 ```
+
+### Caveat: nothing mechanically enforces the contract
+
+There is no shared `packages/contracts/`. Each of the three apps declares its own models
+against *this documentation*, and the web client's types are hand-maintained rather than
+generated from the OpenAPI schema. So a backend response-shape change does **not** break
+the frontend build — it fails at runtime, in front of a customer.
+
+This is a known weakness, and it has already bitten once: the agent routes return the
+standard `{data, error, meta}` envelope, but AGENT-PROTOCOL.md originally documented bare
+response bodies, so an agent written literally against the spec could not enrol. It was
+caught by `deploy/e2e.sh`, which is the only thing standing between a contract drift and
+production.
+
+Two consequences worth internalising:
+
+1. **Treat every contract statement in these documents as load-bearing.** They are the
+   only specification; there is no generated artifact to fall back on.
+2. **`deploy/e2e.sh` is not a nice-to-have.** It runs the three apps against each other
+   for real and is the sole mechanical check that they still agree. If it is ever
+   skipped, disabled, or allowed to rot, the contract is unverified.
+
+Generating the web client from `/openapi.json` would close this properly and is the
+obvious next investment.
 
 ## Principals and authentication
 

@@ -160,9 +160,7 @@ async def test_report_content_is_escaped(
     assert "&lt;img src=x onerror=alert(2)&gt;" in html
 
 
-async def test_an_empty_org_still_produces_a_readable_report(
-    client: AsyncClient, app: Any
-) -> None:
+async def test_an_empty_org_still_produces_a_readable_report(client: AsyncClient, app: Any) -> None:
     fresh = await register_tenant(client, "reports-empty")
 
     report_id = await _generate(client, app, fresh)
@@ -213,9 +211,7 @@ async def test_download_without_a_token_is_rejected(
     assert response.status_code == 400
 
 
-async def test_a_tampered_token_is_rejected(
-    client: AsyncClient, tenant: Tenant, app: Any
-) -> None:
+async def test_a_tampered_token_is_rejected(client: AsyncClient, tenant: Tenant, app: Any) -> None:
     report_id = await _generate(client, app, tenant)
     link = await client.get(f"{API}/reports/{report_id}/link", headers=tenant.auth_header)
     url = link.json()["data"]["url"]
@@ -388,7 +384,7 @@ async def test_a_failed_render_is_recorded_without_leaking_internals(
     serialise everywhere else in the service.
     """
     # Arrange — make rendering blow up with a message that must not escape.
-    secret_detail = "relation \"findings\" column business_risk_score leaked"
+    secret_detail = 'relation "findings" column business_risk_score leaked'
 
     async def explode(*args: Any, **kwargs: Any) -> str:
         raise RuntimeError(secret_detail)

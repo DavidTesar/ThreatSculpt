@@ -143,7 +143,24 @@ async def services_at_risk(session: AsyncSession, scope: OrgScope) -> list[Servi
     Both sort keys are returned in the payload, so the order is checkable by the
     reader rather than something they have to trust.
     """
-    statement = (
+    rows = (await execute_scoped(session, scope, _services_statement(scope))).all()
+    return [
+        ServiceAtRisk(
+            service_id=row.id,
+            name=row.name,
+            criticality=row.criticality,
+            revenue_at_risk=row.revenue_at_risk,
+            open_findings=int(row.open_findings),
+            worst_finding_score=row.worst_finding_score,
+            assets_affected=int(row.assets_affected),
+        )
+        for row in rows
+    ]
+
+
+def _services_statement(scope: OrgScope) -> Select[Any]:
+    """One GROUP BY over ``business_services -> asset_services -> findings``."""
+    return (
         select(
             BusinessService.id,
             BusinessService.name,
@@ -173,19 +190,6 @@ async def services_at_risk(session: AsyncSession, scope: OrgScope) -> list[Servi
         )
         .limit(MAX_SERVICES_AT_RISK)
     )
-    rows = (await execute_scoped(session, scope, statement)).all()
-    return [
-        ServiceAtRisk(
-            service_id=row.id,
-            name=row.name,
-            criticality=row.criticality,
-            revenue_at_risk=row.revenue_at_risk,
-            open_findings=int(row.open_findings),
-            worst_finding_score=row.worst_finding_score,
-            assets_affected=int(row.assets_affected),
-        )
-        for row in rows
-    ]
 
 
 async def exposure_summary(session: AsyncSession, scope: OrgScope) -> ExposureSummary:

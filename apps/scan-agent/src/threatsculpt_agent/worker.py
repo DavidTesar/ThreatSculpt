@@ -101,7 +101,7 @@ class JobExecutor:
         except (NmapError, XmlParseError) as exc:
             detail = str(exc)[:_ERROR_DETAIL_LIMIT]
             log.error("job %s: scan failed: %s", job.job_id, detail)
-            await self._report(job, "failed", 100, error=detail)
+            await self._report(job, "failed", 100, detail=detail)
             return JobOutcome(job.job_id, "failed", detail=detail)
 
         log.info(
@@ -120,16 +120,19 @@ class JobExecutor:
         except SubmissionTooLargeError as exc:
             detail = str(exc)[:_ERROR_DETAIL_LIMIT]
             log.error("job %s: cannot chunk results: %s", job.job_id, detail)
-            await self._report(job, "failed", 100, error=detail)
+            await self._report(job, "failed", 100, detail=detail)
             return JobOutcome(job.job_id, "failed", detail=detail)
 
         submitted = 0
         for chunk in chunks:
             await self._submit_chunk(job, chunk)
             submitted += len(chunk.hosts)
-            await self._report(job, "running", _progress(chunk.chunk_index, len(chunks)))
+            # Progress is only meaningful while the job is still running. The final
+            # chunk completes it server-side (§5), so reporting anything afterwards —
+            # including "completed" — is refused as a conflict on a finished job.
+            if not chunk.final:
+                await self._report(job, "running", _progress(chunk.chunk_index, len(chunks)))
 
-        await self._report(job, "completed", 100)
         log.info(
             "job %s: submitted %d host(s) in %d chunk(s)", job.job_id, submitted, len(chunks)
         )
@@ -163,10 +166,10 @@ class JobExecutor:
         return JobOutcome(job.job_id, status, detail=detail)
 
     async def _report(
-        self, job: ClaimedJob, status: str, percent: int, error: str | None = None
+        self, job: ClaimedJob, status: str, percent: int, detail: str | None = None
     ) -> None:
         """Progress reporting is best-effort: a failed status POST must not fail the scan."""
-        request = StatusRequest(status=status, progress_percent=percent, error=error)
+        request = StatusRequest(status=status, progress_percent=percent, detail=detail)
         try:
             await retry_async(
                 lambda: self.client.update_status(job.job_id, request),

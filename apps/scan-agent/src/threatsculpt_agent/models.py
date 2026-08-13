@@ -54,7 +54,7 @@ class HeartbeatResponse(BaseModel):
 class ClaimRequest(BaseModel):
     model_config = _REQUEST
 
-    capacity: int = Field(ge=1, le=16)
+    capacity: int = Field(ge=1, le=10)
 
 
 class ClaimedJob(BaseModel):
@@ -80,11 +80,14 @@ class RejectRequest(BaseModel):
 
 
 class StatusRequest(BaseModel):
+    """§5 progress. Only ``running`` and ``failed`` are reportable — a job is
+    completed by submitting its results, never by announcing it."""
+
     model_config = _REQUEST
 
     status: str
     progress_percent: int = Field(ge=0, le=100)
-    error: str | None = None
+    detail: str | None = None
 
 
 class PortObservation(BaseModel):
@@ -119,7 +122,14 @@ class HostObservation(BaseModel):
 
 
 class ResultSubmission(BaseModel):
-    """One results POST. Large scans are split into several of these (see submission.py)."""
+    """One results POST. Large scans are split into several of these (see submission.py).
+
+    ``final`` is the wire field the control plane uses to decide when a chunked
+    submission is done and the job may complete. ``chunk_index``/``chunk_count``
+    are local bookkeeping — they drive the idempotency key and progress reporting
+    — and are excluded from serialisation, because the ingest schema forbids
+    fields it does not define.
+    """
 
     model_config = _REQUEST
 
@@ -127,8 +137,9 @@ class ResultSubmission(BaseModel):
     finished_at: datetime
     nmap_version: str
     hosts: tuple[HostObservation, ...]
-    chunk_index: int = Field(default=0, ge=0)
-    chunk_count: int = Field(default=1, ge=1)
+    final: bool = True
+    chunk_index: int = Field(default=0, ge=0, exclude=True)
+    chunk_count: int = Field(default=1, ge=1, exclude=True)
 
 
 class SubmissionAck(BaseModel):

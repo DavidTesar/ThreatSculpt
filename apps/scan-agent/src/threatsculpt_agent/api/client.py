@@ -178,11 +178,29 @@ def _raise_for_status(path: str, response: httpx.Response) -> None:
     raise ClientError(f"POST {path} failed ({status}): {detail}")
 
 
+#: The control plane wraps every response — agent routes included — in the
+#: ``{"data", "error", "meta"}`` envelope of docs/API.md. Only these keys ever
+#: appear at the top level of one.
+_ENVELOPE_KEYS = frozenset({"data", "error", "meta"})
+
+
+def _unwrap_envelope(payload: Any) -> Any:
+    """Return the payload the protocol documents, from inside the envelope.
+
+    Matched on the exact key set rather than on ``"data" in payload``, so a future
+    protocol body that happens to carry its own ``data`` field is passed through
+    untouched instead of being silently gutted.
+    """
+    if isinstance(payload, dict) and "data" in payload and _ENVELOPE_KEYS.issuperset(payload):
+        return payload["data"]
+    return payload
+
+
 def _decode(path: str, response: httpx.Response) -> Any:
     if response.status_code == 204 or not response.content:
         return None
     try:
-        return response.json()
+        return _unwrap_envelope(response.json())
     except ValueError as exc:
         raise ApiError(f"POST {path} returned a non-JSON body: {exc}") from exc
 

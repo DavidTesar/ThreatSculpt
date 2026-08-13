@@ -33,7 +33,6 @@ from threatsculpt.core.errors import ConflictError
 from threatsculpt.core.pagination import PaginationParams, pagination_params
 from threatsculpt.models.agent import Agent, AgentStatus
 from threatsculpt.models.audit import AuditAction
-from threatsculpt.scanning.persistence import reloaded
 from threatsculpt.tenancy.repository import ScopedRepository
 
 router = APIRouter(
@@ -106,7 +105,7 @@ async def update_allowlist(
     repository = ScopedRepository(session, principal.scope, Agent)
     agent = await repository.get_or_404(agent_id)
     updated = await repository.update(agent, {"allowlist": list(payload.allowlist)})
-    return ok(AgentOut.model_validate(await reloaded(repository, updated)))
+    return ok(AgentOut.model_validate(updated))
 
 
 @router.delete(
@@ -140,4 +139,4 @@ async def revoke_agent(
         metadata={"name": agent.name, "key_prefix": agent.key_prefix},
         ip=client_ip(request),
     )
-    return ok(AgentOut.model_validate(await reloaded(repository, revoked)))
+    return ok(AgentOut.model_validate(revoked))

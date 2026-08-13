@@ -60,7 +60,10 @@ class AgentSettings(BaseSettings):
 
     # --- poll loop -------------------------------------------------------------
     poll_interval_seconds: float = Field(default=30.0, gt=0)
-    capacity: int = Field(default=1, ge=1, le=16)
+    # Upper bound matches MAX_CLAIM_CAPACITY on the control plane: a larger value
+    # is rejected at claim time, so accepting it here would only defer the error
+    # to a running agent that never picks up work.
+    capacity: int = Field(default=1, ge=1, le=10)
     backoff_base_seconds: float = Field(default=1.0, gt=0)
     backoff_max_seconds: float = Field(default=300.0, gt=0)
     backoff_multiplier: float = Field(default=2.0, gt=1)

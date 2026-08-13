@@ -26,7 +26,6 @@ from threatsculpt.db.types import CIDR
 from threatsculpt.models.inventory import Network
 from threatsculpt.models.scan import ScanJob, ScanStatus
 from threatsculpt.scanning.errors import NetworkNotAuthorizedError
-from threatsculpt.scanning.persistence import reloaded
 from threatsculpt.scanning.schemas import ScanJobCreate
 from threatsculpt.tenancy.repository import ScopedRepository
 from threatsculpt.tenancy.scope import OrgScope
@@ -136,4 +135,4 @@ async def cancel_scan_job(session: AsyncSession, scope: OrgScope, job_id: UUID) 
             "finished_at": datetime.now(tz=UTC),
         },
     )
-    return await reloaded(repository, cancelled)
+    return cancelled

@@ -66,7 +66,13 @@ def build_submissions(scan: ParsedScan, *, max_bytes: int) -> tuple[ResultSubmis
     envelope = scan_envelope(scan)
     return tuple(
         envelope.model_copy(
-            update={"hosts": group, "chunk_index": index, "chunk_count": len(groups)}
+            update={
+                "hosts": group,
+                "chunk_index": index,
+                "chunk_count": len(groups),
+                # Only the last chunk completes the job.
+                "final": index == len(groups) - 1,
+            }
         )
         for index, group in enumerate(groups)
     )

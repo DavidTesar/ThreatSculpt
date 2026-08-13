@@ -74,7 +74,7 @@ def test_policies_are_immutable_values() -> None:
 )
 def test_nonsensical_policies_are_refused(kwargs: dict[str, float]) -> None:
     with pytest.raises(ValueError):
-        BackoffPolicy(**kwargs)  # type: ignore[arg-type]
+        BackoffPolicy(**kwargs)
 
 
 def test_negative_attempts_are_refused() -> None:

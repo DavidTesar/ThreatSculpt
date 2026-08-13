@@ -1,14 +1,24 @@
 """Test fixtures.
 
-The important structural choice here: the application connects as
-``threatsculpt_app``, a NOSUPERUSER / NOBYPASSRLS role, while migrations and
-fixture cleanup run as the owner. Testing RLS from a superuser connection proves
-nothing — a superuser bypasses every policy — so the suite would happily pass
-with the whole of migration 0002 deleted.
+The important structural choice here: the application connects as a
+NOSUPERUSER / NOBYPASSRLS role, while migrations and fixture cleanup run as the
+owner. Testing RLS from a superuser connection proves nothing — a superuser
+bypasses every policy — so the suite would happily pass with the whole of
+migration 0002 deleted.
 
 Point ``TS_TEST_ADMIN_DATABASE_URL`` (or ``DATABASE_URL``, which CI injects) at a
 DSN with rights to create roles and run DDL, on a database you do not mind
 having truncated.
+
+The application role's name is **derived from the database name**, not fixed. A
+PostgreSQL role is cluster-wide while a test database is not, so a single shared
+role name means two suites running against two different databases on one
+cluster still rotate each other's password at session start — the second one to
+start locks the first one out mid-run, and the failures land as
+``password authentication failed`` on whichever pooled connection opens next.
+That is a genuinely confusing way to lose an afternoon, and it costs one derived
+identifier to rule out. It matters for concurrent local work and for any CI that
+runs a matrix of jobs against one PostgreSQL service.
 
 If a DSN was configured but the database is unreachable, the suite **fails**
 rather than skipping. A silent skip is the worst outcome here: CI would report
@@ -19,10 +29,11 @@ had quietly not run.
 from __future__ import annotations
 
 import os
+import re
 import secrets
 from collections.abc import AsyncIterator, Iterator
 from pathlib import Path
-from urllib.parse import quote
+from urllib.parse import quote, urlsplit
 
 import pytest
 import pytest_asyncio
@@ -37,8 +48,13 @@ from threatsculpt.config import Settings
 from threatsculpt.db.dsn import dsn_from_environment
 from threatsculpt.db.engine import build_engine, build_session_factory
 
-APP_ROLE = "threatsculpt_app"
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
+
+APP_ROLE_PREFIX = "threatsculpt_app"
+
+#: PostgreSQL identifiers are truncated at 63 bytes; a silently truncated role
+#: name would not match the one handed to the migrations.
+MAX_ROLE_NAME_LENGTH = 63
 
 #: Used only when nothing is configured, i.e. a developer running the suite on a
 #: stock local PostgreSQL.
@@ -83,6 +99,28 @@ def admin_url() -> str:
 def dsn_was_configured() -> bool:
     """True when an operator or CI pointed the suite at a specific database."""
     return admin_url() != DEFAULT_ADMIN_URL
+
+
+def database_name(url: str) -> str:
+    """The database from a DSN, for both the TCP and unix-socket forms."""
+    return urlsplit(url).path.lstrip("/")
+
+
+def app_role_for(url: str) -> str:
+    """The application role name for a given test database.
+
+    Sanitised to an identifier: migration 0003 refuses anything that is not
+    ``^[A-Za-z_][A-Za-z0-9_]{0,62}$``, and the name is interpolated into DDL
+    where bind parameters are not permitted, so this must not be able to carry
+    anything but an identifier.
+    """
+    suffix = re.sub(r"[^a-z0-9_]", "_", database_name(url).lower()).strip("_")
+    name = f"{APP_ROLE_PREFIX}_{suffix}" if suffix else APP_ROLE_PREFIX
+    return name[:MAX_ROLE_NAME_LENGTH]
+
+
+#: Resolved once per session, from the database this run was pointed at.
+APP_ROLE = app_role_for(admin_url())
 
 
 def _sync_url(url: str) -> str:

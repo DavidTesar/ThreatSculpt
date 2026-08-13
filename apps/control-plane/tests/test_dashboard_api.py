@@ -72,9 +72,7 @@ async def test_payload_matches_the_documented_shape(client: AsyncClient, tenant:
     }
 
 
-async def test_an_empty_org_returns_a_well_formed_zeroed_dashboard(
-    client: AsyncClient
-) -> None:
+async def test_an_empty_org_returns_a_well_formed_zeroed_dashboard(client: AsyncClient) -> None:
     """A new customer's first login must not be a 500."""
     fresh = await register_tenant(client, "dash-empty")
 
@@ -249,9 +247,7 @@ async def test_attack_surface_returns_assets_services_and_both_edge_types(
     assert graph["total_assets"] == 1
 
 
-async def test_node_weight_is_the_business_risk_score(
-    client: AsyncClient, tenant: Tenant
-) -> None:
+async def test_node_weight_is_the_business_risk_score(client: AsyncClient, tenant: Tenant) -> None:
     graph = (
         await client.get(f"{API}/dashboard/attack-surface", headers=tenant.auth_header)
     ).json()["data"]
@@ -383,9 +379,9 @@ async def test_the_attack_surface_graph_is_scoped(
     beta = await register_tenant(client, "graph-beta")
     await seed_asset_with_port(session_factory, beta.org_id, ip="172.16.0.1", hostname="beta-host")
 
-    graph = (
-        await client.get(f"{API}/dashboard/attack-surface", headers=beta.auth_header)
-    ).json()["data"]
+    graph = (await client.get(f"{API}/dashboard/attack-surface", headers=beta.auth_header)).json()[
+        "data"
+    ]
 
     labels = {node["label"] for node in graph["nodes"] if node["type"] == "asset"}
     assert labels == {"beta-host"}

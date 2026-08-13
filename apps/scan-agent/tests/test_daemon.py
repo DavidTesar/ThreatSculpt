@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import asyncio
+from collections.abc import AsyncIterator
 from pathlib import Path
 
 import httpx
@@ -38,8 +39,11 @@ class StubRunner:
 
 
 def build_daemon(
-    tmp_path: Path, client: ControlPlaneClient, runner: StubRunner | None = None, **overrides
-) -> AgentDaemon:  # type: ignore[no-untyped-def]
+    tmp_path: Path,
+    client: ControlPlaneClient,
+    runner: StubRunner | None = None,
+    **overrides: object,
+) -> AgentDaemon:
     keystore = KeyStore(tmp_path / "agent.key")
     keystore.write("tsa_test_key")
     daemon = AgentDaemon.build(make_settings(tmp_path, **overrides), client, keystore, "7.99")
@@ -54,7 +58,7 @@ def build_daemon(
 
 
 @pytest.fixture
-async def client() -> ControlPlaneClient:
+async def client() -> AsyncIterator[ControlPlaneClient]:
     async with ControlPlaneClient(BASE_URL, api_key="tsa_test_key") as instance:
         yield instance
 

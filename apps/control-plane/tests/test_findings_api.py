@@ -18,6 +18,8 @@ from tests.scoring_factories import (
     seed_business_service,
     seed_vulnerability,
 )
+from threatsculpt.models.finding import Finding
+from threatsculpt.models.inventory import Asset
 
 Factory = async_sessionmaker[AsyncSession]
 
@@ -364,3 +366,34 @@ async def _audit_actions(factory: Factory, tenant: Tenant) -> set[str]:
             select(AuditLog.action).where(AuditLog.org_id == tenant.org_id),
         )
         return set(result.scalars().all())
+
+
+# --- the config the PATCH routes rest on ------------------------------------
+
+
+def test_timestamp_columns_are_fetched_eagerly_on_update() -> None:
+    """``Base.__mapper_args__["eager_defaults"]`` is load-bearing, so it is pinned.
+
+    ``created_at``/``updated_at`` carry SQL-expression defaults, so after an
+    UPDATE the ORM has no way to know what the database computed. Without
+    ``eager_defaults``, SQLAlchemy expires exactly those two attributes and the
+    next read of either issues a lazy-refresh SELECT that carries no scope —
+    which ``tenancy.guard`` correctly refuses, turning every successful PATCH in
+    the service into a 500.
+
+    Measured, with the flag flipped on the mapper:
+
+        eager_defaults=ON    UPDATE ... RETURNING present: True
+                             read created_at / updated_at: ok
+        eager_defaults=OFF   UPDATE ... RETURNING present: False
+                             read created_at / updated_at: TenancyViolationError
+
+    It is one line in ``db/base.py`` and nothing else in the tree would fail if
+    it were deleted — no response schema this package owns serialises those two
+    columns — so a regression would surface as a 500 in whichever route added
+    the first timestamp field, long after the change that caused it.
+    """
+    from sqlalchemy.orm import class_mapper
+
+    for model in (Finding, Asset):
+        assert class_mapper(model).eager_defaults is True, model.__name__
