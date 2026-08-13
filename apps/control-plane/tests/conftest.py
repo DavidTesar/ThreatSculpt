@@ -196,6 +196,10 @@ def settings(database: str) -> Settings:
         # verification token out of the in-process sender instead. The flow
         # under test is the real one; only delivery is a stand-in.
         email_delivery="memory",
+        # Nothing here delivers mail, so the boot check would refuse to start.
+        # Declared explicitly rather than inferred from environment="test", so
+        # running without delivery is always a deliberate act.
+        allow_undeliverable_email=True,
     )
 
 

@@ -26,9 +26,17 @@ from .errors import ConfigError
 DEFAULT_CONFIG_PATH = Path("/etc/threatsculpt/agent.toml")
 CONFIG_PATH_ENV_VAR = "TS_AGENT_CONFIG_FILE"
 
-# The protocol caps a results POST at 10 MB. Stay under it with room for the envelope.
-PROTOCOL_MAX_PAYLOAD_BYTES = 10 * 1024 * 1024
-DEFAULT_MAX_PAYLOAD_BYTES = 9 * 1024 * 1024
+# The protocol caps a results POST at 4 MB (AGENT-PROTOCOL.md §5). That number is not
+# arbitrary on the server side: it is derived from the row caps, because the body cap is
+# what lets the control plane refuse an oversized batch *on the stream*, before anything
+# is deserialized. A body large enough to be refused by a row cap after parsing costs the
+# server ~30x its wire size in transient memory, so the byte cap is the real defence and
+# these two numbers have to agree.
+#
+# Keep the default comfortably under the ceiling: the cap is measured on the encoded body,
+# and a chunk that estimates just under it would fail at the boundary on encoding overhead.
+PROTOCOL_MAX_PAYLOAD_BYTES = 4 * 1024 * 1024
+DEFAULT_MAX_PAYLOAD_BYTES = 3 * 1024 * 1024
 
 
 class AgentSettings(BaseSettings):

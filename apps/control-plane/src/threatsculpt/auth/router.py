@@ -7,7 +7,12 @@ from typing import Annotated
 
 from fastapi import APIRouter, Depends, Request, Response
 
-from threatsculpt.api.dependencies import CurrentUser, SessionDep, SettingsDep, get_jwt_codec
+from threatsculpt.api.dependencies import (
+    CurrentUserAnyState,
+    SessionDep,
+    SettingsDep,
+    get_jwt_codec,
+)
 from threatsculpt.api.limits import enforce_auth_rate_limit
 from threatsculpt.api.middleware import client_ip
 from threatsculpt.auth import service
@@ -209,7 +214,7 @@ async def verify_email(
 )
 async def resend_verification(
     request: Request,
-    principal: CurrentUser,
+    principal: CurrentUserAnyState,
     session: SessionDep,
     settings: SettingsDep,
 ) -> Envelope[VerificationStateResponse]:
@@ -237,7 +242,7 @@ async def resend_verification(
     response_model=Envelope[MeResponse],
     summary="The authenticated user, their org, and their role",
 )
-async def me(principal: CurrentUser, session: SessionDep) -> Envelope[MeResponse]:
+async def me(principal: CurrentUserAnyState, session: SessionDep) -> Envelope[MeResponse]:
     org = await session.get(Org, principal.scope.org_id)
     assert org is not None  # the principal could not have authenticated otherwise
     return ok(MeResponse(user=_user_summary(principal.user), org=_org_summary(org)))

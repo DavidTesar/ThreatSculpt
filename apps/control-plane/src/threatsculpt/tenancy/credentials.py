@@ -31,13 +31,21 @@ from threatsculpt.tenancy.guard import CREDENTIAL_LOOKUP_OPTION
 
 AUTHN_GUC = "threatsculpt.authn"
 
-#: Bound so a single email shared across many orgs cannot be used to force an
-#: unbounded number of Argon2 verifications in one request.
+#: How many accounts one verified address may hold, and — because
+#: ``auth.service`` pads every login to this many Argon2 verifications so the
+#: cost cannot be counted — how much CPU *every* login costs.
 #:
-#: The same number caps how many active accounts may hold one address — see
-#: ``auth.accounts``. Enforcing it at account creation is what stops this
+#: That second role is what keeps the number small. At roughly 31 ms per
+#: verification, 4 puts a flat ~125 ms on an unauthenticated endpoint; 10 would
+#: put 310 ms there, a 10x amplification bounded only by the per-IP limit, and
+#: paid by every login rather than by the rare address that needs it. Four covers
+#: the consultancy case this exists for — one person with accounts at several
+#: client orgs — and anything larger buys a rarer case at every user's expense.
+#:
+#: The same number caps how many *verified* accounts may hold one address — see
+#: ``auth.accounts``. Enforcing it where a slot is taken is what stops this
 #: ``LIMIT`` from silently dropping a legitimate account past the window.
-MAX_LOGIN_CANDIDATES = 10
+MAX_LOGIN_CANDIDATES = 4
 
 _ENABLE_AUTHN_SQL = text("SELECT set_config(:guc, 'on', true)")
 _DISABLE_AUTHN_SQL = text("SELECT set_config(:guc, '', true)")

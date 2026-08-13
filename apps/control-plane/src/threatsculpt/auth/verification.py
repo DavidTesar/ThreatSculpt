@@ -6,11 +6,26 @@ The state machine is three states and two transitions:
         │
         └──token expires──> unverified, and no longer verifiable
 
-An unverified account is inert. It is excluded from the login candidate set (so
-it can neither authenticate nor absorb another account's failed attempts), and
-it does not occupy one of the address's slots (so claiming an address somebody
-else owns takes nothing away from them). That is what makes registration safe to
-leave open: an unproved claim buys the claimant nothing at all.
+An unverified account is excluded from the login candidate set — so it can
+neither authenticate by password nor absorb another account's failed attempts —
+and it does not occupy one of the address's slots, so claiming an address
+somebody else owns takes no slot, no login and no place in the candidate window
+away from its owner.
+
+It is not, however, *nothing*. Registration returns a session, because the
+registrant is holding the browser that made the request, and that session is
+real. What it may do is deliberately tiny: ``/auth/me``, the two verification
+endpoints, and ``/auth/logout``. Everything else — and refresh, so the session
+cannot renew itself indefinitely without the address ever being proved — is
+refused with ``EmailNotVerifiedError``.
+
+The reason that list is short rather than merely tenant-scoped: this product
+sends unsolicited packets at whatever it is pointed at and hands out agent
+enrollment tokens. Letting somebody who has not proved they control the address
+register a public range, queue a scan of it, or enroll an agent is how a
+security tool becomes an abuse vector — and every one of those actions lands in
+the audit log attributed to the address they claimed, which for a product whose
+output is evidence is the worst property on the list.
 
 Token handling matches every other credential in this service — a random opaque
 value with a namespace prefix, stored only as its SHA-256, shown once, and
@@ -26,7 +41,7 @@ from datetime import UTC, datetime, timedelta
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from threatsculpt.auth.delivery import EmailSender, VerificationMessage
-from threatsculpt.core.errors import AuthenticationError, ConflictError
+from threatsculpt.core.errors import AuthenticationError, ConflictError, PermissionDeniedError
 from threatsculpt.models.user import User
 from threatsculpt.security.tokens import generate_opaque_token, hash_token
 from threatsculpt.tenancy.repository import ScopedRepository
@@ -35,6 +50,22 @@ from threatsculpt.tenancy.scope import OrgScope
 logger = logging.getLogger(__name__)
 
 VERIFICATION_TOKEN_PREFIX = "tsv_"  # noqa: S105 - a namespace prefix, not a credential
+
+
+class EmailNotVerifiedError(PermissionDeniedError):
+    """Authenticated, but the address behind the session was never proved.
+
+    Distinct and explicit rather than a generic 403: the caller is almost always
+    the legitimate registrant, and the only useful thing to tell them is which
+    step they have not finished. It reveals nothing — they already hold a valid
+    session for this account.
+    """
+
+    code = "email_not_verified"
+    default_message = (
+        "Verify your email address before using this endpoint. "
+        "Request a new verification message at POST /auth/verify-email/resend."
+    )
 
 
 class VerificationTokenInvalidError(AuthenticationError):

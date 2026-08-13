@@ -21,11 +21,12 @@ from httpx import ASGITransport, AsyncClient
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncEngine
 
-from tests.factories import API, register_tenant
+from tests.factories import API, register_tenant, register_tenants_sharing_email
 from threatsculpt.app import create_app
 from threatsculpt.config import Settings
 from threatsculpt.db.engine import build_engine, build_session_factory
 from threatsculpt.security import passwords
+from threatsculpt.tenancy.credentials import MAX_LOGIN_CANDIDATES
 
 MAX_FAILURES = 3
 
@@ -80,7 +81,7 @@ async def _lock_out(client: AsyncClient, email: str) -> None:
         assert response.status_code == 401
 
 
-async def test_an_unknown_address_spends_one_argon2_verification(
+async def test_an_unknown_address_spends_the_full_verification_budget(
     strict_client: AsyncClient, argon2_calls: list[str]
 ) -> None:
     argon2_calls.clear()
@@ -89,10 +90,10 @@ async def test_an_unknown_address_spends_one_argon2_verification(
         f"{API}/auth/login", json={"email": "nobody@nowhere.example", "password": "whatever-it-is"}
     )
 
-    assert len(argon2_calls) == 1
+    assert len(argon2_calls) == MAX_LOGIN_CANDIDATES
 
 
-async def test_a_wrong_password_spends_one_argon2_verification(
+async def test_a_wrong_password_spends_the_full_verification_budget(
     strict_client: AsyncClient, argon2_calls: list[str]
 ) -> None:
     tenant = await register_tenant(strict_client, "acme")
@@ -102,10 +103,10 @@ async def test_a_wrong_password_spends_one_argon2_verification(
         f"{API}/auth/login", json={"email": tenant.email, "password": "definitely-wrong"}
     )
 
-    assert len(argon2_calls) == 1
+    assert len(argon2_calls) == MAX_LOGIN_CANDIDATES
 
 
-async def test_a_locked_account_spends_the_same_argon2_verification(
+async def test_a_locked_account_spends_the_full_verification_budget(
     strict_client: AsyncClient, argon2_calls: list[str]
 ) -> None:
     """The branch that used to answer in a fraction of the time."""
@@ -118,7 +119,48 @@ async def test_a_locked_account_spends_the_same_argon2_verification(
     )
 
     assert response.status_code == 401
-    assert len(argon2_calls) == 1
+    assert len(argon2_calls) == MAX_LOGIN_CANDIDATES
+
+
+async def test_a_successful_login_spends_the_full_verification_budget(
+    strict_client: AsyncClient, argon2_calls: list[str]
+) -> None:
+    tenant = await register_tenant(strict_client, "acme")
+    argon2_calls.clear()
+
+    response = await strict_client.post(
+        f"{API}/auth/login", json={"email": tenant.email, "password": tenant.password}
+    )
+
+    assert response.status_code == 200
+    assert len(argon2_calls) == MAX_LOGIN_CANDIDATES
+
+
+async def test_the_budget_does_not_depend_on_how_many_orgs_the_address_is_in(
+    strict_client: AsyncClient, argon2_calls: list[str]
+) -> None:
+    """The count oracle: one verification per candidate let a stopwatch count them.
+
+    Two or more accounts on one address is exactly the consultancy case this
+    product sells into, so the count reads as "how many of your tenants is this
+    person a customer of".
+    """
+    shared = "consultant@bigcorp.example"
+    await register_tenants_sharing_email(strict_client, ["org-a", "org-b", "org-c"], email=shared)
+
+    argon2_calls.clear()
+    await strict_client.post(
+        f"{API}/auth/login", json={"email": shared, "password": "wrong-for-all-of-them"}
+    )
+    for_three = len(argon2_calls)
+
+    argon2_calls.clear()
+    await strict_client.post(
+        f"{API}/auth/login", json={"email": "nobody@nowhere.example", "password": "wrong-too"}
+    )
+    for_none = len(argon2_calls)
+
+    assert for_three == for_none == MAX_LOGIN_CANDIDATES
 
 
 async def test_an_attempt_against_a_locked_account_is_still_audited(

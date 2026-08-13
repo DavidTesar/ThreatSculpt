@@ -34,13 +34,18 @@ the intent behind it.
 | POST | `/auth/register` | Creates org + owner user. Trial plan. The address starts **unverified**: the caller keeps the session this returns, but no password login against that address succeeds until it is verified, and the account holds no slot and is not a login candidate until then. |
 | POST | `/auth/verify-email` | Unauthenticated; body is `{"token": "tsv_…"}`. Proves control of the address. Unknown, spent and expired tokens are one error. |
 | POST | `/auth/verify-email/resend` | Authenticated; re-issues the caller's own token and invalidates the previous one. Never accepts an address, so it cannot be aimed at a third party. |
+
+An unverified session may call `GET /auth/me`, `POST /auth/verify-email`,
+`POST /auth/verify-email/resend` and `POST /auth/logout`. **Every other endpoint returns
+`403 email_not_verified`**, and `POST /auth/refresh` does too, so a registration session
+cannot renew itself indefinitely without the address ever being proved.
 | POST | `/auth/login` | → access token (body) + refresh token (`HttpOnly`, `Secure`, `SameSite=Lax` cookie) |
 | POST | `/auth/refresh` | Rotates. Reuse of a spent token revokes the whole family. |
 | POST | `/auth/logout` | Revokes the refresh family. Access tokens already issued keep working until they expire — see SECURITY.md. |
 | GET | `/auth/me` | Current user + org + role. |
 
 Login responses are constant-time with respect to whether the email exists, whether it is
-locked out, and whether it exists in more than one org; they are identical for "no such
+locked out, whether it has been verified, and how many orgs it exists in; they are identical for "no such
 user" and "wrong password". Failed attempts are rate-limited per account and per IP.
 `org_slug` is optional and only narrows the candidate set — one address may legitimately
 hold an account in several orgs.

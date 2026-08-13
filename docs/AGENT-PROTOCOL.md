@@ -148,12 +148,37 @@ The agent submits **observations only** — what is running. It does not submit 
 or risk. Enrichment and scoring happen in the control plane. This keeps the agent's internet
 requirement to exactly one host and lets historical scans improve as the CVE mirror updates.
 
-Result payloads are capped (10 MB). Larger scans are submitted in chunked batches keyed by
-job id; the ingest endpoint is idempotent on `(job_id, host_ip)` so a retried batch does not
-double-insert. **`final` is what ends the job:** every batch but the last carries
-`"final": false`, and the batch carrying `"final": true` moves the job to `completed`.
-The submission schema rejects fields it does not define, so a chunk counter that is
-purely a client concern must not be sent.
+Result payloads are capped **two ways, and a batch must satisfy both**:
+
+| Cap | Limit | Refused with |
+|---|---|---|
+| Body size | **4 MB** | `413 payload_too_large` |
+| Ports per batch | **20,000** | `400 validation_error` |
+| Hosts per batch | **4,096** | `400 validation_error` |
+| Ports per host | **1,024** | `400 validation_error` |
+
+The body cap is enforced on the *stream*, before the payload is deserialized, so an
+oversized batch costs the control plane nothing. It is **derived from the row caps** —
+20,000 ports plus 4,096 hosts of `-sV` output is about 3.7 MB — rather than chosen
+independently. The two were previously independent, and the gap between them was
+exploitable: a 10 MB body could carry eighteen times the port cap, and the port cap was
+only consulted after the whole object graph had been built, so rejecting it cost 3.3 s of
+CPU and a 300 MB transient allocation. If the row caps change, the body cap is recomputed
+from them.
+
+**Agents must set `max_payload_bytes` to 2.5 MB or lower.** The chunker packs by measured
+serialised size only, so a budget close to the 4 MB body cap can still produce a chunk over
+the 20,000-port cap when rows are lean. 2.5 MB keeps a dense `-sV` batch (~150 bytes per
+port) under both caps with margin, and costs only a few extra chunks on the largest scans:
+a `-p-` sweep of a /24 with 200 open ports on every one of 254 live hosts is 3 chunks, and
+a single host with all 65,535 ports open is 4.
+
+Larger scans are submitted in chunked batches keyed by job id; the ingest endpoint is
+idempotent on `(job_id, host_ip)` so a retried batch does not double-insert.
+**`final` is what ends the job:** every batch but the last carries `"final": false`, and
+the batch carrying `"final": true` moves the job to `completed`. The submission schema
+rejects fields it does not define, so a chunk counter that is purely a client concern must
+not be sent.
 
 The control plane **re-validates** every submitted host IP against the job's target CIDR and
 the org's registered networks. Results outside that range are rejected and audit-logged. Never

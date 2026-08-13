@@ -6,15 +6,25 @@ pooled connection, RSS 197→609 MB, from a single agent API key against a limit
 that permits 100 requests a minute. The per-host caps bounded the wrong thing:
 1,024 ports on a busy host is plausible, 4,096 such hosts at once is not.
 
-Three changes, one test group each: a cap on the batch as a whole, deduplication
-of hosts within a batch, and storage that does not issue a round trip per row.
+Four changes, one test group each: a cap on the batch as a whole, a body cap
+*derived from it* so the deserializer is never the amplifier, deduplication of
+hosts within a batch, and storage that does not issue a round trip per row.
 The containment filtering ingest exists for is unchanged and is covered by
 ``test_jobs_ingest``; these are only about how much work one request can buy.
+
+The body cap is the second half of the same finding. Capping rows alone left the
+cost where it was rather than removing it: ``MAX_PORTS_PER_SUBMISSION`` is a
+``model_validator(mode="after")``, so a 9.57 MB body carrying eighteen times the
+port cap was fully deserialised — 3.3 s of event-loop CPU and a 304.5 MB
+transient peak, 31.8x the wire bytes — before anything rejected it. And because
+the request was *rejected*, none of that showed up as ingest load.
 """
 
 from __future__ import annotations
 
+import json
 import time
+from collections.abc import AsyncIterator
 
 from httpx import AsyncClient
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
@@ -25,7 +35,8 @@ from threatsculpt.core.pagination import PaginationParams
 from threatsculpt.db.session import scoped_session
 from threatsculpt.models.inventory import Asset
 from threatsculpt.models.scan import Port, ScanResult
-from threatsculpt.scanning.schemas import MAX_PORTS_PER_SUBMISSION
+from threatsculpt.scanning.ingest import MAX_RESULT_PAYLOAD_BYTES
+from threatsculpt.scanning.schemas import MAX_HOSTS_PER_BATCH, MAX_PORTS_PER_SUBMISSION
 from threatsculpt.tenancy.repository import ScopedRepository
 from threatsculpt.tenancy.scope import OrgScope
 
@@ -57,6 +68,114 @@ def _hosts(count: int, ports_each: int, *, start: int = 0) -> list[Host]:
 
 def _ports_in(hosts: list[Host]) -> list[int]:
     return [len(host["ports"]) for host in hosts if isinstance(host["ports"], list)]
+
+
+# --- the body cap, which the row caps derive ---------------------------------
+
+
+def test_the_body_cap_admits_the_largest_legal_batch() -> None:
+    """The two caps must not contradict each other.
+
+    A body cap below what the row caps permit would refuse submissions the row
+    caps call legal — the failure mode of picking the number by feel. The bound
+    is the awkward corner: every host allowed, sharing every port allowed, each
+    row carrying the full ``-sV`` decoration a real agent emits.
+    """
+    per_host = MAX_PORTS_PER_SUBMISSION // MAX_HOSTS_PER_BATCH
+    body = json.dumps(
+        {
+            "hosts": [
+                {
+                    "ip": f"10.{(i >> 16) & 255}.{(i >> 8) & 255}.{i & 255}",
+                    "hostname": f"host{i:05d}.corp.local",
+                    "mac": "00:11:22:33:44:55",
+                    "state": "up",
+                    "os": {"family": "Linux", "version": "5.x", "accuracy": 96},
+                    "ports": [
+                        {
+                            "port": p,
+                            "protocol": "tcp",
+                            "state": "open",
+                            "service": "http",
+                            "product": "Apache httpd",
+                            "version": "2.4.49",
+                            "cpes": ["cpe:/a:apache:http_server:2.4.49"],
+                        }
+                        for p in range(1, per_host + 1)
+                    ],
+                }
+                for i in range(MAX_HOSTS_PER_BATCH)
+            ],
+            "final": False,
+        },
+        separators=(",", ":"),
+    ).encode()
+
+    assert len(body) <= MAX_RESULT_PAYLOAD_BYTES, (
+        f"the largest batch the row caps permit serialises to {len(body):,} bytes, over the "
+        f"{MAX_RESULT_PAYLOAD_BYTES:,}-byte body cap: the two caps disagree"
+    )
+
+
+async def test_an_oversized_body_is_refused_before_it_is_deserialized(
+    client: AsyncClient, session_factory: async_sessionmaker[AsyncSession]
+) -> None:
+    """The amplification path: a body far over the cap must cost nothing to refuse.
+
+    ``Content-Length`` alone decides this — ``read_capped_body`` checks the header
+    before reading a byte — so the assertion is on the status code, and the
+    absence of a validation message is what proves the parser never ran. A 400
+    naming the port cap would mean the object graph had been built first, which is
+    the whole defect.
+    """
+    tenant = await register_tenant(client, "acme")
+    job_id, agent = await _prepared(client, tenant)
+
+    body = json.dumps(
+        {"hosts": _hosts(MAX_HOSTS_PER_BATCH, 90), "final": False}, separators=(",", ":")
+    ).encode()
+    assert len(body) > MAX_RESULT_PAYLOAD_BYTES
+
+    started = time.perf_counter()
+    response = await client.post(
+        f"{API}/agent/jobs/{job_id}/results",
+        content=body,
+        headers={**agent.auth_header, "Content-Type": "application/json"},
+    )
+    elapsed = time.perf_counter() - started
+
+    assert response.status_code == 413, response.text
+    assert response.json()["error"]["code"] == "payload_too_large"
+    # Deserialising this body took 3.3 s before the cap was derived. The bound is
+    # loose because CI hardware varies; the defect it catches is not marginal.
+    assert elapsed < 2.0, f"refusing an oversized body took {elapsed:.1f}s; it was parsed"
+
+    scope = OrgScope.for_system(tenant.org_id)
+    async with scoped_session(session_factory, scope) as session:
+        assert await ScopedRepository(session, scope, Asset).count() == 0
+
+
+async def test_a_lying_content_length_does_not_get_past_the_cap(
+    client: AsyncClient,
+) -> None:
+    """A chunked request has no ``Content-Length``; the stream is counted anyway."""
+    tenant = await register_tenant(client, "acme")
+    job_id, agent = await _prepared(client, tenant)
+
+    body = json.dumps(
+        {"hosts": _hosts(MAX_HOSTS_PER_BATCH, 90), "final": False}, separators=(",", ":")
+    ).encode()
+
+    async def chunked() -> AsyncIterator[bytes]:
+        for start in range(0, len(body), 64 * 1024):
+            yield body[start : start + 64 * 1024]
+
+    response = await client.post(
+        f"{API}/agent/jobs/{job_id}/results",
+        content=chunked(),
+        headers={**agent.auth_header, "Content-Type": "application/json"},
+    )
+    assert response.status_code == 413, response.text
 
 
 # --- the batch-wide cap -----------------------------------------------------

@@ -47,8 +47,12 @@ Argon2id password hashing. Short-lived JWT access tokens with rotating refresh t
 hashed and delivered as `HttpOnly`, `Secure`, `SameSite=Lax` cookies. Reuse of a rotated
 refresh token revokes the entire family, which is the detection signal for a stolen token;
 the revocation and its audit record are committed before the request is rejected, so the
-detection survives the rejection that triggered it. Login is constant-time with respect to
-whether an account exists, and with respect to whether an account is locked out. Auth
+detection survives the rejection that triggered it. Every login spends the same fixed
+amount of Argon2 work — four verifications, padded with dummy work — so the response time is
+constant with respect to whether the account exists, whether it is locked out, whether it has
+been verified, and how many organisations the address holds an account in. That last one
+matters in the consultancy market this product sells into, where a per-candidate cost let an
+unauthenticated stopwatch count how many of your tenants somebody is a customer of. Auth
 endpoints are rate limited per IP; everything else is rate limited per authenticated
 principal, with a separate, smaller bucket for callers presenting no usable credential.
 
@@ -75,6 +79,14 @@ one of the address's slots. Registering an address somebody else owns therefore 
 away from them: not a sign-up, not a login, not a place in the candidate window. An
 administrator adding a colleague is the same kind of assertion and is treated the same way.
 
+Registration does return a session, because the registrant is holding the browser that made
+the request. That session may call `GET /auth/me`, the two verification endpoints and
+`POST /auth/logout`, and **nothing else** — every other endpoint answers `403
+email_not_verified`, and the refresh token will not rotate, so it cannot renew itself
+indefinitely without the address ever being proved. This service points scanners at networks
+and issues agent enrollment tokens on request; neither should be reachable by somebody who
+has not shown they own the address the audit log will attribute it to.
+
 Verification tokens are opaque random values stored as SHA-256, shown once, replaced rather
 than accumulated, and expired after `TS_EMAIL_VERIFICATION_TTL_HOURS` (24 by default). An
 expired claim can no longer be verified.
@@ -85,15 +97,24 @@ at registration is what an earlier revision did, and it converted an account-loc
 into a denial of onboarding: ten unauthenticated registrations against a prospect's address
 and its real owner met a conflict they had not caused and could not clear.
 
-> **Delivery is not wired.** This branch has no mail infrastructure. The verification state
-> machine is fully enforced, but `TS_EMAIL_DELIVERY` ships as `none`, which logs that a
-> message was wanted and drops it — the token is never logged, because it is a credential.
-> **An operator running this as-is cannot complete a sign-up**: the registrant keeps the
-> session the registration returned, but no password login against that address will succeed
-> until somebody verifies it. Wiring a provider is one class implementing `EmailSender` in
-> `auth/delivery.py` and one new value for `TS_EMAIL_DELIVERY`; nothing that decides whether
-> an address is proved changes with it. Until then, treat onboarding as unavailable rather
-> than as working.
+> **Delivery is not wired, and the service refuses to start because of it.** This branch has
+> no mail infrastructure. The verification state machine is fully enforced, but no
+> `TS_EMAIL_DELIVERY` value can actually deliver a message, so **no account could ever be
+> verified and the service could onboard nobody**. Rather than start cleanly and then refuse
+> every login for a reason no operator would connect back to a mail setting, `create_app`
+> raises `UndeliverableEmailError` at boot with a message naming the setting and the fix —
+> the same posture as the RLS check refusing a privileged database role.
+>
+> Wiring a provider is one class implementing `EmailSender` in `auth/delivery.py`, its name
+> added to `DELIVERING_MODES`, and `TS_EMAIL_DELIVERY` set to it. Nothing that decides
+> whether an address is proved changes with it.
+>
+> To run without delivery anyway — local development and the test suite — set
+> `TS_ALLOW_UNDELIVERABLE_EMAIL=1`. It is logged at CRITICAL on every boot, and it does not
+> make verification work: it only stops the refusal. There is deliberately **no** option to
+> auto-verify when delivery is off, because that would silently disable the control that
+> stops a stranger claiming an address they do not own. A deployment that refuses to start is
+> considerably better than one that is quietly insecure.
 
 Users and agents are separate principal types with separate credentials and separate
 authentication dependency chains — not two roles sharing one mechanism.

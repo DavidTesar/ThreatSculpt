@@ -15,7 +15,7 @@ from threatsculpt.api.limits import AUTH_LIMITER_ATTR, GENERAL_LIMITER_ATTR
 from threatsculpt.api.middleware import RequestContextMiddleware
 from threatsculpt.api.router import api_router
 from threatsculpt.api.routes import health
-from threatsculpt.auth.delivery import build_email_sender
+from threatsculpt.auth.delivery import assert_email_delivery_is_usable, build_email_sender
 from threatsculpt.config import Settings, get_settings
 from threatsculpt.db.engine import build_engine, build_session_factory
 from threatsculpt.db.privileges import assert_database_role_is_unprivileged
@@ -61,6 +61,14 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     )
     setattr(app.state, AUTH_LIMITER_ATTR, SlidingWindowLimiter())
     setattr(app.state, GENERAL_LIMITER_ATTR, SlidingWindowLimiter())
+    # Before anything is served: prove the service can actually onboard a user.
+    # Verification is enforced, so a deployment that cannot deliver a message
+    # cannot verify anybody, and every login against it fails for a reason no
+    # operator would connect to this setting. Same posture as the database-role
+    # check below — refuse to start rather than start broken.
+    assert_email_delivery_is_usable(
+        resolved.email_delivery, allow_undeliverable=resolved.allow_undeliverable_email
+    )
     app.state.email_sender = build_email_sender(resolved.email_delivery)
 
     _install_middleware(app, resolved)

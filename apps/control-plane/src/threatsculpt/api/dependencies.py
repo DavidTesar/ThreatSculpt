@@ -21,6 +21,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from threatsculpt.api.limits import charge_anonymous, charge_principal
 from threatsculpt.auth.principals import AgentPrincipal, UserPrincipal
+from threatsculpt.auth.verification import EmailNotVerifiedError
 from threatsculpt.config import Settings
 from threatsculpt.core.errors import AuthenticationError, PermissionDeniedError
 from threatsculpt.db.session import bind_scope
@@ -76,13 +77,17 @@ def bearer_credential(request: Request) -> str:
     return value.strip()
 
 
-async def current_user(
+async def current_user_any_state(
     request: Request,
     session: SessionDep,
     settings: SettingsDep,
     codec: Annotated[JwtCodec, Depends(get_jwt_codec)],
 ) -> UserPrincipal:
     """Authenticate a dashboard caller and bind the request's tenant scope.
+
+    Accepts a session whose email address has never been proved, so it is for
+    the handful of endpoints that exist to *get* it proved. Everything else
+    should depend on ``current_user`` below.
 
     Also the first point in the request where a principal exists, so it is where
     the ``100/min`` per-user limit is charged — see ``api.limits``.
@@ -95,6 +100,23 @@ async def current_user(
         charge_anonymous(request)
         raise
     charge_principal(request, f"user:{principal.user.id}")
+    return principal
+
+
+async def current_user(
+    principal: Annotated[UserPrincipal, Depends(current_user_any_state)],
+) -> UserPrincipal:
+    """The default: an authenticated caller who has proved their address.
+
+    Registration hands out a session before the address is proved, because the
+    registrant is holding the browser. That session may reach ``/auth/me``, the
+    verification endpoints and ``/auth/logout`` — and nothing else, because this
+    product points scanners at networks and issues agent enrollment tokens on
+    request. Neither should be available to somebody who has not shown they own
+    the address the audit log will attribute it to.
+    """
+    if not principal.user.is_verified:
+        raise EmailNotVerifiedError()
     return principal
 
 
@@ -176,6 +198,10 @@ async def _assert_org_active(session: AsyncSession, org_id: object) -> None:
 
 
 CurrentUser = Annotated[UserPrincipal, Depends(current_user)]
+#: Only for the endpoints whose job is to get an address proved. Everything else
+#: takes ``CurrentUser``, so "forgot to check verification" is not reachable by
+#: omission — it takes deliberately naming the weaker dependency.
+CurrentUserAnyState = Annotated[UserPrincipal, Depends(current_user_any_state)]
 CurrentAgent = Annotated[AgentPrincipal, Depends(current_agent)]
 
 

@@ -65,7 +65,16 @@ class Settings(BaseSettings):
     #: message and logs that it did; ``memory`` retains it in-process for
     #: development and tests. Wiring a real provider means one class in
     #: ``auth.delivery`` and one new value here. See SECURITY.md.
+    #:
+    #: Because neither delivers, the process refuses to start unless the escape
+    #: below is set: an unverified account cannot log in, so a deployment with no
+    #: delivery can onboard nobody, and failing at boot is how that gets noticed.
     email_delivery: Literal["none", "memory"] = "none"
+    #: Escape hatch for local development and tests only, matching
+    #: ``allow_superuser_db``. Deliberately a separate, greppable flag rather
+    #: than something inferred from ``environment``, so running without email
+    #: delivery is an explicit act. Logged at CRITICAL on every boot.
+    allow_undeliverable_email: bool = False
 
     # --- http -------------------------------------------------------------
     # NoDecode: pydantic-settings would otherwise try to JSON-parse a tuple

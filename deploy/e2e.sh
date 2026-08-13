@@ -149,6 +149,11 @@ export TS_JWT_SECRET="$JWT_SECRET"
 export TS_ENVIRONMENT=test
 export TS_COOKIE_SECURE=false
 export TS_LOG_JSON=false
+# The service refuses to start with no mail delivery configured, because an account that
+# cannot be verified cannot log in — so that configuration onboards nobody. This branch has
+# no mail provider, and the e2e completes verification directly in the database further
+# down, so it takes the documented opt-out. Nothing in a deployed environment should.
+export TS_ALLOW_UNDELIVERABLE_EMAIL=1
 
 # Migrations run as the owner; the application does not.
 TS_DATABASE_URL="$ADMIN_DB_URL" \
@@ -409,9 +414,27 @@ curl -sS -X POST "$API/auth/register" -H 'Content-Type: application/json' -d '{
   "org_name":"Other Corp","org_slug":"other-e2e","email":"owner@other-e2e.com",
   "password":"AnotherLongPassphrase7!","full_name":"Other Owner"
 }' > "$WORK_DIR/other.json"
-OTHER_TOKEN=$(jq -r '.data.access_token' "$WORK_DIR/other.json")
-OTHER_ASSETS=$(curl -s -H "Authorization: Bearer $OTHER_TOKEN" "$API/assets" | jq -r '.data | length')
-assert_eq "0" "$OTHER_ASSETS" "second org sees no assets from the first"
+# This org's owner must be verified too, exactly like the first one. Without it the
+# session is unverified, every call below returns 403 from the verification gate, and
+# both assertions stop testing tenancy: `.data | length` reads 0 from an error envelope
+# whose `data` is null, so "sees no assets" passes for a caller who cannot reach the
+# endpoint at all. An assertion that passes because the request failed is worse than no
+# assertion, so the status code is checked explicitly before the body is trusted.
+psql -q -d "$E2E_DB" -c \
+  "update users set email_verified_at = now(), verification_token_hash = null,
+                    verification_expires_at = null
+     where email = 'owner@other-e2e.com'" >/dev/null
+OTHER_TOKEN=$(curl -sS -X POST "$API/auth/login" -H 'Content-Type: application/json' \
+  -d '{"email":"owner@other-e2e.com","password":"AnotherLongPassphrase7!"}' \
+  | jq -r '.data.access_token')
+[ -n "$OTHER_TOKEN" ] && [ "$OTHER_TOKEN" != "null" ] || fail "second org could not log in"
+
+OTHER_LIST_HTTP=$(curl -s -o "$WORK_DIR/other_assets.json" -w '%{http_code}' \
+  -H "Authorization: Bearer $OTHER_TOKEN" "$API/assets")
+assert_eq "200" "$OTHER_LIST_HTTP" "second org can reach /assets (so the next check means something)"
+assert_eq "0" "$(jq -r '.data | length' "$WORK_DIR/other_assets.json")" \
+  "second org sees no assets from the first"
+
 CROSS_HTTP=$(curl -s -o /dev/null -w '%{http_code}' \
   -H "Authorization: Bearer $OTHER_TOKEN" "$API/assets/$ASSET_ID")
 assert_eq "404" "$CROSS_HTTP" "cross-tenant fetch returns 404 (not 403)"

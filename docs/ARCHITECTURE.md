@@ -119,6 +119,31 @@ A claimed job carries a lease. If the agent dies, the lease expires and the job 
 `queued`. Jobs are claimed with `SELECT ... FOR UPDATE SKIP LOCKED` so two agents in the same
 org never run the same job.
 
+Containment is re-checked **at claim time**, not only at creation. De-authorising or deleting
+a network cancels its open jobs, clears the lease, and records why, so the next claim returns
+nothing. Verified: after either action the agent claims `[]`, and its subsequent status and
+result calls are refused with `409 job_not_claimable`.
+
+### A dispatched scan cannot be recalled
+
+Once a job has been claimed, the target is in the agent's hands and nmap may already be
+running. The control plane cancels the job, clears the lease, and refuses the agent's next
+call — but the agent only discovers this on its next outbound HTTP request, which may be
+minutes away.
+
+**This is a direct consequence of "the agent never accepts inbound connections."** That
+constraint is what makes the product installable in an enterprise at all, and it is
+load-bearing; there is no push channel to add without giving it up. So withdrawing
+authorisation stops the *queue* immediately and bounds the exposure to at most one scan
+already in flight.
+
+If that window needs to be shorter, the lever is on the agent: re-check the heartbeat
+allowlist mid-scan and abort, rather than only at job start. That narrows it to one heartbeat
+interval. It does not close it, and nothing in this architecture can.
+
+Operators should understand this when they withdraw authorisation: the queue stops at once,
+an already-running scan finishes.
+
 ## Scan target validation — non-negotiable
 
 A scan job is an instruction to send packets at a network. Both sides validate:

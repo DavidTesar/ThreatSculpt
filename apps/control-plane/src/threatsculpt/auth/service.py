@@ -34,6 +34,7 @@ from threatsculpt.models.user import Role, User, UserStatus
 from threatsculpt.security import passwords
 from threatsculpt.security.tokens import JwtCodec, hash_token
 from threatsculpt.tenancy import credentials
+from threatsculpt.tenancy.credentials import MAX_LOGIN_CANDIDATES
 from threatsculpt.tenancy.repository import ScopedRepository
 from threatsculpt.tenancy.scope import OrgScope
 
@@ -193,10 +194,9 @@ async def login(
     """Verify a password and issue both tokens.
 
     Unknown email and wrong password produce the same exception, the same status
-    code, and the same body. The unknown-email branch still spends one Argon2
-    verification so the two paths cost the same wall-clock time, and so does the
-    locked-account branch — otherwise a sub-10ms reply would confirm that the
-    address is real and currently locked.
+    code, and the same body — and, per ``_verify_against_candidates``, the same
+    fixed amount of Argon2 work, whatever state the account is in and however
+    many accounts the address holds.
 
     One address may exist in several orgs (``users`` is unique on
     ``(org_id, email)``), so every candidate is verified against the row already
@@ -215,11 +215,9 @@ async def login(
     candidates = await credentials.find_login_candidates(
         session, str(payload.email), org_slug=payload.org_slug
     )
-    if not candidates:
-        passwords.burn_dummy_verification()
-        raise InvalidCredentialsError()
-
     attempt = _verify_against_candidates(payload.password, candidates)
+    if attempt.matched is None and not candidates:
+        raise InvalidCredentialsError()
     if attempt.matched is None:
         # Charged to the accounts the wrong password was actually presented
         # against, not to whichever row happened to sort first.
@@ -269,23 +267,45 @@ class _LoginAttempt:
 def _verify_against_candidates(password: str, candidates: Sequence[User]) -> _LoginAttempt:
     """Sort the candidates into matched, wrong-password, and locked-out.
 
-    Pure: no database access, no scope binding. Every branch spends exactly one
-    Argon2 verification per candidate, including the locked one — skipping it
+    Pure: no database access, no scope binding.
+
+    **Every login spends exactly ``MAX_LOGIN_CANDIDATES`` Argon2 verifications**,
+    whatever the outcome and however many accounts the address actually has.
+    One per candidate was not enough: the locked branch skipping its verification
     made a locked account answer in a fraction of the time of any other outcome,
-    which turned "spray ten guesses, then time one request" into a confirmation
-    that the address is real.
+    and one-per-candidate made the total linear in the number of orgs an address
+    is verified in — which does not distinguish zero accounts from one, but for
+    two or more counts them exactly. In the consultancy market this product sells
+    into, that count reads as "how many of your tenants is this person a customer
+    of", which is not a question an unauthenticated stopwatch should answer.
+
+    The cost of a flat profile is that the padding is real work: every login pays
+    the cap, not the candidate count. That is what bounds ``MAX_LOGIN_CANDIDATES``
+    to a small number — see the note on it in ``tenancy.credentials``.
     """
     failed: list[User] = []
     locked: list[User] = []
-    for candidate in candidates:
+    matched: User | None = None
+    spent = 0
+
+    for candidate in candidates[:MAX_LOGIN_CANDIDATES]:
+        spent += 1  # exactly one verification per candidate, on every branch
         if accounts.is_locked(candidate):
             passwords.burn_dummy_verification()
             locked.append(candidate)
-            continue
-        if passwords.verify_password(password, candidate.password_hash):
-            return _LoginAttempt(candidate, tuple(failed), tuple(locked))
-        failed.append(candidate)
-    return _LoginAttempt(None, tuple(failed), tuple(locked))
+        elif matched is not None:
+            # Already authenticated by an earlier candidate. The remaining rows
+            # are neither tried nor charged a failure, but still cost their
+            # verification so the total does not depend on which one matched.
+            passwords.burn_dummy_verification()
+        elif passwords.verify_password(password, candidate.password_hash):
+            matched = candidate
+        else:
+            failed.append(candidate)
+
+    for _ in range(MAX_LOGIN_CANDIDATES - spent):
+        passwords.burn_dummy_verification()
+    return _LoginAttempt(matched, tuple(failed), tuple(locked))
 
 
 async def rotate_refresh(
@@ -313,6 +333,12 @@ async def rotate_refresh(
     user = await users.get(record.user_id)
     if user is None or not user.is_active:
         raise AuthenticationError("Refresh token is invalid or expired.")
+    if not user.is_verified:
+        # The registration session is real but deliberately short-lived. A
+        # session that renews itself for thirty days without the address ever
+        # being proved is the durable half of an unverified claim, and the
+        # holder can always clear it by verifying.
+        raise verification.EmailNotVerifiedError()
 
     org = await _load_org(session, user)
     if org is None or org.status != OrgStatus.ACTIVE.value:

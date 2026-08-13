@@ -19,6 +19,7 @@ from __future__ import annotations
 
 from datetime import UTC, datetime, timedelta
 
+import pytest
 from httpx import AsyncClient
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncEngine
@@ -240,6 +241,94 @@ async def test_resending_for_an_already_verified_account_is_a_conflict(
     response = await client.post(f"{API}/auth/verify-email/resend", headers=tenant.auth_header)
 
     assert response.status_code == 409
+
+
+# --- what an unverified session may actually do ---------------------------
+
+
+async def test_an_unverified_session_can_reach_only_the_way_out_of_being_unverified(
+    client: AsyncClient,
+) -> None:
+    """The whole permitted surface, asserted as a set rather than case by case."""
+    tenant = await register_tenant(client, "acme", verified=False)
+
+    assert (await client.get(f"{API}/auth/me", headers=tenant.auth_header)).status_code == 200
+    assert (
+        await client.post(f"{API}/auth/verify-email/resend", headers=tenant.auth_header)
+    ).status_code == 200
+    assert (await client.post(f"{API}/auth/logout")).status_code == 200
+
+
+@pytest.mark.parametrize(
+    ("method", "path", "body"),
+    [
+        ("GET", "/networks", None),
+        ("POST", "/networks", {"name": "lan", "cidr": "10.0.0.0/8", "authorized": True}),
+        ("GET", "/assets", None),
+        ("GET", "/findings", None),
+        ("GET", "/dashboard/executive", None),
+        ("POST", "/scans", {"target": "10.0.0.0/24", "profile": "vulnerability"}),
+        ("POST", "/agents", {"note": "x"}),
+        ("GET", "/users", None),
+        ("POST", "/users", {"email": "x@acme.example", "password": DEFAULT_PASSWORD}),
+        ("POST", "/reports", {"type": "executive_summary", "format": "pdf"}),
+    ],
+)
+async def test_an_unverified_session_reaches_nothing_else(
+    client: AsyncClient, method: str, path: str, body: dict[str, object] | None
+) -> None:
+    """Registering an address you do not control must buy no reach into the product.
+
+    Scan targets and agent enrollment tokens especially: this service sends
+    unsolicited packets at what it is pointed at, and every one of these actions
+    would land in the audit log attributed to the address that was claimed.
+    """
+    tenant = await register_tenant(client, "acme", verified=False)
+
+    response = await client.request(method, f"{API}{path}", json=body, headers=tenant.auth_header)
+
+    assert response.status_code == 403, f"{method} {path} was reachable unverified"
+    assert response.json()["error"]["code"] == "email_not_verified"
+
+
+async def test_an_unverified_session_cannot_renew_itself(client: AsyncClient) -> None:
+    """The durable half: a 30-day session that rotates forever without proof."""
+    tenant = await register_tenant(client, "acme", verified=False)
+
+    rotated = await client.post(
+        f"{API}/auth/refresh", headers={"Cookie": f"ts_refresh={tenant.refresh_token}"}
+    )
+
+    assert rotated.status_code == 403
+    assert rotated.json()["error"]["code"] == "email_not_verified"
+
+
+async def test_verifying_restores_the_full_surface(client: AsyncClient) -> None:
+    """The gate is the verification state, not something the session lost."""
+    tenant = await register_tenant(client, "acme", verified=False)
+    assert (await client.get(f"{API}/networks", headers=tenant.auth_header)).status_code == 403
+
+    await verify_email(client, tenant.email)
+
+    assert (await client.get(f"{API}/networks", headers=tenant.auth_header)).status_code == 200
+    assert (
+        await client.post(
+            f"{API}/auth/refresh", headers={"Cookie": f"ts_refresh={tenant.refresh_token}"}
+        )
+    ).status_code == 200
+
+
+async def test_an_unverified_admin_cannot_invite_anyone(client: AsyncClient) -> None:
+    """Otherwise the claim propagates: one unproved address mints more accounts."""
+    tenant = await register_tenant(client, "acme", verified=False)
+
+    response = await client.post(
+        f"{API}/users",
+        json={"email": "cfo@bigcorp.example", "password": DEFAULT_PASSWORD, "role": "admin"},
+        headers=tenant.auth_header,
+    )
+
+    assert response.status_code == 403
 
 
 # --- the record -----------------------------------------------------------

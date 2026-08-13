@@ -1,15 +1,18 @@
-"""Chunking result payloads under the 10 MB protocol cap."""
+"""Chunking result payloads under the protocol cap."""
 
 from __future__ import annotations
 
 import pytest
 from conftest import make_host, make_scan
 
+from threatsculpt_agent.config import DEFAULT_MAX_PAYLOAD_BYTES, PROTOCOL_MAX_PAYLOAD_BYTES
 from threatsculpt_agent.errors import SubmissionTooLargeError
 from threatsculpt_agent.models import HostObservation, PortObservation
 from threatsculpt_agent.submission import build_submissions, measure
 
-CAP = 10 * 1024 * 1024
+# Imported rather than restated: a local copy would keep passing after the protocol cap
+# changed, which is exactly how the agent came to chunk at 9 MB against a 4 MB server.
+CAP = PROTOCOL_MAX_PAYLOAD_BYTES
 
 
 def _payload_size(submission) -> int:  # type: ignore[no-untyped-def]
@@ -131,6 +134,6 @@ def test_measure_accounts_for_the_separator() -> None:
 def test_chunk_sizes_stay_under_the_real_protocol_cap() -> None:
     """The default config value, against a realistically large scan."""
     hosts = tuple(make_host(f"10.{n // 250}.{n % 250}.1", port_count=30) for n in range(600))
-    chunks = build_submissions(make_scan(hosts), max_bytes=9 * 1024 * 1024)
+    chunks = build_submissions(make_scan(hosts), max_bytes=DEFAULT_MAX_PAYLOAD_BYTES)
 
     assert all(_payload_size(chunk) < CAP for chunk in chunks)

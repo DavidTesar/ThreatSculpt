@@ -39,6 +39,8 @@ from threatsculpt.models.scan import ScanJob, ScanStatus
 from threatsculpt.scanning.dispatch import LEASE_DURATION
 from threatsculpt.scanning.persistence import store_hosts
 from threatsculpt.scanning.schemas import (
+    MAX_HOSTS_PER_BATCH,
+    MAX_PORTS_PER_SUBMISSION,
     HostObservation,
     RejectedHost,
     ResultsSubmission,
@@ -48,9 +50,47 @@ from threatsculpt.scanning.targets import network_contains_address
 from threatsculpt.tenancy.repository import ScopedRepository
 from threatsculpt.tenancy.scope import OrgScope
 
+#: Serialised size of one port observation as a real ``-sV`` agent emits it —
+#: measured at 150 bytes for ``service`` + ``product`` + ``version`` + one CPE.
+#: Budgeted at 160 to leave room for a second CPE without re-deriving the cap.
+BYTES_PER_PORT_BUDGET = 160
+
+#: Serialised size of one host's own fields — ip, hostname, mac, state, os —
+#: with no ports. Measured at ~120 bytes; budgeted at 160 for long hostnames.
+BYTES_PER_HOST_BUDGET = 160
+
+#: Envelope, JSON framing, and slack.
+PAYLOAD_ENVELOPE_SLACK_BYTES = 64 * 1024
+
 #: docs/AGENT-PROTOCOL.md §5. Enforced on the raw body before parsing, because a
 #: cap applied after deserialisation has already paid the cost it exists to avoid.
-MAX_RESULT_PAYLOAD_BYTES = 10 * 1024 * 1024
+#:
+#: **Derived from the row caps, not chosen independently.** The two used to be
+#: picked separately, and the gap between them was the whole attack: at 10 MB a
+#: body could carry 368,640 ports — eighteen times ``MAX_PORTS_PER_SUBMISSION``
+#: — and the port cap is a ``model_validator(mode="after")``, so the entire
+#: object graph was built before anything consulted it. Measured server-side:
+#: 3.28 s of event-loop CPU and a 304.5 MB transient peak, **31.8x the wire
+#: bytes**, to produce a 400. None of it appeared as ingest load, because the
+#: request was rejected. One agent key at the permitted 100 requests a minute
+#: bought all of it.
+#:
+#: Sizing the byte cap from the row caps closes that by construction: a body big
+#: enough to be worth deserialising is a body that could hold a legal number of
+#: rows. The streaming guard in ``scanning.payload`` refuses anything larger
+#: before a byte reaches the parser.
+#:
+#: If ``MAX_PORTS_PER_SUBMISSION`` or ``MAX_HOSTS_PER_BATCH`` changes, this
+#: recomputes with it — that is the point of deriving rather than declaring. It
+#: is rounded up to a whole megabyte so the number an operator sees in a 413
+#: matches the number in docs/AGENT-PROTOCOL.md §5.
+_DERIVED_PAYLOAD_BYTES = (
+    MAX_PORTS_PER_SUBMISSION * BYTES_PER_PORT_BUDGET
+    + MAX_HOSTS_PER_BATCH * BYTES_PER_HOST_BUDGET
+    + PAYLOAD_ENVELOPE_SLACK_BYTES
+)
+MEGABYTE = 1024 * 1024
+MAX_RESULT_PAYLOAD_BYTES = -(-_DERIVED_PAYLOAD_BYTES // MEGABYTE) * MEGABYTE
 
 OUTSIDE_TARGET = "outside_job_target"
 OUTSIDE_REGISTERED_NETWORKS = "outside_registered_networks"
