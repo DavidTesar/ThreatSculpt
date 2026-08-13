@@ -17,6 +17,7 @@ from threatsculpt.api.router import api_router
 from threatsculpt.api.routes import health
 from threatsculpt.config import Settings, get_settings
 from threatsculpt.db.engine import build_engine, build_session_factory
+from threatsculpt.db.privileges import assert_database_role_is_unprivileged
 from threatsculpt.observability.context import REQUEST_ID_HEADER
 from threatsculpt.observability.logging import configure_logging
 from threatsculpt.security.ratelimit import SlidingWindowLimiter
@@ -93,6 +94,20 @@ def _install_middleware(app: FastAPI, settings: Settings) -> None:
 async def _lifespan(app: FastAPI) -> AsyncIterator[None]:
     settings: Settings = app.state.settings
     engine = build_engine(settings)
+
+    # Before anything is served: prove the database role cannot bypass RLS.
+    # Checked here rather than lazily because the whole point is to fail at
+    # deploy time, loudly, instead of serving traffic with one isolation layer
+    # silently missing. On failure the engine is disposed and the error
+    # propagates, so the process exits non-zero.
+    try:
+        await assert_database_role_is_unprivileged(
+            engine, allow_superuser=settings.allow_superuser_db
+        )
+    except Exception:
+        await engine.dispose()
+        raise
+
     app.state.engine = engine
     app.state.session_factory = build_session_factory(engine)
     logger.info("control plane started", extra={"environment": settings.environment})

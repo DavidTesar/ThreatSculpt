@@ -1,6 +1,6 @@
 -- Create the application role. Run once per database, as a superuser, BEFORE
 -- `alembic upgrade head` (migration 0003 grants privileges to this role and
--- skips silently if it does not exist).
+-- now fails with an explanatory error if it does not exist, rather than skipping).
 --
 -- The role is deliberately NOSUPERUSER and NOBYPASSRLS: both attributes make
 -- PostgreSQL skip Row-Level Security entirely, which would remove the backstop

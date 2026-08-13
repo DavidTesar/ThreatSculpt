@@ -123,21 +123,37 @@ step "1. Create a fresh database and migrate it"
 dropdb --if-exists "$E2E_DB"
 createdb "$E2E_DB"
 
+# The application must NOT connect as a superuser: PostgreSQL skips every RLS
+# policy for SUPERUSER or BYPASSRLS, which silently removes the tenancy backstop.
+# So this mirrors the production sequence exactly — create the unprivileged role
+# first, migrate as the owner, then run the app as that role. Running the whole
+# thing as `postgres` would make every cross-tenant assertion below vacuous.
+APP_ROLE=threatsculpt_app
+APP_ROLE_PASSWORD="$(head -c 18 /dev/urandom | base64 | tr -d '/+=')"
+psql -q -d "$E2E_DB" -v role_password="'${APP_ROLE_PASSWORD}'" -v DBNAME="$E2E_DB" \
+  -f "$CP_DIR/scripts/bootstrap_db.sql" >/dev/null \
+  || fail "could not create the $APP_ROLE role"
+pass "unprivileged role $APP_ROLE created (NOSUPERUSER, NOBYPASSRLS)"
+
 # psycopg wants the socket directory as a `host` query parameter, not in the authority.
 if [[ "${PGHOST:-}" == /* ]]; then
-  DB_URL="postgresql+psycopg://${PGUSER:-postgres}@/${E2E_DB}?host=${PGHOST}&port=${PGPORT:-5432}"
+  ADMIN_DB_URL="postgresql+psycopg://${PGUSER:-postgres}@/${E2E_DB}?host=${PGHOST}&port=${PGPORT:-5432}"
+  APP_DB_URL="postgresql+psycopg://${APP_ROLE}:${APP_ROLE_PASSWORD}@/${E2E_DB}?host=${PGHOST}&port=${PGPORT:-5432}"
 else
   DB_AUTH="${PGUSER:-postgres}${PGPASSWORD:+:$PGPASSWORD}"
-  DB_URL="postgresql+psycopg://${DB_AUTH}@${PGHOST:-127.0.0.1}:${PGPORT:-5432}/${E2E_DB}"
+  ADMIN_DB_URL="postgresql+psycopg://${DB_AUTH}@${PGHOST:-127.0.0.1}:${PGPORT:-5432}/${E2E_DB}"
+  APP_DB_URL="postgresql+psycopg://${APP_ROLE}:${APP_ROLE_PASSWORD}@${PGHOST:-127.0.0.1}:${PGPORT:-5432}/${E2E_DB}"
 fi
 
-export TS_DATABASE_URL="$DB_URL"
 export TS_JWT_SECRET="$JWT_SECRET"
 export TS_ENVIRONMENT=test
 export TS_COOKIE_SECURE=false
 export TS_LOG_JSON=false
 
-(cd "$CP_DIR" && "$CP_PYTHON" -m alembic upgrade head) || fail "migrations failed"
+# Migrations run as the owner; the application does not.
+TS_DATABASE_URL="$ADMIN_DB_URL" \
+  bash -c "cd '$CP_DIR' && '$CP_PYTHON' -m alembic upgrade head" || fail "migrations failed"
+export TS_DATABASE_URL="$APP_DB_URL"
 TABLE_COUNT=$(psql -d "$E2E_DB" -tAc \
   "select count(*) from information_schema.tables where table_schema='public'")
 assert_ge 17 "$TABLE_COUNT" "tables created"

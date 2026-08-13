@@ -43,9 +43,32 @@ tenant identifier in a body, path, or query string — request models use
    transaction by `bind_scope`. `FORCE ROW LEVEL SECURITY` means it applies to the
    table owner too.
 
-RLS only binds if the application connects as a **non-superuser, non-BYPASSRLS** role.
-`scripts/bootstrap_db.sql` creates one; `.env.example` says to use it; the test suite
-asserts it.
+### RLS binds only for an unprivileged role — enforced at startup
+
+PostgreSQL **silently ignores every RLS policy** for a role with `SUPERUSER` or
+`BYPASSRLS`. No error, no warning, no log line: the service keeps serving traffic
+while layer 3 has stopped existing. Layer 2 does not cover the gap either, because
+the ORM guard inspects ORM statements and raw `text()` SQL passes straight through.
+
+This used to rest on deployment discipline. It no longer does — **the application
+queries its own role at startup and refuses to boot** if it can bypass RLS, naming
+the role and pointing at `scripts/bootstrap_db.sql`. Set `TS_ALLOW_SUPERUSER_DB=1`
+to override for local development; the override is logged at CRITICAL on every boot
+so one left on by accident is visible. Never set it in a deployed environment.
+
+Relatedly, migration `0003` now **fails** when the application role does not exist,
+rather than skipping grants silently. The silent skip was the first step of a bad
+chain: an app with no privileges, `permission denied` on every query, and a
+superuser DSN as the fastest way to make the errors stop. Skipping the grants on
+purpose is still supported, explicitly:
+
+```bash
+alembic -x allow_missing_role=1 upgrade head
+TS_ALLOW_MISSING_APP_ROLE=1 alembic upgrade head
+```
+
+`scripts/bootstrap_db.sql` creates the unprivileged role; `.env.example` says to use
+it; the test suite asserts all of the above.
 
 Cross-tenant access returns **404, never 403** — a 403 would confirm the row exists.
 

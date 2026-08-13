@@ -39,6 +39,11 @@ class Settings(BaseSettings):
     # --- database ---------------------------------------------------------
     database_url: SecretStr
     db_app_role: str = "threatsculpt_app"
+    #: Escape hatch for local development only. When true the process will boot
+    #: against a SUPERUSER/BYPASSRLS role, which silently disables Row-Level
+    #: Security. Deliberately a separate flag rather than something inferred
+    #: from `environment`, so switching it on is an explicit, greppable act.
+    allow_superuser_db: bool = False
     db_pool_size: Annotated[int, Field(ge=1, le=100)] = 10
     db_max_overflow: Annotated[int, Field(ge=0, le=100)] = 5
     db_echo: bool = False

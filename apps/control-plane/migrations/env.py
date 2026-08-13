@@ -40,7 +40,12 @@ from threatsculpt.models import Base  # noqa: E402  (registers every mapper)
 
 config = context.config
 if config.config_file_name is not None:
-    fileConfig(config.config_file_name)
+    # disable_existing_loggers defaults to True, which would switch off every
+    # logger already created — including the application's — for anything
+    # running Alembic in-process (tests, a deploy script that migrates then
+    # serves). Silently losing application logs is not an acceptable side
+    # effect of applying a migration.
+    fileConfig(config.config_file_name, disable_existing_loggers=False)
 
 target_metadata = Base.metadata
 
