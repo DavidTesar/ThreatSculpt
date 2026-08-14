@@ -51,7 +51,12 @@ export function SeverityMark({ severity, size = 11, className }: SeverityMarkPro
 }
 
 export interface SeverityBadgeProps {
-  severity: Severity;
+  /**
+   * `null` when the API sent no severity, or one this build does not recognise. Rendered
+   * as an explicit "Unrated" rather than defaulting to `none`: absent evidence and
+   * evidence of absence are different claims to make about a vulnerability.
+   */
+  severity: Severity | null;
   /** Optional trailing detail, e.g. the CVSS base score. */
   detail?: string;
   className?: string;
@@ -59,6 +64,15 @@ export interface SeverityBadgeProps {
 
 /** Shape + label + colour. The label is never hidden — it is the accessible channel. */
 export function SeverityBadge({ severity, detail, className }: SeverityBadgeProps) {
+  if (severity === null) {
+    return (
+      <span className={`sev sev--unrated${className ? ` ${className}` : ''}`}>
+        Unrated
+        {detail ? <span className="mono">{detail}</span> : null}
+      </span>
+    );
+  }
+
   return (
     <span className={`sev sev--${severity}${className ? ` ${className}` : ''}`}>
       <SeverityMark severity={severity} />
@@ -69,7 +83,8 @@ export function SeverityBadge({ severity, detail, className }: SeverityBadgeProp
 }
 
 export interface CriticalityMeterProps {
-  criticality: Criticality;
+  /** `null` when the API sent a tier this build does not know — shown as "Unrated". */
+  criticality: Criticality | null;
   /** When false, renders the meter alone (for dense table cells). */
   showLabel?: boolean;
 }
@@ -79,11 +94,18 @@ export interface CriticalityMeterProps {
  * works in greyscale and for a reader who does not know the tier vocabulary.
  */
 export function CriticalityMeter({ criticality, showLabel = true }: CriticalityMeterProps) {
-  const filled = CRITICALITY_TIER[criticality];
-  const label = `${CRITICALITY_LABEL[criticality]} business criticality, ${filled} of 4`;
+  const filled = criticality ? CRITICALITY_TIER[criticality] : 0;
+  const text = criticality ? CRITICALITY_LABEL[criticality] : 'Unrated';
+  const label = `${text} business criticality, ${filled} of 4`;
 
   return (
-    <span className="row" style={{ gap: 'var(--space-2xs)', color: `var(--sev-${criticality})` }}>
+    <span
+      className="row"
+      style={{
+        gap: 'var(--space-2xs)',
+        color: criticality ? `var(--sev-${criticality})` : undefined,
+      }}
+    >
       <span className="tiermeter" role="img" aria-label={label}>
         {[1, 2, 3, 4].map((step) => (
           <span
@@ -100,7 +122,7 @@ export function CriticalityMeter({ criticality, showLabel = true }: CriticalityM
             color: 'var(--ink)',
           }}
         >
-          {CRITICALITY_LABEL[criticality]}
+          {text}
         </span>
       ) : null}
     </span>

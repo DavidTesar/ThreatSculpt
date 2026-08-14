@@ -1,0 +1,6820 @@
+{
+  "components": {
+    "schemas": {
+      "AgentAllowlistUpdate": {
+        "additionalProperties": false,
+        "description": "Narrow one agent to a subset of the org's authorized networks.",
+        "properties": {
+          "allowlist": {
+            "items": {
+              "type": "string"
+            },
+            "maxItems": 64,
+            "title": "Allowlist",
+            "type": "array"
+          }
+        },
+        "required": [
+          "allowlist"
+        ],
+        "title": "AgentAllowlistUpdate",
+        "type": "object"
+      },
+      "AgentOut": {
+        "additionalProperties": false,
+        "description": "Agent as an operator sees it. No key material, only the display prefix.",
+        "properties": {
+          "allowlist": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Allowlist",
+            "type": "array"
+          },
+          "created_at": {
+            "format": "date-time",
+            "title": "Created At",
+            "type": "string"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "key_prefix": {
+            "title": "Key Prefix",
+            "type": "string"
+          },
+          "last_seen_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Last Seen At"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "status": {
+            "title": "Status",
+            "type": "string"
+          },
+          "updated_at": {
+            "format": "date-time",
+            "title": "Updated At",
+            "type": "string"
+          },
+          "version": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Version"
+          }
+        },
+        "required": [
+          "id",
+          "name",
+          "key_prefix",
+          "status",
+          "version",
+          "allowlist",
+          "last_seen_at",
+          "created_at",
+          "updated_at"
+        ],
+        "title": "AgentOut",
+        "type": "object"
+      },
+      "AssetOut": {
+        "additionalProperties": false,
+        "properties": {
+          "exposure": {
+            "$ref": "#/components/schemas/Exposure"
+          },
+          "first_seen_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "First Seen At"
+          },
+          "hostname": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Hostname"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "ip": {
+            "title": "Ip",
+            "type": "string"
+          },
+          "last_seen_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Last Seen At"
+          },
+          "mac": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Mac"
+          },
+          "network_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Network Id"
+          },
+          "open_findings": {
+            "default": 0,
+            "title": "Open Findings",
+            "type": "integer"
+          },
+          "os_family": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Os Family"
+          },
+          "os_version": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Os Version"
+          },
+          "services": {
+            "items": {
+              "$ref": "#/components/schemas/ServiceLink"
+            },
+            "title": "Services",
+            "type": "array"
+          },
+          "worst_finding_score": {
+            "anyOf": [
+              {
+                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Worst Finding Score"
+          }
+        },
+        "required": [
+          "id",
+          "ip",
+          "exposure"
+        ],
+        "title": "AssetOut",
+        "type": "object"
+      },
+      "AssetServicesUpdate": {
+        "additionalProperties": false,
+        "description": "Full replacement of the asset -> business service mapping.\n\nPUT rather than PATCH because partial mapping updates are ambiguous: an\noperator sending one id almost always means \"this is the list\", and a\ndropped mapping silently keeping a stale criticality would misprice every\nfinding on the host.",
+        "properties": {
+          "service_ids": {
+            "items": {
+              "format": "uuid",
+              "type": "string"
+            },
+            "maxItems": 100,
+            "title": "Service Ids",
+            "type": "array"
+          }
+        },
+        "required": [
+          "service_ids"
+        ],
+        "title": "AssetServicesUpdate",
+        "type": "object"
+      },
+      "AssetSummary": {
+        "additionalProperties": false,
+        "properties": {
+          "exposure": {
+            "title": "Exposure",
+            "type": "string"
+          },
+          "hostname": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Hostname"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "ip": {
+            "title": "Ip",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "ip",
+          "exposure"
+        ],
+        "title": "AssetSummary",
+        "type": "object"
+      },
+      "AssetUpdate": {
+        "additionalProperties": false,
+        "description": "Operator corrections to what a scan inferred.\n\n``ip`` is absent on purpose: it is the asset's identity and is unique per\norg, so changing it is creating a different asset.",
+        "properties": {
+          "exposure": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/Exposure"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "hostname": {
+            "anyOf": [
+              {
+                "maxLength": 255,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Hostname"
+          },
+          "network_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Network Id"
+          },
+          "os_family": {
+            "anyOf": [
+              {
+                "maxLength": 64,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Os Family"
+          },
+          "os_version": {
+            "anyOf": [
+              {
+                "maxLength": 64,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Os Version"
+          }
+        },
+        "title": "AssetUpdate",
+        "type": "object"
+      },
+      "AttackSurface": {
+        "additionalProperties": false,
+        "properties": {
+          "aggregated": {
+            "default": false,
+            "title": "Aggregated",
+            "type": "boolean"
+          },
+          "edges": {
+            "items": {
+              "$ref": "#/components/schemas/GraphEdge"
+            },
+            "title": "Edges",
+            "type": "array"
+          },
+          "node_cap": {
+            "default": 0,
+            "title": "Node Cap",
+            "type": "integer"
+          },
+          "nodes": {
+            "items": {
+              "$ref": "#/components/schemas/GraphNode"
+            },
+            "title": "Nodes",
+            "type": "array"
+          },
+          "total_assets": {
+            "default": 0,
+            "title": "Total Assets",
+            "type": "integer"
+          }
+        },
+        "title": "AttackSurface",
+        "type": "object"
+      },
+      "BusinessServiceCreate": {
+        "additionalProperties": false,
+        "properties": {
+          "criticality": {
+            "$ref": "#/components/schemas/Criticality"
+          },
+          "description": {
+            "anyOf": [
+              {
+                "maxLength": 2000,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Description"
+          },
+          "name": {
+            "maxLength": 200,
+            "minLength": 1,
+            "title": "Name",
+            "type": "string"
+          },
+          "owner_email": {
+            "anyOf": [
+              {
+                "format": "email",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Owner Email"
+          },
+          "owner_name": {
+            "anyOf": [
+              {
+                "maxLength": 200,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Owner Name"
+          },
+          "revenue_at_risk": {
+            "anyOf": [
+              {
+                "minimum": 0.0,
+                "type": "number"
+              },
+              {
+                "pattern": "^(?!^[-+.]*$)[+-]?0*(?:\\d{0,12}|(?=[\\d.]{1,15}0*$)\\d{0,12}\\.\\d{0,2}0*$)",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Revenue At Risk"
+          }
+        },
+        "required": [
+          "name",
+          "criticality"
+        ],
+        "title": "BusinessServiceCreate",
+        "type": "object"
+      },
+      "BusinessServiceOut": {
+        "additionalProperties": false,
+        "properties": {
+          "created_at": {
+            "format": "date-time",
+            "title": "Created At",
+            "type": "string"
+          },
+          "criticality": {
+            "title": "Criticality",
+            "type": "string"
+          },
+          "description": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Description"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "owner_email": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Owner Email"
+          },
+          "owner_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Owner Name"
+          },
+          "revenue_at_risk": {
+            "anyOf": [
+              {
+                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Revenue At Risk"
+          },
+          "updated_at": {
+            "format": "date-time",
+            "title": "Updated At",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "name",
+          "description",
+          "criticality",
+          "revenue_at_risk",
+          "owner_name",
+          "owner_email",
+          "created_at",
+          "updated_at"
+        ],
+        "title": "BusinessServiceOut",
+        "type": "object"
+      },
+      "BusinessServiceUpdate": {
+        "additionalProperties": false,
+        "properties": {
+          "criticality": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/Criticality"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "description": {
+            "anyOf": [
+              {
+                "maxLength": 2000,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Description"
+          },
+          "name": {
+            "anyOf": [
+              {
+                "maxLength": 200,
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Name"
+          },
+          "owner_email": {
+            "anyOf": [
+              {
+                "format": "email",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Owner Email"
+          },
+          "owner_name": {
+            "anyOf": [
+              {
+                "maxLength": 200,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Owner Name"
+          },
+          "revenue_at_risk": {
+            "anyOf": [
+              {
+                "minimum": 0.0,
+                "type": "number"
+              },
+              {
+                "pattern": "^(?!^[-+.]*$)[+-]?0*(?:\\d{0,12}|(?=[\\d.]{1,15}0*$)\\d{0,12}\\.\\d{0,2}0*$)",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Revenue At Risk"
+          }
+        },
+        "title": "BusinessServiceUpdate",
+        "type": "object"
+      },
+      "ClaimRequest": {
+        "additionalProperties": false,
+        "properties": {
+          "capacity": {
+            "default": 1,
+            "maximum": 10.0,
+            "minimum": 1.0,
+            "title": "Capacity",
+            "type": "integer"
+          }
+        },
+        "title": "ClaimRequest",
+        "type": "object"
+      },
+      "ClaimResponse": {
+        "additionalProperties": false,
+        "properties": {
+          "jobs": {
+            "items": {
+              "$ref": "#/components/schemas/ClaimedJob"
+            },
+            "title": "Jobs",
+            "type": "array"
+          }
+        },
+        "required": [
+          "jobs"
+        ],
+        "title": "ClaimResponse",
+        "type": "object"
+      },
+      "ClaimedJob": {
+        "additionalProperties": false,
+        "properties": {
+          "job_id": {
+            "format": "uuid",
+            "title": "Job Id",
+            "type": "string"
+          },
+          "lease_expires_at": {
+            "format": "date-time",
+            "title": "Lease Expires At",
+            "type": "string"
+          },
+          "profile": {
+            "title": "Profile",
+            "type": "string"
+          },
+          "target": {
+            "title": "Target",
+            "type": "string"
+          }
+        },
+        "required": [
+          "job_id",
+          "target",
+          "profile",
+          "lease_expires_at"
+        ],
+        "title": "ClaimedJob",
+        "type": "object"
+      },
+      "Criticality": {
+        "enum": [
+          "critical",
+          "high",
+          "medium",
+          "low"
+        ],
+        "title": "Criticality",
+        "type": "string"
+      },
+      "CveSummary": {
+        "additionalProperties": false,
+        "properties": {
+          "cve_id": {
+            "title": "Cve Id",
+            "type": "string"
+          },
+          "cvss_base": {
+            "anyOf": [
+              {
+                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Cvss Base"
+          },
+          "exploit_maturity": {
+            "default": "none",
+            "title": "Exploit Maturity",
+            "type": "string"
+          },
+          "kev_due_date": {
+            "anyOf": [
+              {},
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Kev Due Date"
+          },
+          "kev_listed": {
+            "default": false,
+            "title": "Kev Listed",
+            "type": "boolean"
+          },
+          "severity": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Severity"
+          }
+        },
+        "required": [
+          "cve_id"
+        ],
+        "title": "CveSummary",
+        "type": "object"
+      },
+      "EnrollRequest": {
+        "additionalProperties": false,
+        "description": "docs/AGENT-PROTOCOL.md \u00a71. Unauthenticated \u2014 the token is the credential.",
+        "properties": {
+          "enrollment_token": {
+            "maxLength": 200,
+            "minLength": 8,
+            "title": "Enrollment Token",
+            "type": "string"
+          },
+          "hostname": {
+            "anyOf": [
+              {
+                "maxLength": 255,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Hostname"
+          },
+          "name": {
+            "maxLength": 200,
+            "minLength": 1,
+            "title": "Name",
+            "type": "string"
+          },
+          "version": {
+            "anyOf": [
+              {
+                "maxLength": 64,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Version"
+          }
+        },
+        "required": [
+          "enrollment_token",
+          "name"
+        ],
+        "title": "EnrollRequest",
+        "type": "object"
+      },
+      "EnrollResponse": {
+        "additionalProperties": false,
+        "description": "``api_key`` is shown here and never again.",
+        "properties": {
+          "agent_id": {
+            "format": "uuid",
+            "title": "Agent Id",
+            "type": "string"
+          },
+          "allowlist": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Allowlist",
+            "type": "array"
+          },
+          "api_key": {
+            "title": "Api Key",
+            "type": "string"
+          },
+          "org_id": {
+            "format": "uuid",
+            "title": "Org Id",
+            "type": "string"
+          },
+          "poll_interval_seconds": {
+            "title": "Poll Interval Seconds",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "agent_id",
+          "api_key",
+          "org_id",
+          "allowlist",
+          "poll_interval_seconds"
+        ],
+        "title": "EnrollResponse",
+        "type": "object"
+      },
+      "EnrollmentTokenCreate": {
+        "additionalProperties": false,
+        "description": "``POST /agents``. Issues a token; the agent row appears when it is used.\n\n``allowlist`` is a *note* for the operator's own records at this stage \u2014 the\nagent's ranges are set on its row once it enrols. Kept out of this model\nentirely rather than accepted and ignored.",
+        "properties": {
+          "note": {
+            "anyOf": [
+              {
+                "maxLength": 200,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Note"
+          }
+        },
+        "title": "EnrollmentTokenCreate",
+        "type": "object"
+      },
+      "EnrollmentTokenOut": {
+        "additionalProperties": false,
+        "description": "Shown once, at creation.",
+        "properties": {
+          "enrollment_token": {
+            "title": "Enrollment Token",
+            "type": "string"
+          },
+          "expires_at": {
+            "format": "date-time",
+            "title": "Expires At",
+            "type": "string"
+          }
+        },
+        "required": [
+          "enrollment_token",
+          "expires_at"
+        ],
+        "title": "EnrollmentTokenOut",
+        "type": "object"
+      },
+      "Envelope_AgentOut_": {
+        "properties": {
+          "data": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/AgentOut"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "error": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ErrorBody"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "meta": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/PageMeta"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "title": "Envelope[AgentOut]",
+        "type": "object"
+      },
+      "Envelope_AssetOut_": {
+        "properties": {
+          "data": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/AssetOut"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "error": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ErrorBody"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "meta": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/PageMeta"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "title": "Envelope[AssetOut]",
+        "type": "object"
+      },
+      "Envelope_AttackSurface_": {
+        "properties": {
+          "data": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/AttackSurface"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "error": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ErrorBody"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "meta": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/PageMeta"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "title": "Envelope[AttackSurface]",
+        "type": "object"
+      },
+      "Envelope_BusinessServiceOut_": {
+        "properties": {
+          "data": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/BusinessServiceOut"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "error": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ErrorBody"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "meta": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/PageMeta"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "title": "Envelope[BusinessServiceOut]",
+        "type": "object"
+      },
+      "Envelope_ClaimResponse_": {
+        "properties": {
+          "data": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ClaimResponse"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "error": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ErrorBody"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "meta": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/PageMeta"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "title": "Envelope[ClaimResponse]",
+        "type": "object"
+      },
+      "Envelope_EnrollResponse_": {
+        "properties": {
+          "data": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/EnrollResponse"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "error": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ErrorBody"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "meta": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/PageMeta"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "title": "Envelope[EnrollResponse]",
+        "type": "object"
+      },
+      "Envelope_EnrollmentTokenOut_": {
+        "properties": {
+          "data": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/EnrollmentTokenOut"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "error": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ErrorBody"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "meta": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/PageMeta"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "title": "Envelope[EnrollmentTokenOut]",
+        "type": "object"
+      },
+      "Envelope_ExecutiveDashboard_": {
+        "properties": {
+          "data": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ExecutiveDashboard"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "error": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ErrorBody"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "meta": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/PageMeta"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "title": "Envelope[ExecutiveDashboard]",
+        "type": "object"
+      },
+      "Envelope_FindingDetail_": {
+        "properties": {
+          "data": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/FindingDetail"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "error": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ErrorBody"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "meta": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/PageMeta"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "title": "Envelope[FindingDetail]",
+        "type": "object"
+      },
+      "Envelope_HealthOut_": {
+        "properties": {
+          "data": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/HealthOut"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "error": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ErrorBody"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "meta": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/PageMeta"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "title": "Envelope[HealthOut]",
+        "type": "object"
+      },
+      "Envelope_HeartbeatResponse_": {
+        "properties": {
+          "data": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/HeartbeatResponse"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "error": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ErrorBody"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "meta": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/PageMeta"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "title": "Envelope[HeartbeatResponse]",
+        "type": "object"
+      },
+      "Envelope_JobStateResponse_": {
+        "properties": {
+          "data": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/JobStateResponse"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "error": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ErrorBody"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "meta": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/PageMeta"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "title": "Envelope[JobStateResponse]",
+        "type": "object"
+      },
+      "Envelope_LogoutResponse_": {
+        "properties": {
+          "data": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/LogoutResponse"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "error": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ErrorBody"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "meta": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/PageMeta"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "title": "Envelope[LogoutResponse]",
+        "type": "object"
+      },
+      "Envelope_MeResponse_": {
+        "properties": {
+          "data": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/MeResponse"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "error": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ErrorBody"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "meta": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/PageMeta"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "title": "Envelope[MeResponse]",
+        "type": "object"
+      },
+      "Envelope_NetworkOut_": {
+        "properties": {
+          "data": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/NetworkOut"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "error": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ErrorBody"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "meta": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/PageMeta"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "title": "Envelope[NetworkOut]",
+        "type": "object"
+      },
+      "Envelope_NoneType_": {
+        "properties": {
+          "data": {
+            "title": "Data",
+            "type": "null"
+          },
+          "error": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ErrorBody"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "meta": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/PageMeta"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "title": "Envelope[NoneType]",
+        "type": "object"
+      },
+      "Envelope_PasswordResetResponse_": {
+        "properties": {
+          "data": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/PasswordResetResponse"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "error": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ErrorBody"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "meta": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/PageMeta"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "title": "Envelope[PasswordResetResponse]",
+        "type": "object"
+      },
+      "Envelope_ReadinessOut_": {
+        "properties": {
+          "data": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ReadinessOut"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "error": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ErrorBody"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "meta": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/PageMeta"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "title": "Envelope[ReadinessOut]",
+        "type": "object"
+      },
+      "Envelope_RegisterResponse_": {
+        "properties": {
+          "data": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/RegisterResponse"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "error": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ErrorBody"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "meta": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/PageMeta"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "title": "Envelope[RegisterResponse]",
+        "type": "object"
+      },
+      "Envelope_ReportCreated_": {
+        "properties": {
+          "data": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ReportCreated"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "error": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ErrorBody"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "meta": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/PageMeta"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "title": "Envelope[ReportCreated]",
+        "type": "object"
+      },
+      "Envelope_ReportDownloadLink_": {
+        "properties": {
+          "data": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ReportDownloadLink"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "error": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ErrorBody"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "meta": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/PageMeta"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "title": "Envelope[ReportDownloadLink]",
+        "type": "object"
+      },
+      "Envelope_ReportOut_": {
+        "properties": {
+          "data": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ReportOut"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "error": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ErrorBody"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "meta": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/PageMeta"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "title": "Envelope[ReportOut]",
+        "type": "object"
+      },
+      "Envelope_ResultsResponse_": {
+        "properties": {
+          "data": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ResultsResponse"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "error": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ErrorBody"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "meta": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/PageMeta"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "title": "Envelope[ResultsResponse]",
+        "type": "object"
+      },
+      "Envelope_ScanJobOut_": {
+        "properties": {
+          "data": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ScanJobOut"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "error": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ErrorBody"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "meta": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/PageMeta"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "title": "Envelope[ScanJobOut]",
+        "type": "object"
+      },
+      "Envelope_TokenResponse_": {
+        "properties": {
+          "data": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/TokenResponse"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "error": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ErrorBody"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "meta": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/PageMeta"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "title": "Envelope[TokenResponse]",
+        "type": "object"
+      },
+      "Envelope_UserAdminSummary_": {
+        "properties": {
+          "data": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/UserAdminSummary"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "error": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ErrorBody"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "meta": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/PageMeta"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "title": "Envelope[UserAdminSummary]",
+        "type": "object"
+      },
+      "Envelope_VerificationStateResponse_": {
+        "properties": {
+          "data": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/VerificationStateResponse"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "error": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ErrorBody"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "meta": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/PageMeta"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "title": "Envelope[VerificationStateResponse]",
+        "type": "object"
+      },
+      "Envelope_list_AgentOut__": {
+        "properties": {
+          "data": {
+            "anyOf": [
+              {
+                "items": {
+                  "$ref": "#/components/schemas/AgentOut"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Data"
+          },
+          "error": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ErrorBody"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "meta": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/PageMeta"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "title": "Envelope[list[AgentOut]]",
+        "type": "object"
+      },
+      "Envelope_list_AssetOut__": {
+        "properties": {
+          "data": {
+            "anyOf": [
+              {
+                "items": {
+                  "$ref": "#/components/schemas/AssetOut"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Data"
+          },
+          "error": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ErrorBody"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "meta": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/PageMeta"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "title": "Envelope[list[AssetOut]]",
+        "type": "object"
+      },
+      "Envelope_list_BusinessServiceOut__": {
+        "properties": {
+          "data": {
+            "anyOf": [
+              {
+                "items": {
+                  "$ref": "#/components/schemas/BusinessServiceOut"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Data"
+          },
+          "error": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ErrorBody"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "meta": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/PageMeta"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "title": "Envelope[list[BusinessServiceOut]]",
+        "type": "object"
+      },
+      "Envelope_list_FindingOut__": {
+        "properties": {
+          "data": {
+            "anyOf": [
+              {
+                "items": {
+                  "$ref": "#/components/schemas/FindingOut"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Data"
+          },
+          "error": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ErrorBody"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "meta": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/PageMeta"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "title": "Envelope[list[FindingOut]]",
+        "type": "object"
+      },
+      "Envelope_list_NetworkOut__": {
+        "properties": {
+          "data": {
+            "anyOf": [
+              {
+                "items": {
+                  "$ref": "#/components/schemas/NetworkOut"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Data"
+          },
+          "error": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ErrorBody"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "meta": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/PageMeta"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "title": "Envelope[list[NetworkOut]]",
+        "type": "object"
+      },
+      "Envelope_list_ReportOut__": {
+        "properties": {
+          "data": {
+            "anyOf": [
+              {
+                "items": {
+                  "$ref": "#/components/schemas/ReportOut"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Data"
+          },
+          "error": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ErrorBody"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "meta": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/PageMeta"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "title": "Envelope[list[ReportOut]]",
+        "type": "object"
+      },
+      "Envelope_list_ScanJobOut__": {
+        "properties": {
+          "data": {
+            "anyOf": [
+              {
+                "items": {
+                  "$ref": "#/components/schemas/ScanJobOut"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Data"
+          },
+          "error": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ErrorBody"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "meta": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/PageMeta"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "title": "Envelope[list[ScanJobOut]]",
+        "type": "object"
+      },
+      "Envelope_list_UserAdminSummary__": {
+        "properties": {
+          "data": {
+            "anyOf": [
+              {
+                "items": {
+                  "$ref": "#/components/schemas/UserAdminSummary"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Data"
+          },
+          "error": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ErrorBody"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "meta": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/PageMeta"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "title": "Envelope[list[UserAdminSummary]]",
+        "type": "object"
+      },
+      "ErrorBody": {
+        "properties": {
+          "code": {
+            "title": "Code",
+            "type": "string"
+          },
+          "field": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Field"
+          },
+          "message": {
+            "title": "Message",
+            "type": "string"
+          }
+        },
+        "required": [
+          "code",
+          "message"
+        ],
+        "title": "ErrorBody",
+        "type": "object"
+      },
+      "ExecutiveDashboard": {
+        "additionalProperties": false,
+        "properties": {
+          "exposure_summary": {
+            "$ref": "#/components/schemas/ExposureSummary"
+          },
+          "kev_findings": {
+            "default": 0,
+            "title": "Kev Findings",
+            "type": "integer"
+          },
+          "remediation_progress": {
+            "$ref": "#/components/schemas/RemediationProgress"
+          },
+          "risk_posture": {
+            "$ref": "#/components/schemas/RiskPosture"
+          },
+          "services_at_risk": {
+            "items": {
+              "$ref": "#/components/schemas/ServiceAtRisk"
+            },
+            "title": "Services At Risk",
+            "type": "array"
+          }
+        },
+        "required": [
+          "risk_posture",
+          "exposure_summary",
+          "remediation_progress"
+        ],
+        "title": "ExecutiveDashboard",
+        "type": "object"
+      },
+      "Exposure": {
+        "enum": [
+          "internet",
+          "dmz",
+          "internal",
+          "isolated"
+        ],
+        "title": "Exposure",
+        "type": "string"
+      },
+      "ExposureSummary": {
+        "additionalProperties": false,
+        "properties": {
+          "dmz": {
+            "default": 0,
+            "title": "Dmz",
+            "type": "integer"
+          },
+          "internal": {
+            "default": 0,
+            "title": "Internal",
+            "type": "integer"
+          },
+          "internet": {
+            "default": 0,
+            "title": "Internet",
+            "type": "integer"
+          },
+          "isolated": {
+            "default": 0,
+            "title": "Isolated",
+            "type": "integer"
+          }
+        },
+        "title": "ExposureSummary",
+        "type": "object"
+      },
+      "FindingDetail": {
+        "additionalProperties": false,
+        "description": "Adds the score explanation and the CVE text.\n\n``score_factors`` is the reason this endpoint exists in this shape. A list\nrow can carry a number; a detail view has to be able to defend it.",
+        "properties": {
+          "asset": {
+            "$ref": "#/components/schemas/AssetSummary"
+          },
+          "business_risk_score": {
+            "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+            "title": "Business Risk Score",
+            "type": "string"
+          },
+          "cve": {
+            "$ref": "#/components/schemas/CveSummary"
+          },
+          "description": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Description"
+          },
+          "first_seen_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "First Seen At"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "last_seen_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Last Seen At"
+          },
+          "match": {
+            "$ref": "#/components/schemas/MatchSummary"
+          },
+          "port_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Port Id"
+          },
+          "resolved_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Resolved At"
+          },
+          "scan_job_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Scan Job Id"
+          },
+          "score_factors": {
+            "additionalProperties": true,
+            "title": "Score Factors",
+            "type": "object"
+          },
+          "services_affected": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Services Affected",
+            "type": "array"
+          },
+          "status": {
+            "$ref": "#/components/schemas/FindingStatus"
+          }
+        },
+        "required": [
+          "id",
+          "status",
+          "business_risk_score",
+          "asset",
+          "cve",
+          "match"
+        ],
+        "title": "FindingDetail",
+        "type": "object"
+      },
+      "FindingOut": {
+        "additionalProperties": false,
+        "properties": {
+          "asset": {
+            "$ref": "#/components/schemas/AssetSummary"
+          },
+          "business_risk_score": {
+            "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+            "title": "Business Risk Score",
+            "type": "string"
+          },
+          "cve": {
+            "$ref": "#/components/schemas/CveSummary"
+          },
+          "first_seen_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "First Seen At"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "last_seen_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Last Seen At"
+          },
+          "match": {
+            "$ref": "#/components/schemas/MatchSummary"
+          },
+          "port_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Port Id"
+          },
+          "resolved_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Resolved At"
+          },
+          "scan_job_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Scan Job Id"
+          },
+          "status": {
+            "$ref": "#/components/schemas/FindingStatus"
+          }
+        },
+        "required": [
+          "id",
+          "status",
+          "business_risk_score",
+          "asset",
+          "cve",
+          "match"
+        ],
+        "title": "FindingOut",
+        "type": "object"
+      },
+      "FindingStatus": {
+        "enum": [
+          "open",
+          "accepted_risk",
+          "remediated",
+          "false_positive"
+        ],
+        "title": "FindingStatus",
+        "type": "string"
+      },
+      "FindingStatusUpdate": {
+        "additionalProperties": false,
+        "description": "Status transitions only \u2014 no other field is patchable.\n\nLetting a caller PATCH ``business_risk_score`` would make the score an\nopinion rather than a computation, and the whole product rests on it being\na computation.",
+        "properties": {
+          "note": {
+            "anyOf": [
+              {
+                "maxLength": 1000,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Note"
+          },
+          "status": {
+            "$ref": "#/components/schemas/FindingStatus"
+          }
+        },
+        "required": [
+          "status"
+        ],
+        "title": "FindingStatusUpdate",
+        "type": "object"
+      },
+      "GraphEdge": {
+        "additionalProperties": false,
+        "properties": {
+          "source": {
+            "title": "Source",
+            "type": "string"
+          },
+          "target": {
+            "title": "Target",
+            "type": "string"
+          },
+          "type": {
+            "title": "Type",
+            "type": "string"
+          }
+        },
+        "required": [
+          "source",
+          "target",
+          "type"
+        ],
+        "title": "GraphEdge",
+        "type": "object"
+      },
+      "GraphNode": {
+        "additionalProperties": false,
+        "properties": {
+          "criticality": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Criticality"
+          },
+          "exposure": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Exposure"
+          },
+          "id": {
+            "title": "Id",
+            "type": "string"
+          },
+          "label": {
+            "title": "Label",
+            "type": "string"
+          },
+          "represents": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Represents"
+          },
+          "type": {
+            "title": "Type",
+            "type": "string"
+          },
+          "weight": {
+            "default": "0",
+            "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+            "title": "Weight",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "type",
+          "label"
+        ],
+        "title": "GraphNode",
+        "type": "object"
+      },
+      "HTTPValidationError": {
+        "properties": {
+          "detail": {
+            "items": {
+              "$ref": "#/components/schemas/ValidationError"
+            },
+            "title": "Detail",
+            "type": "array"
+          }
+        },
+        "title": "HTTPValidationError",
+        "type": "object"
+      },
+      "HealthOut": {
+        "additionalProperties": false,
+        "properties": {
+          "environment": {
+            "title": "Environment",
+            "type": "string"
+          },
+          "status": {
+            "title": "Status",
+            "type": "string"
+          }
+        },
+        "required": [
+          "status",
+          "environment"
+        ],
+        "title": "HealthOut",
+        "type": "object"
+      },
+      "HeartbeatRequest": {
+        "additionalProperties": false,
+        "properties": {
+          "healthy": {
+            "default": true,
+            "title": "Healthy",
+            "type": "boolean"
+          },
+          "nmap_version": {
+            "anyOf": [
+              {
+                "maxLength": 64,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Nmap Version"
+          },
+          "version": {
+            "anyOf": [
+              {
+                "maxLength": 64,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Version"
+          }
+        },
+        "title": "HeartbeatRequest",
+        "type": "object"
+      },
+      "HeartbeatResponse": {
+        "additionalProperties": false,
+        "description": "How allowlist changes reach the fleet, per \u00a72.\n\n``revoked`` is always ``false`` when it is returned at all: a revoked key\nfails authentication and gets the 401 that \u00a76 already tells the agent to\ntreat as \"wipe the key and exit\". The field is kept because the protocol\ndeclares it and an agent may branch on it.",
+        "properties": {
+          "allowlist": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Allowlist",
+            "type": "array"
+          },
+          "poll_interval_seconds": {
+            "title": "Poll Interval Seconds",
+            "type": "integer"
+          },
+          "revoked": {
+            "default": false,
+            "title": "Revoked",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "allowlist",
+          "poll_interval_seconds"
+        ],
+        "title": "HeartbeatResponse",
+        "type": "object"
+      },
+      "JobRejectRequest": {
+        "additionalProperties": false,
+        "description": "\u00a74. The agent refusing a target is expected behaviour, not an error.",
+        "properties": {
+          "detail": {
+            "anyOf": [
+              {
+                "maxLength": 1000,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Detail"
+          },
+          "reason": {
+            "maxLength": 200,
+            "minLength": 1,
+            "title": "Reason",
+            "type": "string"
+          }
+        },
+        "required": [
+          "reason"
+        ],
+        "title": "JobRejectRequest",
+        "type": "object"
+      },
+      "JobStateResponse": {
+        "additionalProperties": false,
+        "properties": {
+          "attempts": {
+            "title": "Attempts",
+            "type": "integer"
+          },
+          "job_id": {
+            "format": "uuid",
+            "title": "Job Id",
+            "type": "string"
+          },
+          "status": {
+            "title": "Status",
+            "type": "string"
+          }
+        },
+        "required": [
+          "job_id",
+          "status",
+          "attempts"
+        ],
+        "title": "JobStateResponse",
+        "type": "object"
+      },
+      "JobStatusUpdate": {
+        "additionalProperties": false,
+        "description": "\u00a75 progress. ``completed`` is not accepted here \u2014 results submission is\nwhat completes a job, so a job cannot be marked done without its data.",
+        "properties": {
+          "detail": {
+            "anyOf": [
+              {
+                "maxLength": 1000,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Detail"
+          },
+          "progress_percent": {
+            "anyOf": [
+              {
+                "maximum": 100.0,
+                "minimum": 0.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Progress Percent"
+          },
+          "status": {
+            "$ref": "#/components/schemas/ScanStatus"
+          }
+        },
+        "required": [
+          "status"
+        ],
+        "title": "JobStatusUpdate",
+        "type": "object"
+      },
+      "LoginRequest": {
+        "additionalProperties": false,
+        "description": "``org_slug`` is optional and *only* disambiguates.\n\nAn address may legitimately exist in two customers, since ``users`` is\nunique on ``(org_id, email)``. Supplying the slug narrows the candidate set;\nomitting it still works, because the password is verified against each\ncandidate. It grants nothing on its own \u2014 it is not a tenant selector in the\nsense docs/API.md forbids, which is a caller naming *whose data to return*.",
+        "properties": {
+          "email": {
+            "format": "email",
+            "title": "Email",
+            "type": "string"
+          },
+          "org_slug": {
+            "anyOf": [
+              {
+                "maxLength": 63,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Org Slug"
+          },
+          "password": {
+            "maxLength": 256,
+            "minLength": 1,
+            "title": "Password",
+            "type": "string"
+          }
+        },
+        "required": [
+          "email",
+          "password"
+        ],
+        "title": "LoginRequest",
+        "type": "object"
+      },
+      "LogoutResponse": {
+        "additionalProperties": false,
+        "properties": {
+          "revoked": {
+            "title": "Revoked",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "revoked"
+        ],
+        "title": "LogoutResponse",
+        "type": "object"
+      },
+      "MatchConfidence": {
+        "description": "How sure the CPE matcher was that this CVE applies to this service.\n\nPersisted on the finding rather than buried in ``score_factors`` for two\nreasons: it survives a re-score (which rewrites the factors), and it is a\nfilter an operator actually wants \u2014 \"show me only what you are sure about\"\nis the first question a sceptical analyst asks.",
+        "enum": [
+          "high",
+          "medium",
+          "low"
+        ],
+        "title": "MatchConfidence",
+        "type": "string"
+      },
+      "MatchSummary": {
+        "additionalProperties": false,
+        "description": "How the CVE was attached to this service, and how sure we were.\n\nSurfaced on every finding rather than only on request: an operator deciding\nwhether to page someone at 2am needs to know the difference between \"your\nversion is inside the affected range\" and \"we guessed from a banner\".",
+        "properties": {
+          "confidence": {
+            "$ref": "#/components/schemas/MatchConfidence"
+          },
+          "method": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Method"
+          },
+          "rationale": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Rationale"
+          }
+        },
+        "required": [
+          "confidence"
+        ],
+        "title": "MatchSummary",
+        "type": "object"
+      },
+      "MeResponse": {
+        "additionalProperties": false,
+        "properties": {
+          "org": {
+            "$ref": "#/components/schemas/OrgSummary"
+          },
+          "user": {
+            "$ref": "#/components/schemas/UserSummary"
+          }
+        },
+        "required": [
+          "user",
+          "org"
+        ],
+        "title": "MeResponse",
+        "type": "object"
+      },
+      "NetworkCreate": {
+        "additionalProperties": false,
+        "properties": {
+          "authorization_note": {
+            "anyOf": [
+              {
+                "maxLength": 1000,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Authorization Note"
+          },
+          "authorized": {
+            "default": false,
+            "title": "Authorized",
+            "type": "boolean"
+          },
+          "cidr": {
+            "maxLength": 64,
+            "minLength": 1,
+            "title": "Cidr",
+            "type": "string"
+          },
+          "name": {
+            "maxLength": 200,
+            "minLength": 1,
+            "title": "Name",
+            "type": "string"
+          }
+        },
+        "required": [
+          "name",
+          "cidr"
+        ],
+        "title": "NetworkCreate",
+        "type": "object"
+      },
+      "NetworkOut": {
+        "additionalProperties": false,
+        "properties": {
+          "authorization_note": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Authorization Note"
+          },
+          "authorized": {
+            "title": "Authorized",
+            "type": "boolean"
+          },
+          "authorized_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Authorized At"
+          },
+          "authorized_by_user_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Authorized By User Id"
+          },
+          "cidr": {
+            "title": "Cidr",
+            "type": "string"
+          },
+          "created_at": {
+            "format": "date-time",
+            "title": "Created At",
+            "type": "string"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "updated_at": {
+            "format": "date-time",
+            "title": "Updated At",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "name",
+          "cidr",
+          "authorized",
+          "authorization_note",
+          "created_at",
+          "updated_at"
+        ],
+        "title": "NetworkOut",
+        "type": "object"
+      },
+      "NetworkUpdate": {
+        "additionalProperties": false,
+        "description": "All fields optional; ``cidr`` is immutable once assets reference it.",
+        "properties": {
+          "authorization_note": {
+            "anyOf": [
+              {
+                "maxLength": 1000,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Authorization Note"
+          },
+          "authorized": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Authorized"
+          },
+          "name": {
+            "anyOf": [
+              {
+                "maxLength": 200,
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Name"
+          }
+        },
+        "title": "NetworkUpdate",
+        "type": "object"
+      },
+      "OrgSummary": {
+        "additionalProperties": false,
+        "properties": {
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "plan": {
+            "title": "Plan",
+            "type": "string"
+          },
+          "slug": {
+            "title": "Slug",
+            "type": "string"
+          },
+          "status": {
+            "title": "Status",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "name",
+          "slug",
+          "plan",
+          "status"
+        ],
+        "title": "OrgSummary",
+        "type": "object"
+      },
+      "PageMeta": {
+        "properties": {
+          "page": {
+            "title": "Page",
+            "type": "integer"
+          },
+          "per_page": {
+            "title": "Per Page",
+            "type": "integer"
+          },
+          "total": {
+            "title": "Total",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "page",
+          "per_page",
+          "total"
+        ],
+        "title": "PageMeta",
+        "type": "object"
+      },
+      "PasswordChangeRequest": {
+        "additionalProperties": false,
+        "description": "A user changing their own password. The current one is required.\n\nRequiring it is what stops a stolen access token from becoming a permanent\naccount takeover in one request.",
+        "properties": {
+          "current_password": {
+            "maxLength": 256,
+            "minLength": 1,
+            "title": "Current Password",
+            "type": "string"
+          },
+          "new_password": {
+            "maxLength": 256,
+            "minLength": 12,
+            "title": "New Password",
+            "type": "string"
+          }
+        },
+        "required": [
+          "current_password",
+          "new_password"
+        ],
+        "title": "PasswordChangeRequest",
+        "type": "object"
+      },
+      "PasswordResetResponse": {
+        "additionalProperties": false,
+        "description": "An admin-issued temporary password, shown exactly once.\n\nSame handling as every other credential this service mints: the plaintext\nexists in this response and nowhere else, and the holder is expected to\nchange it immediately.",
+        "properties": {
+          "sessions_revoked": {
+            "title": "Sessions Revoked",
+            "type": "integer"
+          },
+          "temporary_password": {
+            "title": "Temporary Password",
+            "type": "string"
+          },
+          "user_id": {
+            "format": "uuid",
+            "title": "User Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "user_id",
+          "temporary_password",
+          "sessions_revoked"
+        ],
+        "title": "PasswordResetResponse",
+        "type": "object"
+      },
+      "ReadinessOut": {
+        "additionalProperties": false,
+        "properties": {
+          "database": {
+            "title": "Database",
+            "type": "string"
+          },
+          "status": {
+            "title": "Status",
+            "type": "string"
+          }
+        },
+        "required": [
+          "status",
+          "database"
+        ],
+        "title": "ReadinessOut",
+        "type": "object"
+      },
+      "RegisterRequest": {
+        "additionalProperties": false,
+        "description": "Creates an org and its first ``owner`` user. Trial plan.",
+        "properties": {
+          "email": {
+            "format": "email",
+            "title": "Email",
+            "type": "string"
+          },
+          "full_name": {
+            "anyOf": [
+              {
+                "maxLength": 200,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Full Name"
+          },
+          "org_name": {
+            "maxLength": 200,
+            "minLength": 1,
+            "title": "Org Name",
+            "type": "string"
+          },
+          "org_slug": {
+            "maxLength": 63,
+            "minLength": 3,
+            "title": "Org Slug",
+            "type": "string"
+          },
+          "password": {
+            "maxLength": 256,
+            "minLength": 12,
+            "title": "Password",
+            "type": "string"
+          }
+        },
+        "required": [
+          "org_name",
+          "org_slug",
+          "email",
+          "password"
+        ],
+        "title": "RegisterRequest",
+        "type": "object"
+      },
+      "RegisterResponse": {
+        "additionalProperties": false,
+        "properties": {
+          "access_token": {
+            "title": "Access Token",
+            "type": "string"
+          },
+          "expires_at": {
+            "format": "date-time",
+            "title": "Expires At",
+            "type": "string"
+          },
+          "org": {
+            "$ref": "#/components/schemas/OrgSummary"
+          },
+          "user": {
+            "$ref": "#/components/schemas/UserSummary"
+          }
+        },
+        "required": [
+          "user",
+          "org",
+          "access_token",
+          "expires_at"
+        ],
+        "title": "RegisterResponse",
+        "type": "object"
+      },
+      "RejectedHost": {
+        "additionalProperties": false,
+        "properties": {
+          "ip": {
+            "title": "Ip",
+            "type": "string"
+          },
+          "reason": {
+            "title": "Reason",
+            "type": "string"
+          }
+        },
+        "required": [
+          "ip",
+          "reason"
+        ],
+        "title": "RejectedHost",
+        "type": "object"
+      },
+      "RemediationProgress": {
+        "additionalProperties": false,
+        "properties": {
+          "opened_30d": {
+            "default": 0,
+            "title": "Opened 30D",
+            "type": "integer"
+          },
+          "resolved_30d": {
+            "default": 0,
+            "title": "Resolved 30D",
+            "type": "integer"
+          }
+        },
+        "title": "RemediationProgress",
+        "type": "object"
+      },
+      "ReportCreate": {
+        "additionalProperties": false,
+        "properties": {
+          "format": {
+            "default": "html",
+            "maxLength": 16,
+            "title": "Format",
+            "type": "string"
+          },
+          "scope": {
+            "$ref": "#/components/schemas/ReportScope"
+          },
+          "type": {
+            "$ref": "#/components/schemas/ReportType",
+            "default": "executive_summary"
+          }
+        },
+        "title": "ReportCreate",
+        "type": "object"
+      },
+      "ReportCreated": {
+        "additionalProperties": false,
+        "description": "202 body. Named ``report_id`` to match docs/API.md exactly.",
+        "properties": {
+          "report_id": {
+            "format": "uuid",
+            "title": "Report Id",
+            "type": "string"
+          },
+          "status": {
+            "$ref": "#/components/schemas/ReportStatus"
+          }
+        },
+        "required": [
+          "report_id",
+          "status"
+        ],
+        "title": "ReportCreated",
+        "type": "object"
+      },
+      "ReportDownloadLink": {
+        "additionalProperties": false,
+        "properties": {
+          "expires_at": {
+            "format": "date-time",
+            "title": "Expires At",
+            "type": "string"
+          },
+          "url": {
+            "title": "Url",
+            "type": "string"
+          }
+        },
+        "required": [
+          "url",
+          "expires_at"
+        ],
+        "title": "ReportDownloadLink",
+        "type": "object"
+      },
+      "ReportOut": {
+        "additionalProperties": false,
+        "properties": {
+          "byte_size": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Byte Size"
+          },
+          "created_at": {
+            "format": "date-time",
+            "title": "Created At",
+            "type": "string"
+          },
+          "error": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Error"
+          },
+          "format": {
+            "title": "Format",
+            "type": "string"
+          },
+          "generated_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Generated At"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "status": {
+            "$ref": "#/components/schemas/ReportStatus"
+          },
+          "type": {
+            "title": "Type",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "type",
+          "format",
+          "status",
+          "created_at"
+        ],
+        "title": "ReportOut",
+        "type": "object"
+      },
+      "ReportScope": {
+        "additionalProperties": false,
+        "description": "What the report should cover. Empty means the whole org.",
+        "properties": {
+          "service_ids": {
+            "items": {
+              "format": "uuid",
+              "type": "string"
+            },
+            "maxItems": 100,
+            "title": "Service Ids",
+            "type": "array"
+          },
+          "since": {
+            "anyOf": [
+              {
+                "format": "date",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Since"
+          }
+        },
+        "title": "ReportScope",
+        "type": "object"
+      },
+      "ReportStatus": {
+        "enum": [
+          "queued",
+          "generating",
+          "ready",
+          "failed"
+        ],
+        "title": "ReportStatus",
+        "type": "string"
+      },
+      "ReportType": {
+        "enum": [
+          "executive_summary"
+        ],
+        "title": "ReportType",
+        "type": "string"
+      },
+      "ResultsResponse": {
+        "additionalProperties": false,
+        "properties": {
+          "accepted": {
+            "title": "Accepted",
+            "type": "boolean"
+          },
+          "hosts_ingested": {
+            "title": "Hosts Ingested",
+            "type": "integer"
+          },
+          "hosts_rejected": {
+            "default": [],
+            "items": {
+              "$ref": "#/components/schemas/RejectedHost"
+            },
+            "title": "Hosts Rejected",
+            "type": "array"
+          }
+        },
+        "required": [
+          "accepted",
+          "hosts_ingested"
+        ],
+        "title": "ResultsResponse",
+        "type": "object"
+      },
+      "RiskPosture": {
+        "additionalProperties": false,
+        "properties": {
+          "band": {
+            "title": "Band",
+            "type": "string"
+          },
+          "score": {
+            "title": "Score",
+            "type": "integer"
+          },
+          "trend_30d": {
+            "title": "Trend 30D",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "score",
+          "trend_30d",
+          "band"
+        ],
+        "title": "RiskPosture",
+        "type": "object"
+      },
+      "ScanJobCreate": {
+        "additionalProperties": false,
+        "description": "``POST /scans``. A profile name, never nmap flags.",
+        "properties": {
+          "network_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Network Id"
+          },
+          "profile": {
+            "$ref": "#/components/schemas/ScanProfile"
+          },
+          "target": {
+            "maxLength": 64,
+            "minLength": 1,
+            "title": "Target",
+            "type": "string"
+          }
+        },
+        "required": [
+          "target",
+          "profile"
+        ],
+        "title": "ScanJobCreate",
+        "type": "object"
+      },
+      "ScanJobOut": {
+        "additionalProperties": false,
+        "properties": {
+          "agent_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Agent Id"
+          },
+          "attempts": {
+            "title": "Attempts",
+            "type": "integer"
+          },
+          "created_at": {
+            "format": "date-time",
+            "title": "Created At",
+            "type": "string"
+          },
+          "error": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Error"
+          },
+          "finished_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Finished At"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "lease_expires_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Lease Expires At"
+          },
+          "network_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Network Id"
+          },
+          "profile": {
+            "title": "Profile",
+            "type": "string"
+          },
+          "progress_percent": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Progress Percent"
+          },
+          "requested_by_user_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Requested By User Id"
+          },
+          "started_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Started At"
+          },
+          "status": {
+            "title": "Status",
+            "type": "string"
+          },
+          "target": {
+            "title": "Target",
+            "type": "string"
+          },
+          "updated_at": {
+            "format": "date-time",
+            "title": "Updated At",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "network_id",
+          "target",
+          "profile",
+          "status",
+          "agent_id",
+          "lease_expires_at",
+          "attempts",
+          "progress_percent",
+          "requested_by_user_id",
+          "started_at",
+          "finished_at",
+          "error",
+          "created_at",
+          "updated_at"
+        ],
+        "title": "ScanJobOut",
+        "type": "object"
+      },
+      "ScanProfile": {
+        "description": "Named profiles only. The API never accepts raw nmap flags.",
+        "enum": [
+          "discovery",
+          "service",
+          "vulnerability"
+        ],
+        "title": "ScanProfile",
+        "type": "string"
+      },
+      "ScanStatus": {
+        "enum": [
+          "queued",
+          "claimed",
+          "running",
+          "completed",
+          "failed",
+          "cancelled"
+        ],
+        "title": "ScanStatus",
+        "type": "string"
+      },
+      "ServiceAtRisk": {
+        "additionalProperties": false,
+        "properties": {
+          "assets_affected": {
+            "title": "Assets Affected",
+            "type": "integer"
+          },
+          "criticality": {
+            "title": "Criticality",
+            "type": "string"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "open_findings": {
+            "title": "Open Findings",
+            "type": "integer"
+          },
+          "revenue_at_risk": {
+            "anyOf": [
+              {
+                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Revenue At Risk"
+          },
+          "service_id": {
+            "format": "uuid",
+            "title": "Service Id",
+            "type": "string"
+          },
+          "worst_finding_score": {
+            "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+            "title": "Worst Finding Score",
+            "type": "string"
+          }
+        },
+        "required": [
+          "service_id",
+          "name",
+          "criticality",
+          "open_findings",
+          "worst_finding_score",
+          "assets_affected"
+        ],
+        "title": "ServiceAtRisk",
+        "type": "object"
+      },
+      "ServiceLink": {
+        "additionalProperties": false,
+        "properties": {
+          "criticality": {
+            "title": "Criticality",
+            "type": "string"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "name",
+          "criticality"
+        ],
+        "title": "ServiceLink",
+        "type": "object"
+      },
+      "TokenResponse": {
+        "additionalProperties": false,
+        "description": "The refresh token is deliberately absent \u2014 it goes out as a cookie only.",
+        "properties": {
+          "access_token": {
+            "title": "Access Token",
+            "type": "string"
+          },
+          "expires_at": {
+            "format": "date-time",
+            "title": "Expires At",
+            "type": "string"
+          },
+          "token_type": {
+            "default": "bearer",
+            "title": "Token Type",
+            "type": "string"
+          }
+        },
+        "required": [
+          "access_token",
+          "expires_at"
+        ],
+        "title": "TokenResponse",
+        "type": "object"
+      },
+      "UserAdminSummary": {
+        "additionalProperties": false,
+        "description": "What an administrator needs that the user themselves does not.\n\n``locked`` is derived rather than stored: an operator looking at the user\ndirectory has to be able to see *why* a colleague cannot log in, or the\nunlock lever below is one they never know to pull.",
+        "properties": {
+          "email": {
+            "title": "Email",
+            "type": "string"
+          },
+          "full_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Full Name"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "last_login_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Last Login At"
+          },
+          "locked": {
+            "title": "Locked",
+            "type": "boolean"
+          },
+          "role": {
+            "title": "Role",
+            "type": "string"
+          },
+          "status": {
+            "title": "Status",
+            "type": "string"
+          },
+          "verified": {
+            "title": "Verified",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "id",
+          "email",
+          "full_name",
+          "role",
+          "status",
+          "last_login_at",
+          "locked",
+          "verified"
+        ],
+        "title": "UserAdminSummary",
+        "type": "object"
+      },
+      "UserCreate": {
+        "additionalProperties": false,
+        "description": "An administrator adding a colleague to their own org.\n\nThere is no ``org_id``: the org comes from the caller's principal, like\neverywhere else. ``role`` is bounded by the caller's own role at the service\nlayer \u2014 an admin cannot mint an owner.",
+        "properties": {
+          "email": {
+            "format": "email",
+            "title": "Email",
+            "type": "string"
+          },
+          "full_name": {
+            "anyOf": [
+              {
+                "maxLength": 200,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Full Name"
+          },
+          "password": {
+            "maxLength": 256,
+            "minLength": 12,
+            "title": "Password",
+            "type": "string"
+          },
+          "role": {
+            "default": "viewer",
+            "pattern": "^(owner|admin|analyst|viewer)$",
+            "title": "Role",
+            "type": "string"
+          }
+        },
+        "required": [
+          "email",
+          "password"
+        ],
+        "title": "UserCreate",
+        "type": "object"
+      },
+      "UserSummary": {
+        "additionalProperties": false,
+        "properties": {
+          "email": {
+            "title": "Email",
+            "type": "string"
+          },
+          "full_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Full Name"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "last_login_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Last Login At"
+          },
+          "role": {
+            "title": "Role",
+            "type": "string"
+          },
+          "status": {
+            "title": "Status",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "email",
+          "full_name",
+          "role",
+          "status",
+          "last_login_at"
+        ],
+        "title": "UserSummary",
+        "type": "object"
+      },
+      "UserUpdate": {
+        "additionalProperties": false,
+        "description": "Partial update. Only the fields actually sent are applied.",
+        "properties": {
+          "full_name": {
+            "anyOf": [
+              {
+                "maxLength": 200,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Full Name"
+          },
+          "role": {
+            "anyOf": [
+              {
+                "pattern": "^(owner|admin|analyst|viewer)$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Role"
+          },
+          "status": {
+            "anyOf": [
+              {
+                "pattern": "^(active|disabled)$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Status"
+          }
+        },
+        "title": "UserUpdate",
+        "type": "object"
+      },
+      "ValidationError": {
+        "properties": {
+          "ctx": {
+            "title": "Context",
+            "type": "object"
+          },
+          "input": {
+            "title": "Input"
+          },
+          "loc": {
+            "items": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "integer"
+                }
+              ]
+            },
+            "title": "Location",
+            "type": "array"
+          },
+          "msg": {
+            "title": "Message",
+            "type": "string"
+          },
+          "type": {
+            "title": "Error Type",
+            "type": "string"
+          }
+        },
+        "required": [
+          "loc",
+          "msg",
+          "type"
+        ],
+        "title": "ValidationError",
+        "type": "object"
+      },
+      "VerificationStateResponse": {
+        "additionalProperties": false,
+        "description": "Whether the address is proved, and when the outstanding claim lapses.",
+        "properties": {
+          "email": {
+            "title": "Email",
+            "type": "string"
+          },
+          "verification_expires_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Verification Expires At"
+          },
+          "verified": {
+            "title": "Verified",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "email",
+          "verified",
+          "verification_expires_at"
+        ],
+        "title": "VerificationStateResponse",
+        "type": "object"
+      },
+      "VerifyEmailRequest": {
+        "additionalProperties": false,
+        "description": "The token from the verification message. No address, no org.\n\nNaming the account would let a caller aim a guessed token at a chosen\nvictim; the token identifies the account by itself or it is worthless.",
+        "properties": {
+          "token": {
+            "maxLength": 128,
+            "minLength": 8,
+            "title": "Token",
+            "type": "string"
+          }
+        },
+        "required": [
+          "token"
+        ],
+        "title": "VerifyEmailRequest",
+        "type": "object"
+      }
+    }
+  },
+  "info": {
+    "description": "Multi-tenant control plane. The organisation is always derived from the authenticated principal; no endpoint accepts a tenant identifier.",
+    "title": "ThreatSculpt Control Plane",
+    "version": "2.0.0"
+  },
+  "openapi": "3.1.0",
+  "paths": {
+    "/api/v1/agent/enroll": {
+      "post": {
+        "description": "Unauthenticated by construction \u2014 the token *is* the credential.\n\nRate-limited per IP like the other credential-exchange endpoints, so a\nstolen-token guessing loop is bounded even though every guess fails.",
+        "operationId": "enroll_api_v1_agent_enroll_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/EnrollRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Envelope_EnrollResponse_"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Trade a one-time enrollment token for an API key",
+        "tags": [
+          "agent"
+        ]
+      }
+    },
+    "/api/v1/agent/heartbeat": {
+      "post": {
+        "description": "Updates ``last_seen_at`` and hands back the effective allowlist.\n\n``revoked`` is always false here: a revoked key never authenticates, so a\nrevoked agent gets the 401 that \u00a76 already defines as \"wipe the key and\nexit\". Returning the field keeps the documented response shape.",
+        "operationId": "heartbeat_api_v1_agent_heartbeat_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/HeartbeatRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Envelope_HeartbeatResponse_"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Report liveness and collect the current allowlist",
+        "tags": [
+          "agent"
+        ]
+      }
+    },
+    "/api/v1/agent/jobs/claim": {
+      "post": {
+        "description": "``FOR UPDATE SKIP LOCKED`` \u2014 see ``scanning.sql.CLAIM_JOBS``.",
+        "operationId": "claim_api_v1_agent_jobs_claim_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ClaimRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Envelope_ClaimResponse_"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Claim queued scan jobs",
+        "tags": [
+          "agent"
+        ]
+      }
+    },
+    "/api/v1/agent/jobs/{job_id}/reject": {
+      "post": {
+        "description": "\u00a74. Always audited: the agent and the control plane disagreeing about what\nmay be scanned is the single most interesting event in this protocol.",
+        "operationId": "reject_api_v1_agent_jobs__job_id__reject_post",
+        "parameters": [
+          {
+            "description": "Scan job id within your organisation",
+            "in": "path",
+            "name": "job_id",
+            "required": true,
+            "schema": {
+              "description": "Scan job id within your organisation",
+              "format": "uuid",
+              "title": "Job Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/JobRejectRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Envelope_JobStateResponse_"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Refuse a job whose target is outside the agent's local allowlist",
+        "tags": [
+          "agent"
+        ]
+      }
+    },
+    "/api/v1/agent/jobs/{job_id}/results": {
+      "post": {
+        "description": "The body is read through a size cap rather than declared as a parameter.\n\nFastAPI would buffer the whole request before this function ran, which is the\none thing the 10 MB cap in \u00a75 exists to prevent.",
+        "operationId": "submit_results_api_v1_agent_jobs__job_id__results_post",
+        "parameters": [
+          {
+            "description": "Scan job id within your organisation",
+            "in": "path",
+            "name": "job_id",
+            "required": true,
+            "schema": {
+              "description": "Scan job id within your organisation",
+              "format": "uuid",
+              "title": "Job Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "202": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Envelope_ResultsResponse_"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Submit scan observations",
+        "tags": [
+          "agent"
+        ]
+      }
+    },
+    "/api/v1/agent/jobs/{job_id}/status": {
+      "post": {
+        "operationId": "report_status_api_v1_agent_jobs__job_id__status_post",
+        "parameters": [
+          {
+            "description": "Scan job id within your organisation",
+            "in": "path",
+            "name": "job_id",
+            "required": true,
+            "schema": {
+              "description": "Scan job id within your organisation",
+              "format": "uuid",
+              "title": "Job Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/JobStatusUpdate"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Envelope_JobStateResponse_"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Report scan progress",
+        "tags": [
+          "agent"
+        ]
+      }
+    },
+    "/api/v1/agents": {
+      "get": {
+        "operationId": "list_agents_api_v1_agents_get",
+        "parameters": [
+          {
+            "description": "1-based page number",
+            "in": "query",
+            "name": "page",
+            "required": false,
+            "schema": {
+              "default": 1,
+              "description": "1-based page number",
+              "minimum": 1,
+              "title": "Page",
+              "type": "integer"
+            }
+          },
+          {
+            "description": "Items per page (max 200)",
+            "in": "query",
+            "name": "per_page",
+            "required": false,
+            "schema": {
+              "default": 50,
+              "description": "Items per page (max 200)",
+              "maximum": 200,
+              "minimum": 1,
+              "title": "Per Page",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Envelope_list_AgentOut__"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "List agents",
+        "tags": [
+          "agents"
+        ]
+      },
+      "post": {
+        "description": "The token is returned once. Nothing can retrieve it again.",
+        "operationId": "create_enrollment_token_api_v1_agents_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/EnrollmentTokenCreate"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Envelope_EnrollmentTokenOut_"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Issue a one-time enrollment token",
+        "tags": [
+          "agents"
+        ]
+      }
+    },
+    "/api/v1/agents/{agent_id}": {
+      "delete": {
+        "description": "Revocation is a status change, not a delete.\n\nThe agent's scan history has to keep pointing at something, and \"which\nscanner produced this result\" is exactly the question an incident asks. The\nkey stops authenticating immediately \u2014 ``find_agent_by_key_hash`` filters on\n``status = 'active'`` \u2014 so a revoked agent is locked out on its next call.",
+        "operationId": "revoke_agent_api_v1_agents__agent_id__delete",
+        "parameters": [
+          {
+            "description": "Agent id within your organisation",
+            "in": "path",
+            "name": "agent_id",
+            "required": true,
+            "schema": {
+              "description": "Agent id within your organisation",
+              "format": "uuid",
+              "title": "Agent Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Envelope_AgentOut_"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Revoke an agent",
+        "tags": [
+          "agents"
+        ]
+      },
+      "get": {
+        "operationId": "get_agent_api_v1_agents__agent_id__get",
+        "parameters": [
+          {
+            "description": "Agent id within your organisation",
+            "in": "path",
+            "name": "agent_id",
+            "required": true,
+            "schema": {
+              "description": "Agent id within your organisation",
+              "format": "uuid",
+              "title": "Agent Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Envelope_AgentOut_"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Fetch an agent",
+        "tags": [
+          "agents"
+        ]
+      }
+    },
+    "/api/v1/agents/{agent_id}/allowlist": {
+      "patch": {
+        "description": "Store the **effective** list, not the submitted one.\n\nThe narrowing itself was always correct \u2014 ``agents.allowlist`` may only ever\nsubtract from the org's authorized networks, and ``effective_allowlist``\nenforces that on every heartbeat. What was wrong was the record of it. The\nsubmitted list was stored verbatim, so ``GET /agents/{id}`` reported\n``['0.0.0.0/0', '8.8.8.0/24', '10.1.0.0/16']`` while the agent was being sent\n``['10.1.0.0/16']`` \u2014 an operator reading the API during an incident would\nhave concluded the scanner was pointed at the internet. Narrowing before the\nwrite makes the stored value the value that is in force.\n\nA request whose entries all fall outside the authorized networks is refused\nrather than stored empty. Empty means *no per-agent restriction*, which\nwidens the agent to every authorized network \u2014 the exact opposite of what\nsomebody submitting a list of ranges intended. Clearing the restriction is\nstill available, by sending an empty list explicitly.",
+        "operationId": "update_allowlist_api_v1_agents__agent_id__allowlist_patch",
+        "parameters": [
+          {
+            "description": "Agent id within your organisation",
+            "in": "path",
+            "name": "agent_id",
+            "required": true,
+            "schema": {
+              "description": "Agent id within your organisation",
+              "format": "uuid",
+              "title": "Agent Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AgentAllowlistUpdate"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Envelope_AgentOut_"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Narrow an agent to a subset of the authorized networks",
+        "tags": [
+          "agents"
+        ]
+      }
+    },
+    "/api/v1/assets": {
+      "get": {
+        "operationId": "list_all_api_v1_assets_get",
+        "parameters": [
+          {
+            "description": "1-based page number",
+            "in": "query",
+            "name": "page",
+            "required": false,
+            "schema": {
+              "default": 1,
+              "description": "1-based page number",
+              "minimum": 1,
+              "title": "Page",
+              "type": "integer"
+            }
+          },
+          {
+            "description": "Items per page (max 200)",
+            "in": "query",
+            "name": "per_page",
+            "required": false,
+            "schema": {
+              "default": 50,
+              "description": "Items per page (max 200)",
+              "maximum": 200,
+              "minimum": 1,
+              "title": "Per Page",
+              "type": "integer"
+            }
+          },
+          {
+            "description": "Registered network",
+            "in": "query",
+            "name": "network_id",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "uuid",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Registered network",
+              "title": "Network Id"
+            }
+          },
+          {
+            "description": "Network exposure tier",
+            "in": "query",
+            "name": "exposure",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "$ref": "#/components/schemas/Exposure"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Network exposure tier",
+              "title": "Exposure"
+            }
+          },
+          {
+            "description": "Business service supported",
+            "in": "query",
+            "name": "service_id",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "uuid",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Business service supported",
+              "title": "Service Id"
+            }
+          },
+          {
+            "description": "Hostname or IP substring",
+            "in": "query",
+            "name": "q",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maxLength": 128,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Hostname or IP substring",
+              "title": "Q"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Envelope_list_AssetOut__"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "List assets",
+        "tags": [
+          "assets"
+        ]
+      }
+    },
+    "/api/v1/assets/{asset_id}": {
+      "get": {
+        "operationId": "get_one_api_v1_assets__asset_id__get",
+        "parameters": [
+          {
+            "description": "Asset id within your organisation",
+            "in": "path",
+            "name": "asset_id",
+            "required": true,
+            "schema": {
+              "description": "Asset id within your organisation",
+              "format": "uuid",
+              "title": "Asset Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Envelope_AssetOut_"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Fetch an asset",
+        "tags": [
+          "assets"
+        ]
+      },
+      "patch": {
+        "operationId": "update_one_api_v1_assets__asset_id__patch",
+        "parameters": [
+          {
+            "description": "Asset id within your organisation",
+            "in": "path",
+            "name": "asset_id",
+            "required": true,
+            "schema": {
+              "description": "Asset id within your organisation",
+              "format": "uuid",
+              "title": "Asset Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AssetUpdate"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Envelope_AssetOut_"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Correct asset details",
+        "tags": [
+          "assets"
+        ]
+      }
+    },
+    "/api/v1/assets/{asset_id}/services": {
+      "put": {
+        "description": "Replaces the mapping wholesale, then re-scores the asset's findings.",
+        "operationId": "set_services_api_v1_assets__asset_id__services_put",
+        "parameters": [
+          {
+            "description": "Asset id within your organisation",
+            "in": "path",
+            "name": "asset_id",
+            "required": true,
+            "schema": {
+              "description": "Asset id within your organisation",
+              "format": "uuid",
+              "title": "Asset Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AssetServicesUpdate"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Envelope_AssetOut_"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Map an asset to business services",
+        "tags": [
+          "assets"
+        ]
+      }
+    },
+    "/api/v1/auth/login": {
+      "post": {
+        "operationId": "login_api_v1_auth_login_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/LoginRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Envelope_TokenResponse_"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Exchange a password for an access token and a refresh cookie",
+        "tags": [
+          "auth"
+        ]
+      }
+    },
+    "/api/v1/auth/logout": {
+      "post": {
+        "description": "Always succeeds. Logging out is not an operation worth an error path.",
+        "operationId": "logout_api_v1_auth_logout_post",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Envelope_LogoutResponse_"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Revoke the refresh token family",
+        "tags": [
+          "auth"
+        ]
+      }
+    },
+    "/api/v1/auth/me": {
+      "get": {
+        "operationId": "me_api_v1_auth_me_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Envelope_MeResponse_"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "The authenticated user, their org, and their role",
+        "tags": [
+          "auth"
+        ]
+      }
+    },
+    "/api/v1/auth/refresh": {
+      "post": {
+        "description": "The refresh token comes from the cookie only \u2014 never from the body.\n\nAccepting it in a body would make it readable by script on any page that\ncould be tricked into echoing it, which is the whole reason it is HttpOnly.",
+        "operationId": "refresh_api_v1_auth_refresh_post",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Envelope_TokenResponse_"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Rotate the refresh token and mint a new access token",
+        "tags": [
+          "auth"
+        ]
+      }
+    },
+    "/api/v1/auth/register": {
+      "post": {
+        "operationId": "register_api_v1_auth_register_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RegisterRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Envelope_RegisterResponse_"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Create an organisation and its owner user",
+        "tags": [
+          "auth"
+        ]
+      }
+    },
+    "/api/v1/auth/verify-email": {
+      "post": {
+        "description": "Unauthenticated: the token *is* the credential, and it names its own account.\n\nUntil this succeeds the account cannot be logged into and does not occupy one\nof the address's slots, so registering an address somebody else owns takes\nnothing from them.",
+        "operationId": "verify_email_api_v1_auth_verify_email_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/VerifyEmailRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Envelope_VerificationStateResponse_"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Prove control of the address an account was registered with",
+        "tags": [
+          "auth"
+        ]
+      }
+    },
+    "/api/v1/auth/verify-email/resend": {
+      "post": {
+        "description": "Authenticated, and only ever for the caller's own address.\n\nSending to an address named in the request would make this an open relay\npointed at whoever the caller chose.",
+        "operationId": "resend_verification_api_v1_auth_verify_email_resend_post",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Envelope_VerificationStateResponse_"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Re-issue the verification token for your own account",
+        "tags": [
+          "auth"
+        ]
+      }
+    },
+    "/api/v1/business-services": {
+      "get": {
+        "operationId": "list_services_api_v1_business_services_get",
+        "parameters": [
+          {
+            "description": "1-based page number",
+            "in": "query",
+            "name": "page",
+            "required": false,
+            "schema": {
+              "default": 1,
+              "description": "1-based page number",
+              "minimum": 1,
+              "title": "Page",
+              "type": "integer"
+            }
+          },
+          {
+            "description": "Items per page (max 200)",
+            "in": "query",
+            "name": "per_page",
+            "required": false,
+            "schema": {
+              "default": 50,
+              "description": "Items per page (max 200)",
+              "maximum": 200,
+              "minimum": 1,
+              "title": "Per Page",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Envelope_list_BusinessServiceOut__"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "List services",
+        "tags": [
+          "business-services"
+        ]
+      },
+      "post": {
+        "operationId": "create_service_api_v1_business_services_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/BusinessServiceCreate"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Envelope_BusinessServiceOut_"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Define a business service",
+        "tags": [
+          "business-services"
+        ]
+      }
+    },
+    "/api/v1/business-services/{service_id}": {
+      "delete": {
+        "operationId": "delete_service_api_v1_business_services__service_id__delete",
+        "parameters": [
+          {
+            "description": "Business service id within your organisation",
+            "in": "path",
+            "name": "service_id",
+            "required": true,
+            "schema": {
+              "description": "Business service id within your organisation",
+              "format": "uuid",
+              "title": "Service Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Envelope_NoneType_"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Delete a service",
+        "tags": [
+          "business-services"
+        ]
+      },
+      "get": {
+        "operationId": "get_service_api_v1_business_services__service_id__get",
+        "parameters": [
+          {
+            "description": "Business service id within your organisation",
+            "in": "path",
+            "name": "service_id",
+            "required": true,
+            "schema": {
+              "description": "Business service id within your organisation",
+              "format": "uuid",
+              "title": "Service Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Envelope_BusinessServiceOut_"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Fetch a service",
+        "tags": [
+          "business-services"
+        ]
+      },
+      "patch": {
+        "operationId": "update_service_api_v1_business_services__service_id__patch",
+        "parameters": [
+          {
+            "description": "Business service id within your organisation",
+            "in": "path",
+            "name": "service_id",
+            "required": true,
+            "schema": {
+              "description": "Business service id within your organisation",
+              "format": "uuid",
+              "title": "Service Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/BusinessServiceUpdate"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Envelope_BusinessServiceOut_"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Update a service",
+        "tags": [
+          "business-services"
+        ]
+      }
+    },
+    "/api/v1/dashboard/attack-surface": {
+      "get": {
+        "operationId": "surface_api_v1_dashboard_attack_surface_get",
+        "parameters": [
+          {
+            "description": "Maximum nodes to return",
+            "in": "query",
+            "name": "node_cap",
+            "required": false,
+            "schema": {
+              "default": 500,
+              "description": "Maximum nodes to return",
+              "maximum": 500,
+              "minimum": 10,
+              "title": "Node Cap",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Envelope_AttackSurface_"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Asset and business-service graph, capped",
+        "tags": [
+          "dashboard"
+        ]
+      }
+    },
+    "/api/v1/dashboard/executive": {
+      "get": {
+        "description": "Services at risk are ordered by business impact, not by CVSS.",
+        "operationId": "executive_api_v1_dashboard_executive_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Envelope_ExecutiveDashboard_"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Business-impact summary for a non-technical audience",
+        "tags": [
+          "dashboard"
+        ]
+      }
+    },
+    "/api/v1/findings": {
+      "get": {
+        "description": "Sorted by ``business_risk_score`` descending. That ordering is the product.",
+        "operationId": "list_all_api_v1_findings_get",
+        "parameters": [
+          {
+            "description": "1-based page number",
+            "in": "query",
+            "name": "page",
+            "required": false,
+            "schema": {
+              "default": 1,
+              "description": "1-based page number",
+              "minimum": 1,
+              "title": "Page",
+              "type": "integer"
+            }
+          },
+          {
+            "description": "Items per page (max 200)",
+            "in": "query",
+            "name": "per_page",
+            "required": false,
+            "schema": {
+              "default": 50,
+              "description": "Items per page (max 200)",
+              "maximum": 200,
+              "minimum": 1,
+              "title": "Per Page",
+              "type": "integer"
+            }
+          },
+          {
+            "description": "Triage status",
+            "in": "query",
+            "name": "status",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "$ref": "#/components/schemas/FindingStatus"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Triage status",
+              "title": "Status"
+            }
+          },
+          {
+            "description": "CVE severity band",
+            "in": "query",
+            "name": "severity",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "CVE severity band",
+              "title": "Severity"
+            }
+          },
+          {
+            "description": "Business service the asset supports",
+            "in": "query",
+            "name": "service_id",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "uuid",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Business service the asset supports",
+              "title": "Service Id"
+            }
+          },
+          {
+            "description": "Restrict to one asset",
+            "in": "query",
+            "name": "asset_id",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "uuid",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Restrict to one asset",
+              "title": "Asset Id"
+            }
+          },
+          {
+            "description": "Only CISA KEV-listed CVEs",
+            "in": "query",
+            "name": "kev_only",
+            "required": false,
+            "schema": {
+              "default": false,
+              "description": "Only CISA KEV-listed CVEs",
+              "title": "Kev Only",
+              "type": "boolean"
+            }
+          },
+          {
+            "description": "Minimum CPE match confidence",
+            "in": "query",
+            "name": "min_confidence",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "$ref": "#/components/schemas/MatchConfidence"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Minimum CPE match confidence",
+              "title": "Min Confidence"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Envelope_list_FindingOut__"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "List findings",
+        "tags": [
+          "findings"
+        ]
+      }
+    },
+    "/api/v1/findings/{finding_id}": {
+      "get": {
+        "operationId": "get_one_api_v1_findings__finding_id__get",
+        "parameters": [
+          {
+            "description": "Finding id within your organisation",
+            "in": "path",
+            "name": "finding_id",
+            "required": true,
+            "schema": {
+              "description": "Finding id within your organisation",
+              "format": "uuid",
+              "title": "Finding Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Envelope_FindingDetail_"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Fetch a finding and the explanation of its score",
+        "tags": [
+          "findings"
+        ]
+      },
+      "patch": {
+        "description": "Status transitions only. The score is computed and is not patchable.",
+        "operationId": "update_status_api_v1_findings__finding_id__patch",
+        "parameters": [
+          {
+            "description": "Finding id within your organisation",
+            "in": "path",
+            "name": "finding_id",
+            "required": true,
+            "schema": {
+              "description": "Finding id within your organisation",
+              "format": "uuid",
+              "title": "Finding Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/FindingStatusUpdate"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Envelope_FindingDetail_"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Change a finding's triage status",
+        "tags": [
+          "findings"
+        ]
+      }
+    },
+    "/api/v1/networks": {
+      "get": {
+        "operationId": "list_networks_api_v1_networks_get",
+        "parameters": [
+          {
+            "description": "1-based page number",
+            "in": "query",
+            "name": "page",
+            "required": false,
+            "schema": {
+              "default": 1,
+              "description": "1-based page number",
+              "minimum": 1,
+              "title": "Page",
+              "type": "integer"
+            }
+          },
+          {
+            "description": "Items per page (max 200)",
+            "in": "query",
+            "name": "per_page",
+            "required": false,
+            "schema": {
+              "default": 50,
+              "description": "Items per page (max 200)",
+              "maximum": 200,
+              "minimum": 1,
+              "title": "Per Page",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Envelope_list_NetworkOut__"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "List networks",
+        "tags": [
+          "networks"
+        ]
+      },
+      "post": {
+        "description": "Public address space needs a written assertion; RFC1918 does not.",
+        "operationId": "create_network_api_v1_networks_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/NetworkCreate"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Envelope_NetworkOut_"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Register a network",
+        "tags": [
+          "networks"
+        ]
+      }
+    },
+    "/api/v1/networks/{network_id}": {
+      "delete": {
+        "description": "Destructive, so ``admin`` or above. v1 let an unauthenticated caller do this.\n\nDeleting a network is the bluntest form of withdrawing authorisation, so the\nsame re-validation runs. ``scan_jobs.network_id`` is ``ON DELETE SET NULL``,\nwhich means the job survives the delete with its ``target`` intact \u2014 without\nthis pass it would survive as an orphan nobody had authorised and still be\ndispatched on the next poll.",
+        "operationId": "delete_network_api_v1_networks__network_id__delete",
+        "parameters": [
+          {
+            "description": "Network id within your organisation",
+            "in": "path",
+            "name": "network_id",
+            "required": true,
+            "schema": {
+              "description": "Network id within your organisation",
+              "format": "uuid",
+              "title": "Network Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Envelope_NoneType_"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Delete a network",
+        "tags": [
+          "networks"
+        ]
+      },
+      "get": {
+        "operationId": "get_network_api_v1_networks__network_id__get",
+        "parameters": [
+          {
+            "description": "Network id within your organisation",
+            "in": "path",
+            "name": "network_id",
+            "required": true,
+            "schema": {
+              "description": "Network id within your organisation",
+              "format": "uuid",
+              "title": "Network Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Envelope_NetworkOut_"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Fetch a network",
+        "tags": [
+          "networks"
+        ]
+      },
+      "patch": {
+        "description": "Re-validates the org's open scan jobs afterwards, always.\n\nWhether this edit removed coverage is a question about CIDR arithmetic across\nevery one of the org's networks, and answering it here would be a second\nimplementation of the rule that could disagree with the first. So the edit\nlands and ``revalidate_open_jobs`` re-asks the only question that matters \u2014\nis each open job's target still inside *some* authorized network \u2014 which is\ncorrect for a withdrawal, a no-op for a rename, and correct for the case\nwhere a wider network still covers the target.",
+        "operationId": "update_network_api_v1_networks__network_id__patch",
+        "parameters": [
+          {
+            "description": "Network id within your organisation",
+            "in": "path",
+            "name": "network_id",
+            "required": true,
+            "schema": {
+              "description": "Network id within your organisation",
+              "format": "uuid",
+              "title": "Network Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/NetworkUpdate"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Envelope_NetworkOut_"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Update a network",
+        "tags": [
+          "networks"
+        ]
+      }
+    },
+    "/api/v1/reports": {
+      "get": {
+        "operationId": "list_reports_api_v1_reports_get",
+        "parameters": [
+          {
+            "description": "1-based page number",
+            "in": "query",
+            "name": "page",
+            "required": false,
+            "schema": {
+              "default": 1,
+              "description": "1-based page number",
+              "minimum": 1,
+              "title": "Page",
+              "type": "integer"
+            }
+          },
+          {
+            "description": "Items per page (max 200)",
+            "in": "query",
+            "name": "per_page",
+            "required": false,
+            "schema": {
+              "default": 50,
+              "description": "Items per page (max 200)",
+              "maximum": 200,
+              "minimum": 1,
+              "title": "Per Page",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Envelope_list_ReportOut__"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "List reports",
+        "tags": [
+          "reports"
+        ]
+      },
+      "post": {
+        "description": "202 and a report id. The render happens on the event loop, not here.\n\nThree things happen before a row is created, all of them cheap and all of\nthem there because a render is not: an identical request already queued is\nreturned as-is rather than rendered twice, an org past its concurrent-render\nceiling is refused with 429, and this org's expired artifacts are purged.\nSee ``reports.intake`` for the measurements that motivated each.",
+        "operationId": "request_report_api_v1_reports_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ReportCreate"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "202": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Envelope_ReportCreated_"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Request a report",
+        "tags": [
+          "reports"
+        ]
+      }
+    },
+    "/api/v1/reports/{report_id}": {
+      "get": {
+        "operationId": "get_report_api_v1_reports__report_id__get",
+        "parameters": [
+          {
+            "description": "Report id within your organisation",
+            "in": "path",
+            "name": "report_id",
+            "required": true,
+            "schema": {
+              "description": "Report id within your organisation",
+              "format": "uuid",
+              "title": "Report Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Envelope_ReportOut_"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Poll a report",
+        "tags": [
+          "reports"
+        ]
+      }
+    },
+    "/api/v1/reports/{report_id}/download": {
+      "get": {
+        "description": "No bearer token: the signature is the credential, and it names the org.\n\nThe org comes out of the *signature*, never out of the request, so this is\nstill the rule docs/API.md sets \u2014 the tenant is never a client-supplied\nparameter. A tampered ``report_id`` is scoped to the signed org and 404s.",
+        "operationId": "download_report_api_v1_reports__report_id__download_get",
+        "parameters": [
+          {
+            "description": "Report id within your organisation",
+            "in": "path",
+            "name": "report_id",
+            "required": true,
+            "schema": {
+              "description": "Report id within your organisation",
+              "format": "uuid",
+              "title": "Report Id",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Signed download token",
+            "in": "query",
+            "name": "token",
+            "required": true,
+            "schema": {
+              "description": "Signed download token",
+              "title": "Token",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Download a report via a signed URL",
+        "tags": [
+          "reports"
+        ]
+      }
+    },
+    "/api/v1/reports/{report_id}/link": {
+      "get": {
+        "description": "Minting requires a normal authenticated session; the URL itself does not.",
+        "operationId": "download_link_api_v1_reports__report_id__link_get",
+        "parameters": [
+          {
+            "description": "Report id within your organisation",
+            "in": "path",
+            "name": "report_id",
+            "required": true,
+            "schema": {
+              "description": "Report id within your organisation",
+              "format": "uuid",
+              "title": "Report Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Envelope_ReportDownloadLink_"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Mint a short-lived signed download URL",
+        "tags": [
+          "reports"
+        ]
+      }
+    },
+    "/api/v1/scans": {
+      "get": {
+        "operationId": "list_scans_api_v1_scans_get",
+        "parameters": [
+          {
+            "description": "Filter by job status",
+            "in": "query",
+            "name": "status",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "$ref": "#/components/schemas/ScanStatus"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Filter by job status",
+              "title": "Status"
+            }
+          },
+          {
+            "description": "1-based page number",
+            "in": "query",
+            "name": "page",
+            "required": false,
+            "schema": {
+              "default": 1,
+              "description": "1-based page number",
+              "minimum": 1,
+              "title": "Page",
+              "type": "integer"
+            }
+          },
+          {
+            "description": "Items per page (max 200)",
+            "in": "query",
+            "name": "per_page",
+            "required": false,
+            "schema": {
+              "default": 50,
+              "description": "Items per page (max 200)",
+              "maximum": 200,
+              "minimum": 1,
+              "title": "Per Page",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Envelope_list_ScanJobOut__"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "List scan jobs",
+        "tags": [
+          "scans"
+        ]
+      },
+      "post": {
+        "description": "Refused with ``network_not_authorized`` unless an authorized network\ncovers the target. This is the control plane's half of the two-sided check in\ndocs/ARCHITECTURE.md; the agent re-checks against its own local allowlist.",
+        "operationId": "create_scan_api_v1_scans_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ScanJobCreate"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Envelope_ScanJobOut_"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Queue a scan",
+        "tags": [
+          "scans"
+        ]
+      }
+    },
+    "/api/v1/scans/{scan_id}": {
+      "get": {
+        "operationId": "get_scan_api_v1_scans__scan_id__get",
+        "parameters": [
+          {
+            "description": "Scan job id within your organisation",
+            "in": "path",
+            "name": "scan_id",
+            "required": true,
+            "schema": {
+              "description": "Scan job id within your organisation",
+              "format": "uuid",
+              "title": "Scan Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Envelope_ScanJobOut_"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Fetch a scan job",
+        "tags": [
+          "scans"
+        ]
+      }
+    },
+    "/api/v1/scans/{scan_id}/cancel": {
+      "post": {
+        "operationId": "cancel_scan_api_v1_scans__scan_id__cancel_post",
+        "parameters": [
+          {
+            "description": "Scan job id within your organisation",
+            "in": "path",
+            "name": "scan_id",
+            "required": true,
+            "schema": {
+              "description": "Scan job id within your organisation",
+              "format": "uuid",
+              "title": "Scan Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Envelope_ScanJobOut_"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Cancel a scan job that has not finished",
+        "tags": [
+          "scans"
+        ]
+      }
+    },
+    "/api/v1/users": {
+      "get": {
+        "operationId": "list_users_api_v1_users_get",
+        "parameters": [
+          {
+            "description": "1-based page number",
+            "in": "query",
+            "name": "page",
+            "required": false,
+            "schema": {
+              "default": 1,
+              "description": "1-based page number",
+              "minimum": 1,
+              "title": "Page",
+              "type": "integer"
+            }
+          },
+          {
+            "description": "Items per page (max 200)",
+            "in": "query",
+            "name": "per_page",
+            "required": false,
+            "schema": {
+              "default": 50,
+              "description": "Items per page (max 200)",
+              "maximum": 200,
+              "minimum": 1,
+              "title": "Per Page",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Envelope_list_UserAdminSummary__"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "List users in your org",
+        "tags": [
+          "users"
+        ]
+      },
+      "post": {
+        "description": "The new account starts unverified \u2014 an admin's word is not proof either.",
+        "operationId": "create_user_api_v1_users_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UserCreate"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Envelope_UserAdminSummary_"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Add a user to your org",
+        "tags": [
+          "users"
+        ]
+      }
+    },
+    "/api/v1/users/me/password": {
+      "post": {
+        "description": "Any role. Requires the current password and ends every existing session.",
+        "operationId": "change_own_password_api_v1_users_me_password_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PasswordChangeRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Envelope_UserAdminSummary_"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Change your own password",
+        "tags": [
+          "users"
+        ]
+      }
+    },
+    "/api/v1/users/{user_id}": {
+      "delete": {
+        "description": "Deactivation, not deletion \u2014 the audit trail must keep naming this user.",
+        "operationId": "deactivate_user_api_v1_users__user_id__delete",
+        "parameters": [
+          {
+            "description": "User id within your organisation",
+            "in": "path",
+            "name": "user_id",
+            "required": true,
+            "schema": {
+              "description": "User id within your organisation",
+              "format": "uuid",
+              "title": "User Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Envelope_UserAdminSummary_"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Deactivate a user",
+        "tags": [
+          "users"
+        ]
+      },
+      "patch": {
+        "operationId": "update_user_api_v1_users__user_id__patch",
+        "parameters": [
+          {
+            "description": "User id within your organisation",
+            "in": "path",
+            "name": "user_id",
+            "required": true,
+            "schema": {
+              "description": "User id within your organisation",
+              "format": "uuid",
+              "title": "User Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UserUpdate"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Envelope_UserAdminSummary_"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Update a user",
+        "tags": [
+          "users"
+        ]
+      }
+    },
+    "/api/v1/users/{user_id}/password-reset": {
+      "post": {
+        "description": "The operator's recovery lever: also clears any failed-login lockout.\n\nThe temporary password is in this response and nowhere else \u2014 it is never\nlogged, never stored in plaintext, and not recoverable if lost.",
+        "operationId": "reset_password_api_v1_users__user_id__password_reset_post",
+        "parameters": [
+          {
+            "description": "User id within your organisation",
+            "in": "path",
+            "name": "user_id",
+            "required": true,
+            "schema": {
+              "description": "User id within your organisation",
+              "format": "uuid",
+              "title": "User Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Envelope_PasswordResetResponse_"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Issue a temporary password for a user",
+        "tags": [
+          "users"
+        ]
+      }
+    },
+    "/api/v1/users/{user_id}/unlock": {
+      "post": {
+        "description": "The cheaper half of the recovery lever, for a lockout somebody else caused.\n\nA lockout any stranger who knows the address can trigger has to be\nclearable without also invalidating the password the account holder still\nknows perfectly well.",
+        "operationId": "unlock_user_api_v1_users__user_id__unlock_post",
+        "parameters": [
+          {
+            "description": "User id within your organisation",
+            "in": "path",
+            "name": "user_id",
+            "required": true,
+            "schema": {
+              "description": "User id within your organisation",
+              "format": "uuid",
+              "title": "User Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Envelope_UserAdminSummary_"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Clear a failed-login lockout",
+        "tags": [
+          "users"
+        ]
+      }
+    },
+    "/health": {
+      "get": {
+        "operationId": "health_health_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Envelope_HealthOut_"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Liveness",
+        "tags": [
+          "health"
+        ]
+      }
+    },
+    "/ready": {
+      "get": {
+        "description": "503 when the database is unreachable, so a rolling deploy waits.",
+        "operationId": "ready_ready_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Envelope_ReadinessOut_"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Readiness",
+        "tags": [
+          "health"
+        ]
+      }
+    }
+  }
+}

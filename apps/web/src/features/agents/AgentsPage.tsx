@@ -20,12 +20,19 @@ import { formatRelative } from '@/lib/format';
 import { messageFor } from '@/lib/api/ApiError';
 import type { Agent, EnrollmentToken } from '@/types/domain';
 
+/**
+ * The token carries a *note*, not a name.
+ *
+ * `POST /agents` issues a credential; the agent row — and its name — appears only when
+ * something enrols with it, at which point the agent supplies its own name. The field the
+ * API accepts is `note`, for the operator's own records, so that is what this form asks
+ * for and sends.
+ */
 const schema = z.object({
-  name: z
+  note: z
     .string()
-    .min(3, 'Give the agent a name you will recognise on the host it runs on.')
-    .max(80)
-    .regex(/^[a-zA-Z0-9._-]+$/, 'Use letters, numbers, dots, dashes, and underscores only.'),
+    .min(3, 'Note which host this token is for, so you can tell the pending ones apart.')
+    .max(200),
 });
 
 type AgentFormValues = z.infer<typeof schema>;
@@ -58,7 +65,7 @@ export function AgentsPage() {
 
   const query = useQuery({
     queryKey: queryKeys.agents.list(),
-    queryFn: ({ signal }) => agentsApi.list(signal),
+    queryFn: ({ signal }) => agentsApi.list(undefined, signal),
   });
 
   const {
@@ -68,7 +75,7 @@ export function AgentsPage() {
     formState: { errors },
   } = useForm<AgentFormValues>({
     resolver: zodResolver(schema),
-    defaultValues: { name: '' },
+    defaultValues: { note: '' },
   });
 
   const createMutation = useMutation({
@@ -77,7 +84,7 @@ export function AgentsPage() {
       void queryClient.invalidateQueries({ queryKey: queryKeys.agents.all });
       setIsCreating(false);
       resetForm();
-      setIssuedFor(values.name);
+      setIssuedFor(values.note);
       setIssuedToken(token);
     },
     onError: (error) => notify(messageFor(error), 'error'),
@@ -156,13 +163,13 @@ export function AgentsPage() {
                       {agent.version ?? '—'}
                     </td>
                     <td>
-                      {agent.allowlist.length === 0 ? (
+                      {(agent.allowlist ?? []).length === 0 ? (
                         <span className="subtle" style={{ fontSize: 'var(--text-xs)' }}>
                           None
                         </span>
                       ) : (
                         <div className="row row--wrap" style={{ gap: 'var(--space-2xs)' }}>
-                          {agent.allowlist.map((cidr) => (
+                          {(agent.allowlist ?? []).map((cidr) => (
                             <span className="chip mono" key={cidr}>
                               {cidr}
                             </span>
@@ -203,13 +210,13 @@ export function AgentsPage() {
           className="stack"
         >
           <TextField
-            label="Agent name"
+            label="What is this token for?"
             placeholder="hq-dc-scanner-01"
             mono
             required
-            hint="Usually the hostname it will run on. Shown in scan history so you can tell which agent ran what."
-            error={errors.name?.message}
-            {...register('name')}
+            hint="A note for your own records — usually the host you are about to install on. The agent reports its own name when it enrols."
+            error={errors.note?.message}
+            {...register('note')}
           />
 
           <div className="row" style={{ justifyContent: 'flex-end' }}>
@@ -225,7 +232,7 @@ export function AgentsPage() {
 
       <EnrollmentTokenDialog
         token={issuedToken}
-        agentName={issuedFor}
+        note={issuedFor}
         onClose={() => setIssuedToken(null)}
       />
 

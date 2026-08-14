@@ -3,14 +3,20 @@
  * and the plain-English glosses the executive surfaces use instead of jargon.
  */
 
-import type {
-  Criticality,
-  Exposure,
-  ExploitMaturity,
-  FindingStatus,
-  RiskBand,
-  Severity,
+import {
+  toCriticalityTier,
+  toExposure,
+  toMaturityTier,
+  type Criticality,
+  type CriticalityTier,
+  type Exposure,
+  type FindingStatus,
+  type MatchConfidence,
+  type MaturityTier,
+  type RiskBand,
+  type Severity,
 } from '@/types/domain';
+import type { ScoreFactors } from '@/lib/api/scoreFactors';
 
 /* ---------------------------------------------------------------- severity */
 
@@ -59,10 +65,14 @@ export const SEVERITY_SHAPE: Record<Severity, SeverityShape> = {
 
 /* ---------------------------------------------------------------- risk band */
 
+/**
+ * Thresholds mirror `POSTURE_BANDS` in the control plane's scoring constants. The API
+ * sends the band it computed; this exists for the mock server and for tests.
+ */
 export function bandForScore(score: number): RiskBand {
   if (score >= 80) return 'critical';
   if (score >= 60) return 'elevated';
-  if (score >= 35) return 'moderate';
+  if (score >= 40) return 'moderate';
   return 'low';
 }
 
@@ -145,18 +155,62 @@ export function criticalityToSeverity(criticality: Criticality): Severity {
   return criticality;
 }
 
+/**
+ * `score_factors.asset_criticality.value`, which adds `unmapped` — what an asset that
+ * supports no business service resolves to. Recorded honestly rather than borrowing
+ * `medium`, because "we do not know what this host supports" and "the customer told us it
+ * is medium" are different statements to an executive.
+ */
+export const CRITICALITY_TIER_LABEL: Record<CriticalityTier, string> = {
+  ...CRITICALITY_LABEL,
+  unmapped: 'Not mapped',
+};
+
 /* ---------------------------------------------------------------- exploit maturity */
 
-export const EXPLOIT_MATURITY_LABEL: Record<ExploitMaturity, string> = {
+/**
+ * Keyed by the *scoring ladder*, not by `vulnerabilities.exploit_maturity`. KEV listing
+ * outranks every maturity tier and the engine resolves the two into one scale, so a
+ * `score_factors` payload can name a tier the CVE column never carries.
+ */
+export const EXPLOIT_MATURITY_LABEL: Record<MaturityTier, string> = {
+  kev_listed: 'Known exploited',
   weaponized: 'Weaponized',
   poc: 'Proof of concept',
   none: 'None known',
 };
 
-export const EXPLOIT_MATURITY_GLOSS: Record<ExploitMaturity, string> = {
+export const EXPLOIT_MATURITY_GLOSS: Record<MaturityTier, string> = {
+  kev_listed:
+    'CISA records this flaw being used against real targets — not that an exploit exists, that one has been used.',
   weaponized: 'Reliable attack code is circulating and in active use.',
   poc: 'Demonstration code exists publicly; turning it into a real attack is plausible.',
   none: 'No public exploit code is known for this vulnerability.',
+};
+
+/* ---------------------------------------------------------------- match confidence */
+
+/**
+ * How sure the CPE matcher was. Shown on every finding rather than on request: an
+ * operator deciding whether to wake someone needs to know the difference between "your
+ * version is inside the affected range" and "we guessed from a banner".
+ */
+export const MATCH_CONFIDENCE_LABEL: Record<MatchConfidence, string> = {
+  high: 'High',
+  medium: 'Medium',
+  low: 'Low',
+};
+
+export const MATCH_CONFIDENCE_GLOSS: Record<MatchConfidence, string> = {
+  high: 'The observed version falls inside the range the advisory names.',
+  medium: 'The product matches and the version is plausible, but the range is not exact.',
+  low: 'Inferred from a service banner. Worth confirming before acting on it.',
+};
+
+export const MATCH_CONFIDENCE_TONE: Record<MatchConfidence, 'ok' | 'warn' | 'neutral'> = {
+  high: 'ok',
+  medium: 'warn',
+  low: 'neutral',
 };
 
 /* ---------------------------------------------------------------- finding status */
@@ -190,13 +244,22 @@ export interface ScoreStep {
 }
 
 /**
- * The multipliers in ARCHITECTURE.md are documented but their values are not, so these
- * mirror the control plane's scoring table. They are duplicated here only to explain a
- * score the server already computed — the UI never scores a finding itself.
+ * The control plane's multiplier table, mirrored.
+ *
+ * Every value here is read from `apps/control-plane/src/threatsculpt/scoring/constants.py`.
+ * Production display never uses them: the API sends the multiplier it actually applied in
+ * `score_factors`, and {@link explainScore} shows that. They exist for the mock server and
+ * for the tests that assert the product's central claim — that business context can
+ * outrank raw CVSS.
+ *
+ * A copy that drifts is worse than no copy, which is what happened before: this table had
+ * `poc` at 1.25 against the server's 1.2, `isolated` at 0.8 against 0.5, `low` at 0.9
+ * against 0.8, and no `kev_listed` tier at all.
  */
-export const EXPLOIT_MATURITY_MULTIPLIER: Record<ExploitMaturity, number> = {
+export const EXPLOIT_MATURITY_MULTIPLIER: Record<MaturityTier, number> = {
+  kev_listed: 1.6,
   weaponized: 1.5,
-  poc: 1.25,
+  poc: 1.2,
   none: 1.0,
 };
 
@@ -204,27 +267,28 @@ export const EXPOSURE_MULTIPLIER: Record<Exposure, number> = {
   internet: 1.4,
   dmz: 1.2,
   internal: 1.0,
-  isolated: 0.8,
+  isolated: 0.5,
 };
 
-export const CRITICALITY_MULTIPLIER: Record<Criticality, number> = {
+export const CRITICALITY_MULTIPLIER: Record<CriticalityTier, number> = {
   critical: 1.3,
   high: 1.15,
   medium: 1.0,
-  low: 0.9,
+  low: 0.8,
+  unmapped: 1.0,
 };
 
 /**
  * cvss_base × exploit_maturity × exposure × asset_criticality tops out at
- * 10.0 × 1.5 × 1.4 × 1.3 = 27.3. Findings are reported on a 0–100 scale (API.md shows
- * `worst_finding_score: 94.5`), so the product is rescaled by this factor.
+ * 10.0 × 1.6 × 1.4 × 1.3 = 29.12, and findings are reported on a 0–100 scale, so the raw
+ * product is rescaled by `SCORE_RANGE / RAW_SCORE_MAX`.
  *
- * It is shown as an explicit final step in the explanation rather than hidden, because a
- * chain of arithmetic that does not reconcile with the headline number is worse than no
- * explanation at all.
+ * The rescale is shown as an explicit final step in the explanation rather than hidden,
+ * because a chain of arithmetic that does not reconcile with the headline number is worse
+ * than no explanation at all.
  */
-export const RAW_SCORE_MAX = 27.3;
-export const SCORE_SCALE = 100 / RAW_SCORE_MAX;
+export const RAW_SCORE_MAX = 29.12;
+export const SCORE_RANGE = 100;
 
 /**
  * Expands `score_factors` into the ordered multiplication that produced the score:
@@ -233,75 +297,96 @@ export const SCORE_SCALE = 100 / RAW_SCORE_MAX;
  *
  * (ARCHITECTURE.md, "Risk scoring — the actual product"). Returning the running total at
  * each step is what lets the UI show the arithmetic rather than assert a conclusion.
+ *
+ * The rescale divisor comes from `factors.normalization` when the server sent one. Reading
+ * it beats recomputing it: the moment the control plane retunes a tier, a locally derived
+ * divisor makes the explanation disagree with the very number it exists to defend.
  */
-export function explainScore(factors: {
-  cvss_base: number;
-  exploit_maturity: { value: ExploitMaturity; multiplier: number };
-  exposure: { value: Exposure; multiplier: number };
-  asset_criticality: { value: Criticality; multiplier: number };
-}): { base: number; steps: ScoreStep[]; total: number } {
+export function explainScore(factors: ScoreFactors): {
+  base: number;
+  steps: ScoreStep[];
+  total: number;
+} {
   const base = factors.cvss_base;
   let running = base;
 
   const steps: ScoreStep[] = [];
 
+  const maturity = toMaturityTier(factors.exploit_maturity.value);
   running = running * factors.exploit_maturity.multiplier;
   steps.push({
     key: 'exploit_maturity',
     label: 'Exploit maturity',
-    value: EXPLOIT_MATURITY_LABEL[factors.exploit_maturity.value],
+    value: maturity ? EXPLOIT_MATURITY_LABEL[maturity] : factors.exploit_maturity.value,
     multiplier: factors.exploit_maturity.multiplier,
     runningTotal: running,
-    gloss: EXPLOIT_MATURITY_GLOSS[factors.exploit_maturity.value],
+    gloss: maturity
+      ? EXPLOIT_MATURITY_GLOSS[maturity]
+      : 'How readily this vulnerability can be exploited in practice.',
   });
 
+  const exposure = toExposure(factors.exposure.value);
   running = running * factors.exposure.multiplier;
   steps.push({
     key: 'exposure',
     label: 'Exposure',
-    value: EXPOSURE_LABEL[factors.exposure.value],
+    value: exposure ? EXPOSURE_LABEL[exposure] : factors.exposure.value,
     multiplier: factors.exposure.multiplier,
     runningTotal: running,
-    gloss: EXPOSURE_GLOSS[factors.exposure.value],
+    gloss: exposure
+      ? EXPOSURE_GLOSS[exposure]
+      : 'Where the affected host sits relative to the outside world.',
   });
 
+  const criticality = toCriticalityTier(factors.asset_criticality.value);
+  const criticalityLabel = criticality
+    ? CRITICALITY_TIER_LABEL[criticality]
+    : factors.asset_criticality.value;
   running = running * factors.asset_criticality.multiplier;
   steps.push({
     key: 'asset_criticality',
     label: 'Business criticality',
-    value: CRITICALITY_LABEL[factors.asset_criticality.value],
+    value: criticalityLabel,
     multiplier: factors.asset_criticality.multiplier,
     runningTotal: running,
-    gloss: `The affected asset supports a service rated ${CRITICALITY_LABEL[
-      factors.asset_criticality.value
-    ].toLowerCase()} to the business.`,
+    gloss:
+      criticality === 'unmapped'
+        ? 'The affected asset is not mapped to any business service, so it is scored without business context.'
+        : `The affected asset supports a service rated ${criticalityLabel.toLowerCase()} to the business.`,
   });
 
-  running = Math.min(100, running * SCORE_SCALE);
+  const maxRaw = factors.normalization?.max_raw ?? RAW_SCORE_MAX;
+  const range = factors.normalization?.scale ?? SCORE_RANGE;
+  const scale = maxRaw > 0 ? range / maxRaw : 1;
+
+  running = Math.min(range, running * scale);
   steps.push({
     key: 'scale',
-    label: 'Rescaled to 0–100',
+    label: `Rescaled to 0–${range}`,
     value: 'Reporting scale',
-    multiplier: SCORE_SCALE,
+    multiplier: scale,
     runningTotal: running,
-    gloss:
-      'The factors above produce a value out of 27.3. It is rescaled so every finding in the product is comparable on the same 0–100 scale.',
+    gloss: `The factors above produce a value out of ${maxRaw}. It is rescaled so every finding in the product is comparable on the same 0–${range} scale.`,
   });
 
   return { base, steps, total: running };
 }
 
-/** Computes the reported 0–100 score from the documented factors. */
+/**
+ * The reported 0–100 score from the documented factors. Mirrors the control plane's
+ * `scoring.engine.score`; see the multiplier table above for why a copy exists at all.
+ */
 export function computeBusinessRisk(
   cvssBase: number,
-  maturity: ExploitMaturity,
+  maturity: MaturityTier,
   exposure: Exposure,
-  criticality: Criticality,
+  criticality: CriticalityTier,
 ): number {
   const raw =
     cvssBase *
     EXPLOIT_MATURITY_MULTIPLIER[maturity] *
     EXPOSURE_MULTIPLIER[exposure] *
     CRITICALITY_MULTIPLIER[criticality];
-  return Math.round(Math.min(100, raw * SCORE_SCALE) * 100) / 100;
+  const normalised = Math.min(SCORE_RANGE, (raw / RAW_SCORE_MAX) * SCORE_RANGE);
+  return Math.round(normalised * 100) / 100;
 }

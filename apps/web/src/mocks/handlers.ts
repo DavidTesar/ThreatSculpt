@@ -1,5 +1,5 @@
 import { http, HttpResponse } from 'msw';
-import { buildDb, toAssetSummary, toFindingSummary, type MockDb } from './db';
+import { buildDb, toFindingSummary, toUserSummary, type MockDb } from './db';
 import { buildAttackSurface, buildExecutiveDashboard } from './derive';
 import {
   endSession,
@@ -13,15 +13,16 @@ import {
   startSession,
   unauthorized,
 } from './session';
-import { severityRank } from '@/lib/risk';
+import { parseDecimal } from '@/lib/format';
 import type {
+  AdminUser,
   Agent,
   BusinessService,
   EnrollmentToken,
   Finding,
+  MatchConfidence,
   Network,
   ScanJob,
-  User,
 } from '@/types/domain';
 
 const BASE = '*/api/v1';
@@ -86,7 +87,11 @@ const authHandlers = [
     }
 
     const token = startSession();
-    return envelope({ access_token: token, token_type: 'bearer', expires_in: 900 });
+    return envelope({
+      access_token: token,
+      token_type: 'bearer',
+      expires_at: new Date(Date.now() + 900_000).toISOString(),
+    });
   }),
 
   http.post(`${BASE}/auth/register`, async ({ request }) => {
@@ -95,9 +100,16 @@ const authHandlers = [
       return errorResponse(409, 'conflict', 'An account with this email already exists.', 'email');
     }
     const token = startSession();
+    // `POST /auth/register` returns the new principal beside its first token, not a bare
+    // token response — the two auth endpoints do not share a shape.
     return HttpResponse.json(
       {
-        data: { access_token: token, token_type: 'bearer', expires_in: 900 },
+        data: {
+          user: toUserSummary(db.users[0]!),
+          org: db.org,
+          access_token: token,
+          expires_at: new Date(Date.now() + 900_000).toISOString(),
+        },
         error: null,
       },
       { status: 201 },
@@ -108,18 +120,22 @@ const authHandlers = [
     if (!hasRefresh()) {
       return errorResponse(401, 'session_expired', 'Your session has expired.');
     }
-    return envelope({ access_token: issueAccessToken(), token_type: 'bearer', expires_in: 900 });
+    return envelope({
+      access_token: issueAccessToken(),
+      token_type: 'bearer',
+      expires_at: new Date(Date.now() + 900_000).toISOString(),
+    });
   }),
 
   http.post(`${BASE}/auth/logout`, () => {
     endSession();
-    return envelope(null);
+    return envelope({ revoked: true });
   }),
 
   http.get(`${BASE}/auth/me`, ({ request }) => {
     if (!isAuthorized(request)) return unauthorized();
-    const user = db.users[0]!;
-    return envelope({ user, org: db.org, role: user.role });
+    // `MeResponse` is `{ user, org }`. The role lives on the user, not beside it.
+    return envelope({ user: toUserSummary(db.users[0]!), org: db.org });
   }),
 ];
 
@@ -137,6 +153,14 @@ const dashboardHandlers = [
 
 /* ------------------------------------------------------------------ findings */
 
+const CONFIDENCE_RANK: Record<MatchConfidence, number> = { high: 3, medium: 2, low: 1 };
+
+/** `min_confidence=medium` means "medium and above". */
+function meetsConfidence(actual: MatchConfidence, minimum: string): boolean {
+  const floor = CONFIDENCE_RANK[minimum as MatchConfidence];
+  return floor === undefined || CONFIDENCE_RANK[actual] >= floor;
+}
+
 const findingsHandlers = [
   http.get(`${BASE}/findings`, ({ request }) =>
     guarded(request, () => {
@@ -146,38 +170,26 @@ const findingsHandlers = [
       const serviceId = url.searchParams.get('service_id');
       const assetId = url.searchParams.get('asset_id');
       const kevOnly = url.searchParams.get('kev_only') === 'true';
-      const sort = url.searchParams.get('sort') ?? 'business_risk_score';
-      const order = url.searchParams.get('order') === 'asc' ? 1 : -1;
+      const minConfidence = url.searchParams.get('min_confidence');
 
       const serviceName = serviceId ? db.services.find((s) => s.id === serviceId)?.name : undefined;
 
       const filtered = db.findings.filter((finding) => {
         if (status && finding.status !== status) return false;
-        if (severity && finding.severity !== severity) return false;
-        if (assetId && finding.asset_id !== assetId) return false;
-        if (kevOnly && !finding.kev_listed) return false;
-        if (serviceName && !finding.services_affected.includes(serviceName)) return false;
+        if (severity && finding.cve.severity !== severity) return false;
+        if (assetId && finding.asset.id !== assetId) return false;
+        if (kevOnly && !finding.cve.kev_listed) return false;
+        if (serviceName && !(finding.services_affected ?? []).includes(serviceName)) return false;
+        if (minConfidence && !meetsConfidence(finding.match.confidence, minConfidence))
+          return false;
         return true;
       });
 
-      const sorted = [...filtered].sort((a, b) => {
-        switch (sort) {
-          case 'severity':
-            return (severityRank(a.severity) - severityRank(b.severity)) * order;
-          case 'cve_id':
-            return a.cve_id.localeCompare(b.cve_id) * order;
-          case 'asset_ip':
-            return a.asset_ip.localeCompare(b.asset_ip, undefined, { numeric: true }) * order;
-          case 'last_seen_at':
-            return (
-              (new Date(a.last_seen_at).getTime() - new Date(b.last_seen_at).getTime()) * order
-            );
-          case 'status':
-            return a.status.localeCompare(b.status) * order;
-          default:
-            return (a.business_risk_score - b.business_risk_score) * order;
-        }
-      });
+      // The API sorts by business risk, descending, and accepts no sort parameter.
+      const sorted = [...filtered].sort(
+        (a, b) =>
+          (parseDecimal(b.business_risk_score) ?? 0) - (parseDecimal(a.business_risk_score) ?? 0),
+      );
 
       const { slice, meta } = paginate(sorted, url);
       return envelope<Finding[]>(slice.map(toFindingSummary), meta);
@@ -224,16 +236,17 @@ const assetHandlers = [
       const filtered = db.assets.filter((asset) => {
         if (networkId && asset.network_id !== networkId) return false;
         if (exposure && asset.exposure !== exposure) return false;
-        if (serviceId && !asset.services.some((s) => s.id === serviceId)) return false;
+        if (serviceId && !(asset.services ?? []).some((s) => s.id === serviceId)) return false;
         if (q && !`${asset.ip} ${asset.hostname ?? ''}`.toLowerCase().includes(q)) return false;
         return true;
       });
 
       const sorted = [...filtered].sort(
-        (a, b) => (b.max_business_risk_score ?? -1) - (a.max_business_risk_score ?? -1),
+        (a, b) =>
+          (parseDecimal(b.worst_finding_score) ?? -1) - (parseDecimal(a.worst_finding_score) ?? -1),
       );
       const { slice, meta } = paginate(sorted, url);
-      return envelope(slice.map(toAssetSummary), meta);
+      return envelope(slice, meta);
     }),
   ),
 
@@ -246,12 +259,12 @@ const assetHandlers = [
 
   http.put(`${BASE}/assets/:id/services`, async ({ request, params }) => {
     if (!isAuthorized(request)) return unauthorized();
-    const body = await readJson<{ business_service_ids: string[] }>(request);
+    const body = await readJson<{ service_ids: string[] }>(request);
     const index = db.assets.findIndex((a) => a.id === params['id']);
     if (index === -1) return notFound('Asset');
 
     const services = db.services
-      .filter((s) => body.business_service_ids.includes(s.id))
+      .filter((s) => body.service_ids.includes(s.id))
       .map((s) => ({ id: s.id, name: s.name, criticality: s.criticality }));
 
     const updated = { ...db.assets[index]!, services };
@@ -303,7 +316,8 @@ const networkHandlers = [
       cidr: body.cidr,
       authorized: body.authorized ?? false,
       authorization_note: body.authorization_note ?? null,
-      asset_count: 0,
+      authorized_at: body.authorized ? new Date().toISOString() : null,
+      authorized_by_user_id: null,
       created_at: new Date().toISOString(),
       updated_at: new Date().toISOString(),
     };
@@ -326,11 +340,12 @@ const networkHandlers = [
     if (!isAuthorized(request)) return unauthorized();
     const network = db.networks.find((n) => n.id === params['id']);
     if (!network) return notFound('Network');
-    if (network.asset_count > 0) {
+    const assetCount = db.assets.filter((a) => a.network_id === network.id).length;
+    if (assetCount > 0) {
       return errorResponse(
         409,
         'conflict',
-        `This network still has ${network.asset_count} assets. Remove or reassign them first.`,
+        `This network still has ${assetCount} assets. Remove or reassign them first.`,
       );
     }
     db = { ...db, networks: db.networks.filter((n) => n.id !== params['id']) };
@@ -362,8 +377,6 @@ const serviceHandlers = [
       revenue_at_risk: body.revenue_at_risk ?? null,
       owner_name: body.owner_name ?? null,
       owner_email: body.owner_email ?? null,
-      asset_count: 0,
-      open_findings: 0,
       created_at: new Date().toISOString(),
       updated_at: new Date().toISOString(),
     };
@@ -432,23 +445,19 @@ const scanHandlers = [
     const created: ScanJob = {
       id: nextId('j'),
       network_id: network.id,
-      network_name: network.name,
       target: body.target || network.cidr,
       profile: body.profile,
       status: 'queued',
       agent_id: null,
-      agent_name: null,
       progress_percent: null,
       attempts: 0,
       lease_expires_at: null,
       requested_by_user_id: db.users[0]!.id,
-      requested_by_name: db.users[0]!.full_name,
       started_at: null,
       finished_at: null,
       error: null,
-      hosts_discovered: 0,
-      findings_created: 0,
       created_at: new Date().toISOString(),
+      updated_at: new Date().toISOString(),
     };
     db = { ...db, scans: [created, ...db.scans] };
     return HttpResponse.json({ data: created, error: null }, { status: 201 });
@@ -467,6 +476,7 @@ const scanHandlers = [
       ...scan,
       status: 'cancelled',
       finished_at: new Date().toISOString(),
+      updated_at: new Date().toISOString(),
     };
     db = { ...db, scans: db.scans.map((s, i) => (i === index ? updated : s)) };
     return envelope(updated);
@@ -485,34 +495,19 @@ const agentHandlers = [
 
   http.post(`${BASE}/agents`, async ({ request }) => {
     if (!isAuthorized(request)) return unauthorized();
-    const body = await readJson<{ name: string }>(request);
-    if (!body.name?.trim()) {
-      return errorResponse(422, 'semantic_validation_error', 'An agent name is required.', 'name');
-    }
+    // `EnrollmentTokenCreate` carries an optional note and nothing else. The agent row
+    // does not exist yet — it appears when something enrols with this token.
+    await readJson<{ note?: string | null }>(request);
 
     const random = Array.from({ length: 4 }, () =>
       Math.floor(Math.random() * 0xffffffff).toString(36),
     ).join('');
 
     const token: EnrollmentToken = {
-      id: nextId('e'),
-      token: `tse_${random}`,
+      enrollment_token: `tse_${random}`,
       // Enrollment tokens expire in 1 hour (DATA-MODEL.md).
       expires_at: new Date(Date.now() + 3_600_000).toISOString(),
-      created_at: new Date().toISOString(),
     };
-
-    const agent: Agent = {
-      id: nextId('g'),
-      name: body.name,
-      key_prefix: 'pending',
-      status: 'active',
-      version: null,
-      allowlist: [],
-      last_seen_at: null,
-      created_at: new Date().toISOString(),
-    };
-    db = { ...db, agents: [...db.agents, agent] };
 
     return HttpResponse.json({ data: token, error: null }, { status: 201 });
   }),
@@ -521,9 +516,14 @@ const agentHandlers = [
     if (!isAuthorized(request)) return unauthorized();
     const index = db.agents.findIndex((a) => a.id === params['id']);
     if (index === -1) return notFound('Agent');
-    const updated: Agent = { ...db.agents[index]!, status: 'revoked', allowlist: [] };
+    const updated: Agent = {
+      ...db.agents[index]!,
+      status: 'revoked',
+      allowlist: [],
+      updated_at: new Date().toISOString(),
+    };
     db = { ...db, agents: db.agents.map((a, i) => (i === index ? updated : a)) };
-    return envelope(null);
+    return envelope(updated);
   }),
 ];
 
@@ -539,18 +539,33 @@ const userHandlers = [
 
   http.post(`${BASE}/users`, async ({ request }) => {
     if (!isAuthorized(request)) return unauthorized();
-    const body = await readJson<{ email: string; full_name: string; role: User['role'] }>(request);
+    const body = await readJson<{
+      email: string;
+      full_name?: string | null;
+      role?: string;
+      password: string;
+    }>(request);
     if (db.users.some((u) => u.email.toLowerCase() === body.email?.toLowerCase())) {
       return errorResponse(409, 'conflict', 'A user with this email already exists.', 'email');
     }
-    const created: User = {
+    if (!body.password || body.password.length < 12) {
+      return errorResponse(
+        422,
+        'semantic_validation_error',
+        'An initial password of at least 12 characters is required.',
+        'password',
+      );
+    }
+    // The account starts unverified, exactly like a self-service sign-up.
+    const created: AdminUser = {
       id: nextId('u'),
       email: body.email,
-      full_name: body.full_name,
-      role: body.role,
+      full_name: body.full_name ?? null,
+      role: body.role ?? 'viewer',
       status: 'active',
       last_login_at: null,
-      created_at: new Date().toISOString(),
+      locked: false,
+      verified: false,
     };
     db = { ...db, users: [...db.users, created] };
     return HttpResponse.json({ data: created, error: null }, { status: 201 });
@@ -558,7 +573,7 @@ const userHandlers = [
 
   http.patch(`${BASE}/users/:id`, async ({ request, params }) => {
     if (!isAuthorized(request)) return unauthorized();
-    const body = await readJson<Partial<User>>(request);
+    const body = await readJson<Partial<AdminUser>>(request);
     const index = db.users.findIndex((u) => u.id === params['id']);
     if (index === -1) return notFound('User');
 
@@ -588,8 +603,10 @@ const userHandlers = [
     if (user.role === 'owner' && db.users.filter((u) => u.role === 'owner').length <= 1) {
       return errorResponse(409, 'last_owner', 'You cannot remove the last owner.');
     }
-    db = { ...db, users: db.users.filter((u) => u.id !== params['id']) };
-    return envelope(null);
+    // DELETE deactivates rather than deleting, so the audit trail keeps naming the user.
+    const deactivated: AdminUser = { ...user, status: 'disabled' };
+    db = { ...db, users: db.users.map((u) => (u.id === user.id ? deactivated : u)) };
+    return envelope(deactivated);
   }),
 ];
 

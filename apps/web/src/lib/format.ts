@@ -3,12 +3,14 @@
  */
 
 /**
- * Money arrives as a numeric(14,2) string (see BusinessService.revenue_at_risk). Parsing
- * to Number is safe for display at that precision — 14 digits exceeds Number.MAX_SAFE_INTEGER
- * only past 10^15, and revenue-at-risk figures are orders of magnitude below that — but we
- * never round-trip the parsed value back to the server.
+ * Every PostgreSQL `numeric` — money, risk scores, node weights — crosses the wire as a
+ * decimal *string*, because the control plane serialises `Decimal` rather than `float`.
+ *
+ * Parsing to Number is safe for display at these precisions — `numeric(14,2)` exceeds
+ * `Number.MAX_SAFE_INTEGER` only past 10^15, and revenue-at-risk figures are orders of
+ * magnitude below that — but the parsed value is never round-tripped back to the server.
  */
-export function parseMoney(value: string | number | null | undefined): number | null {
+export function parseDecimal(value: string | number | null | undefined): number | null {
   if (value === null || value === undefined || value === '') return null;
   const n = typeof value === 'number' ? value : Number(value);
   return Number.isFinite(n) ? n : null;
@@ -16,7 +18,7 @@ export function parseMoney(value: string | number | null | undefined): number | 
 
 /** Full currency, e.g. "$4,200,000". Cents dropped — nobody budgets an exposure to the cent. */
 export function formatCurrency(value: string | number | null | undefined): string {
-  const n = parseMoney(value);
+  const n = parseDecimal(value);
   if (n === null) return '—';
   return new Intl.NumberFormat('en-US', {
     style: 'currency',
@@ -30,7 +32,7 @@ export function formatCurrency(value: string | number | null | undefined): strin
  * digits; the exact figure stays available in the accessible label and detail views.
  */
 export function formatCurrencyCompact(value: string | number | null | undefined): string {
-  const n = parseMoney(value);
+  const n = parseDecimal(value);
   if (n === null) return '—';
   if (Math.abs(n) < 1000) {
     return new Intl.NumberFormat('en-US', {
@@ -52,10 +54,14 @@ export function formatNumber(value: number | null | undefined): string {
   return new Intl.NumberFormat('en-US').format(value);
 }
 
-/** Risk scores are numeric(5,2); one decimal is the useful resolution. */
-export function formatScore(value: number | null | undefined): string {
-  if (value === null || value === undefined || !Number.isFinite(value)) return '—';
-  return value.toFixed(1);
+/**
+ * Risk scores are `numeric(5,2)` and arrive as decimal strings; one decimal is the useful
+ * resolution.
+ */
+export function formatScore(value: string | number | null | undefined): string {
+  const n = parseDecimal(value);
+  if (n === null) return '—';
+  return n.toFixed(1);
 }
 
 export function formatMultiplier(value: number): string {

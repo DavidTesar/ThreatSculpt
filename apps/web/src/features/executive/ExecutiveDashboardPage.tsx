@@ -10,7 +10,6 @@ import { RemediationProgress } from './RemediationProgress';
 import { KevCallout } from './KevCallout';
 import { dashboardApi } from '@/lib/api/endpoints';
 import { queryKeys } from '@/lib/api/queryKeys';
-import { formatDateTime } from '@/lib/format';
 import { useAuth } from '@/auth/useAuth';
 
 /**
@@ -55,16 +54,14 @@ export function ExecutiveDashboardPage() {
 
             <KevCallout count={dashboard.kev_findings} />
 
-            <ServicesAtRisk services={dashboard.services_at_risk} />
+            <ServicesAtRisk services={dashboard.services_at_risk ?? []} />
 
             <div className="exec__split">
               <ExposureSummary summary={dashboard.exposure_summary} />
               <RemediationProgress progress={dashboard.remediation_progress} />
             </div>
 
-            <p className="exec__generated">
-              Generated {formatDateTime(dashboard.generated_at)} from your most recent scan data.
-            </p>
+            <p className="exec__generated">Computed from your most recent scan data.</p>
           </div>
         )}
       </AsyncBoundary>

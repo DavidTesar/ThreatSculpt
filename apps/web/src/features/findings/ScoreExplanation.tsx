@@ -1,8 +1,10 @@
 import { Card, CardHead, CardBody } from '@/components/ui/Card';
 import { Icon } from '@/components/ui/Icon';
+import { EmptyState } from '@/components/ui/States';
 import { explainScore } from '@/lib/risk';
 import { formatMultiplier, formatScore } from '@/lib/format';
-import type { ScoreFactors } from '@/types/domain';
+import { parseScoreFactors } from '@/lib/api/scoreFactors';
+import type { DecimalString } from '@/types/domain';
 
 /**
  * Why this finding scores what it scores.
@@ -15,7 +17,42 @@ import type { ScoreFactors } from '@/types/domain';
  * The multiplier chips are tinted by direction (above 1 raises the score, below 1 lowers
  * it) and also carry an explicit ↑/↓, so the direction survives without colour.
  */
-export function ScoreExplanation({ factors, score }: { factors: ScoreFactors; score: number }) {
+export function ScoreExplanation({
+  factors: raw,
+  score,
+}: {
+  /**
+   * `finding.score_factors`, which the API types as a free-form object — the one payload
+   * in this client that generation cannot describe. It is parsed rather than asserted,
+   * and a payload that does not parse is reported as missing rather than half-rendered:
+   * a wrong explanation of a number a customer is being asked to act on is worse than
+   * admitting there is none.
+   */
+  factors: Record<string, unknown> | undefined;
+  score: DecimalString;
+}) {
+  const factors = parseScoreFactors(raw);
+
+  if (!factors) {
+    return (
+      <Card as="section" aria-labelledby="explain-heading">
+        <CardHead
+          titleId="explain-heading"
+          title="Why this score"
+          subtitle="The published CVSS severity, adjusted for what this particular asset does for your business."
+        />
+        <CardBody>
+          <EmptyState
+            icon="info"
+            title="No score breakdown available"
+            body="This finding was scored without recording the factors behind it, so the arithmetic cannot be shown. Re-running enrichment will produce one."
+            compact
+          />
+        </CardBody>
+      </Card>
+    );
+  }
+
   const { base, steps } = explainScore(factors);
 
   return (

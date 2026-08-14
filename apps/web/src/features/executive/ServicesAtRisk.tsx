@@ -8,9 +8,10 @@ import {
   formatCurrencyCompact,
   formatNumber,
   formatScore,
+  parseDecimal,
   pluralize,
 } from '@/lib/format';
-import type { ServiceAtRisk } from '@/types/domain';
+import { toCriticality, type ServiceAtRisk } from '@/types/domain';
 
 /**
  * The screen that justifies the product.
@@ -22,7 +23,7 @@ import type { ServiceAtRisk } from '@/types/domain';
  * Rendered as a ranked list rather than a dense table so it reads like a briefing.
  */
 export function ServicesAtRisk({ services }: { services: ServiceAtRisk[] }) {
-  const totalRevenue = services.reduce((sum, s) => sum + Number(s.revenue_at_risk ?? 0), 0);
+  const totalRevenue = services.reduce((sum, s) => sum + (parseDecimal(s.revenue_at_risk) ?? 0), 0);
 
   return (
     <Card as="section" aria-labelledby="services-at-risk-heading">
@@ -62,7 +63,7 @@ export function ServicesAtRisk({ services }: { services: ServiceAtRisk[] }) {
                     <Icon name="arrow-right" size={13} />
                   </Link>
                   <div className="ranklist__meta">
-                    <CriticalityMeter criticality={service.criticality} />
+                    <CriticalityMeter criticality={toCriticality(service.criticality)} />
                     <span className="subtle">·</span>
                     <span>
                       {formatNumber(service.open_findings)} open{' '}

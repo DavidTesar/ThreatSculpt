@@ -14,13 +14,13 @@ import { SelectField, TextAreaField, TextField } from '@/components/ui/Field';
 import { EmptyState, ErrorState, LoadingState } from '@/components/ui/States';
 import { TableWrap } from '@/components/ui/Table';
 import { useToast } from '@/components/ui/useToast';
-import { businessServicesApi, type BusinessServiceInput } from '@/lib/api/endpoints';
+import { businessServicesApi, type BusinessServiceCreate } from '@/lib/api/endpoints';
 import { queryKeys } from '@/lib/api/queryKeys';
-import { formatCurrency, formatNumber } from '@/lib/format';
+import { formatCurrency } from '@/lib/format';
 import { CRITICALITY_LABEL } from '@/lib/risk';
 import { messageFor } from '@/lib/api/ApiError';
 import { useAuth } from '@/auth/useAuth';
-import { CRITICALITIES, type BusinessService } from '@/types/domain';
+import { CRITICALITIES, toCriticality, type BusinessService } from '@/types/domain';
 
 const schema = z.object({
   name: z.string().min(2, 'Name this service the way the business refers to it.').max(120),
@@ -52,7 +52,7 @@ function ServiceForm({
   isSubmitting,
 }: {
   initial?: BusinessService;
-  onSubmit: (values: BusinessServiceInput) => void;
+  onSubmit: (values: BusinessServiceCreate) => void;
   onCancel: () => void;
   isSubmitting: boolean;
 }) {
@@ -65,7 +65,7 @@ function ServiceForm({
     defaultValues: {
       name: initial?.name ?? '',
       description: initial?.description ?? '',
-      criticality: initial?.criticality ?? 'medium',
+      criticality: toCriticality(initial?.criticality) ?? 'medium',
       revenue_at_risk: initial?.revenue_at_risk ?? '',
       owner_name: initial?.owner_name ?? '',
       owner_email: initial?.owner_email ?? '',
@@ -168,7 +168,7 @@ export function BusinessServicesPage() {
   };
 
   const createMutation = useMutation({
-    mutationFn: (values: BusinessServiceInput) => businessServicesApi.create(values),
+    mutationFn: (values: BusinessServiceCreate) => businessServicesApi.create(values),
     onSuccess: () => {
       invalidate();
       setIsCreating(false);
@@ -178,7 +178,7 @@ export function BusinessServicesPage() {
   });
 
   const updateMutation = useMutation({
-    mutationFn: ({ id, values }: { id: string; values: BusinessServiceInput }) =>
+    mutationFn: ({ id, values }: { id: string; values: BusinessServiceCreate }) =>
       businessServicesApi.update(id, values),
     onSuccess: () => {
       invalidate();
@@ -245,10 +245,7 @@ export function BusinessServicesPage() {
                     Revenue at risk
                   </th>
                   <th scope="col" className="table__num">
-                    Assets
-                  </th>
-                  <th scope="col" className="table__num">
-                    Open findings
+                    Mapped work
                   </th>
                   <th scope="col">Business owner</th>
                   {can('analyst') ? (
@@ -270,7 +267,7 @@ export function BusinessServicesPage() {
                       ) : null}
                     </td>
                     <td>
-                      <CriticalityMeter criticality={service.criticality} />
+                      <CriticalityMeter criticality={toCriticality(service.criticality)} />
                     </td>
                     <td className="table__num">
                       {service.revenue_at_risk ? (
@@ -279,15 +276,14 @@ export function BusinessServicesPage() {
                         <span className="subtle">Not costed</span>
                       )}
                     </td>
+                    {/*
+                      `BusinessServiceOut` carries no asset or finding counts, so these are
+                      links to the filtered views rather than numbers invented on the row.
+                    */}
                     <td className="table__num">
-                      <Link to={`/assets?service_id=${service.id}`}>
-                        {formatNumber(service.asset_count)}
-                      </Link>
-                    </td>
-                    <td className="table__num">
-                      <Link to={`/findings?service_id=${service.id}&status=open`}>
-                        {formatNumber(service.open_findings)}
-                      </Link>
+                      <Link to={`/assets?service_id=${service.id}`}>Assets</Link>
+                      {' · '}
+                      <Link to={`/findings?service_id=${service.id}&status=open`}>Findings</Link>
                     </td>
                     <td className="subtle" style={{ fontSize: 'var(--text-xs)' }}>
                       {service.owner_name ?? '—'}
@@ -360,7 +356,7 @@ export function BusinessServicesPage() {
         title="Remove this business service?"
         description={
           deleting
-            ? `${deleting.name} will be unmapped from ${deleting.asset_count} assets. Findings on those assets will be rescored at the lowest business criticality, which will lower your reported risk without anything actually improving.`
+            ? `${deleting.name} will be unmapped from every asset that supports it. Findings on those assets will be rescored without business context, which will lower your reported risk without anything actually improving.`
             : undefined
         }
         footer={

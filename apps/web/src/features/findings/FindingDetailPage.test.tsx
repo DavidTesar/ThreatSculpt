@@ -17,18 +17,18 @@ function renderFinding(id: string) {
 /** A KEV-listed, open finding — the case with the most to display. */
 function kevFindingId(): string {
   const db = buildDb();
-  return db.findings.find((f) => f.kev_listed && f.status === 'open')!.id;
+  return db.findings.find((f) => f.cve.kev_listed && f.status === 'open')!.id;
 }
 
 describe('FindingDetailPage', () => {
   it('leads with the CVE, its severity, and the business risk score', async () => {
     signIn();
     const db = buildDb();
-    const finding = db.findings.find((f) => f.kev_listed && f.status === 'open')!;
+    const finding = db.findings.find((f) => f.cve.kev_listed && f.status === 'open')!;
 
     renderFinding(finding.id);
 
-    expect(await screen.findByRole('heading', { name: finding.cve_id })).toBeInTheDocument();
+    expect(await screen.findByRole('heading', { name: finding.cve.cve_id })).toBeInTheDocument();
     expect(screen.getAllByText('KEV').length).toBeGreaterThan(0);
   });
 
@@ -46,9 +46,19 @@ describe('FindingDetailPage', () => {
     signIn();
     renderFinding(kevFindingId());
 
+    // `CveSummary` carries no CVSS vector and no publication date — the reference block
+    // asserted here is what the API actually returns.
     const about = await screen.findByRole('region', { name: /about this vulnerability/i });
-    expect(within(about).getByText(/cvss vector/i)).toBeInTheDocument();
+    expect(within(about).getByText(/cvss base/i)).toBeInTheDocument();
     expect(within(about).getByText(/known exploited/i)).toBeInTheDocument();
+  });
+
+  it('says how the CVE was matched to the host, and how sure we are', async () => {
+    signIn();
+    renderFinding(kevFindingId());
+
+    const match = await screen.findByRole('region', { name: /how we matched this/i });
+    expect(within(match).getByText(/confidence/i)).toBeInTheDocument();
   });
 
   it('transitions the finding status and confirms it', async () => {
@@ -64,7 +74,7 @@ describe('FindingDetailPage', () => {
   it('tells the user when the asset is unmapped and offers to fix it', async () => {
     signIn();
     const db = buildDb();
-    const unmapped = db.findings.find((f) => f.services_affected.length === 0);
+    const unmapped = db.findings.find((f) => (f.services_affected ?? []).length === 0);
 
     // The fixture estate includes unmapped assets by design; skip only if that changes.
     if (!unmapped) return;

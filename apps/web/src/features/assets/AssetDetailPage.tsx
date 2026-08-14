@@ -10,12 +10,13 @@ import { Button } from '@/components/ui/Button';
 import { CheckboxField } from '@/components/ui/Field';
 import { TableWrap } from '@/components/ui/Table';
 import { useToast } from '@/components/ui/useToast';
-import { assetsApi, businessServicesApi, findingsApi } from '@/lib/api/endpoints';
+import { assetsApi, businessServicesApi, findingsApi, networksApi } from '@/lib/api/endpoints';
 import { queryKeys } from '@/lib/api/queryKeys';
 import { formatDateTime, formatRelative, formatScore } from '@/lib/format';
 import { messageFor } from '@/lib/api/ApiError';
 import { useAuth } from '@/auth/useAuth';
-import type { AssetDetail } from '@/types/domain';
+import { MATCH_CONFIDENCE_LABEL } from '@/lib/risk';
+import { toSeverity, type AssetDetail } from '@/types/domain';
 
 /**
  * Mapping an asset to the business services it supports.
@@ -28,11 +29,11 @@ function ServiceMapping({ asset }: { asset: AssetDetail }) {
   const { can } = useAuth();
   const { notify } = useToast();
   const queryClient = useQueryClient();
-  const [selected, setSelected] = useState<string[]>(() => asset.services.map((s) => s.id));
+  const [selected, setSelected] = useState<string[]>(() => (asset.services ?? []).map((s) => s.id));
 
   // Re-sync when the server's copy changes underneath us (e.g. after a refetch).
   useEffect(() => {
-    setSelected(asset.services.map((s) => s.id));
+    setSelected((asset.services ?? []).map((s) => s.id));
   }, [asset.services]);
 
   const servicesQuery = useQuery({
@@ -55,7 +56,7 @@ function ServiceMapping({ asset }: { asset: AssetDetail }) {
     onError: (error) => notify(messageFor(error), 'error'),
   });
 
-  const current = asset.services
+  const current = (asset.services ?? [])
     .map((s) => s.id)
     .sort()
     .join(',');
@@ -144,6 +145,17 @@ export function AssetDetailPage() {
     enabled: id !== '',
   });
 
+  // The asset carries `network_id`; the name lives on the network resource.
+  const networksQuery = useQuery({
+    queryKey: queryKeys.networks.list(),
+    queryFn: ({ signal }) => networksApi.list(undefined, signal),
+    staleTime: 5 * 60_000,
+  });
+  const networkId = query.data?.network_id;
+  const networkName = networkId
+    ? (networksQuery.data?.items.find((n) => n.id === networkId)?.name ?? null)
+    : null;
+
   return (
     <main className="main" id="main">
       <AsyncBoundary
@@ -169,50 +181,6 @@ export function AssetDetailPage() {
 
             <div className="detail">
               <div className="stack stack--lg">
-                <Card as="section" aria-labelledby="ports-heading">
-                  <CardHead
-                    titleId="ports-heading"
-                    title="Observed services"
-                    subtitle="What the scan agent found listening. The agent reports what is running; enrichment happens server-side."
-                  />
-                  <CardBody flush>
-                    {asset.ports.length === 0 ? (
-                      <EmptyState
-                        icon="scan"
-                        title="No open ports recorded"
-                        body="This host answered a discovery scan but has not had a service scan yet."
-                        compact
-                      />
-                    ) : (
-                      <TableWrap>
-                        <table className="table">
-                          <caption className="visually-hidden">Open ports on this asset.</caption>
-                          <thead>
-                            <tr>
-                              <th scope="col">Port</th>
-                              <th scope="col">Service</th>
-                              <th scope="col">Product</th>
-                              <th scope="col">Version</th>
-                            </tr>
-                          </thead>
-                          <tbody>
-                            {asset.ports.map((port) => (
-                              <tr key={port.id}>
-                                <td className="mono">
-                                  {port.port}/{port.protocol}
-                                </td>
-                                <td>{port.service ?? '—'}</td>
-                                <td>{port.product ?? '—'}</td>
-                                <td className="mono subtle">{port.version ?? '—'}</td>
-                              </tr>
-                            ))}
-                          </tbody>
-                        </table>
-                      </TableWrap>
-                    )}
-                  </CardBody>
-                </Card>
-
                 <Card as="section" aria-labelledby="asset-findings-heading">
                   <CardHead
                     titleId="asset-findings-heading"
@@ -237,7 +205,7 @@ export function AssetDetailPage() {
                               </th>
                               <th scope="col">Severity</th>
                               <th scope="col">CVE</th>
-                              <th scope="col">Port</th>
+                              <th scope="col">Match</th>
                               <th scope="col">Status</th>
                             </tr>
                           </thead>
@@ -248,15 +216,15 @@ export function AssetDetailPage() {
                                   <strong>{formatScore(finding.business_risk_score)}</strong>
                                 </td>
                                 <td>
-                                  <SeverityBadge severity={finding.severity} />
+                                  <SeverityBadge severity={toSeverity(finding.cve.severity)} />
                                 </td>
                                 <td>
                                   <Link to={`/findings/${finding.id}`} className="rowlink mono">
-                                    {finding.cve_id}
+                                    {finding.cve.cve_id}
                                   </Link>
                                 </td>
-                                <td className="mono subtle">
-                                  {finding.port ? `${finding.port}/${finding.protocol}` : '—'}
+                                <td className="subtle" style={{ fontSize: 'var(--text-xs)' }}>
+                                  {MATCH_CONFIDENCE_LABEL[finding.match.confidence]}
                                 </td>
                                 <td className="subtle" style={{ fontSize: 'var(--text-xs)' }}>
                                   {finding.status.replace(/_/g, ' ')}
@@ -286,7 +254,7 @@ export function AssetDetailPage() {
                   <CardBody>
                     <dl className="deflist">
                       <dt>Network</dt>
-                      <dd>{asset.network_name ?? '—'}</dd>
+                      <dd>{networkName ?? '—'}</dd>
 
                       <dt>IP address</dt>
                       <dd className="mono">{asset.ip}</dd>

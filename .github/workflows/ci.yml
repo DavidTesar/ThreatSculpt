@@ -64,7 +64,21 @@ jobs:
       - name: Type check
         run: mypy .
       - name: Migrations apply and roll back cleanly
-        run: alembic upgrade head && alembic downgrade base && alembic upgrade head
+        # This step checks the **schema**: that every migration applies, rolls back, and
+        # re-applies. It does not check that grants land, and this postgres service has
+        # only the `postgres` role, so 0003 would refuse — deliberately, because an
+        # operator who migrates without the application role gets an app with no
+        # privileges and "fixes" it by pointing at a superuser DSN, which silently
+        # disables RLS. `-x allow_missing_role=1` is that migration's own documented
+        # opt-out for exactly this case: it skips the grants and nothing else.
+        #
+        # It must NOT spread to the Tests step below. That suite exercises RLS as the
+        # unprivileged role and its conftest creates the role itself; if it ever needs
+        # this flag, the isolation guarantee has broken and the failure is the signal.
+        run: |
+          alembic -x allow_missing_role=1 upgrade head
+          alembic -x allow_missing_role=1 downgrade base
+          alembic -x allow_missing_role=1 upgrade head
       - name: Tests
         run: pytest --cov --cov-report=term-missing --cov-fail-under=80
 
@@ -117,6 +131,55 @@ jobs:
       - run: npm run test -- --run
       - run: npm run build
 
+  api-contract:
+    name: API contract (schema and generated types are current)
+    runs-on: ubuntu-latest
+    # The gate this whole job exists for: the web client's types are generated from the
+    # control plane's own OpenAPI schema, so a backend change that alters a response shape
+    # has to turn CI red here rather than surprise a customer at runtime. Regenerating and
+    # diffing is the check — if either the schema or the generated types differ from what
+    # is committed, `git diff --exit-code` fails and the change has to be regenerated and
+    # reviewed like any other.
+    #
+    # No database service: `create_app()` wires routes without opening a connection, and
+    # the lifespan handler that does never runs here.
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+          cache: pip
+          cache-dependency-path: apps/control-plane/requirements.lock
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "24"
+          cache: npm
+          cache-dependency-path: apps/web/package-lock.json
+
+      - name: Install the control plane
+        # Runtime lock only — dumping the schema needs no test tooling. The venv path is
+        # the one `npm run openapi:dump` expects.
+        run: |
+          python -m venv apps/control-plane/.venv
+          apps/control-plane/.venv/bin/pip install --require-hashes -r apps/control-plane/requirements.lock
+          apps/control-plane/.venv/bin/pip install -e apps/control-plane --no-deps
+
+      - name: Install the web toolchain
+        working-directory: apps/web
+        run: npm ci
+
+      - name: Regenerate and fail on drift
+        working-directory: apps/web
+        run: npm run openapi:check
+
+      - name: What drifted
+        if: failure()
+        working-directory: apps/web
+        run: |
+          echo "::error::The committed OpenAPI schema or generated types are stale."
+          echo "Run 'npm run openapi' in apps/web and commit the result."
+          git --no-pager diff -- openapi.json src/lib/api/schema.gen.ts
+
   web-image:
     name: Web image and security headers
     runs-on: ubuntu-latest
@@ -131,8 +194,23 @@ jobs:
       - name: Build the image
         run: docker build -t threatsculpt-web:ci apps/web
       - name: Start it
+        # On a user-defined network, deliberately, and with **no control plane on it**.
+        # Two things are under test at once:
+        #
+        #  1. The container must start at all with its upstream absent. It did not use
+        #     to: a literal `proxy_pass http://control-plane:8000` is resolved once at
+        #     startup and nginx hard-fails with `host not found in upstream`, so a
+        #     backend that is down, restarting, or merely slower to come up took the
+        #     whole dashboard with it. The upstream is now a variable (see
+        #     apps/web/upstream.inc), which defers resolution to request time.
+        #  2. A user-defined network is what `docker compose` creates, and it is the
+        #     only place Docker's embedded DNS at 127.0.0.11 exists — the resolver the
+        #     shipped config points at. A bare `docker run` would exercise a resolver
+        #     address that is not there, which is a different failure from the one
+        #     production would hit.
         run: |
-          docker run -d --name web -p 8080:8080 threatsculpt-web:ci
+          docker network create ts-ci
+          docker run -d --name web --network ts-ci -p 8080:8080 threatsculpt-web:ci
           for _ in $(seq 1 60); do
             curl -sf -o /dev/null http://127.0.0.1:8080/ && exit 0
             sleep 1
@@ -140,8 +218,9 @@ jobs:
           echo "the web container never became ready"
           docker logs web
           exit 1
-      # No control plane here, so /api/ answers 502 — which is the point: `always`
-      # means the headers have to be present on error responses too.
+      # No control plane on the network, so /api/ answers 502 — which is the point:
+      # `always` means the headers have to be present on error responses too, and the
+      # SPA has to keep serving while the API is unreachable.
       - name: Security headers on every route class
         run: apps/web/check-security-headers.sh http://127.0.0.1:8080
       - name: Container logs on failure

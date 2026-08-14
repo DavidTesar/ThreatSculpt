@@ -1,8 +1,34 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { computeLayout, hitTest, type PositionedNode } from './layout';
+import { nodeExposure, nodeKind, nodeWeight } from './nodes';
 import { formatScore } from '@/lib/format';
-import { EXPOSURE_LABEL } from '@/lib/risk';
-import type { AttackSurfaceGraph } from '@/types/domain';
+import { CRITICALITY_LABEL, EXPOSURE_LABEL } from '@/lib/risk';
+import { toCriticality, type AttackSurfaceGraph, type Exposure } from '@/types/domain';
+
+/** The colour ramp is keyed by exposure tier; anything else falls back to muted ink. */
+function exposureLabelOf(exposure: Exposure | null): string {
+  return exposure ? EXPOSURE_LABEL[exposure] : 'Position unknown';
+}
+
+/**
+ * One line describing a node. The graph payload carries no open-findings count, so this
+ * says what the node *is*; the count lives on the asset and finding views that have it.
+ */
+function describeNode(node: PositionedNode): string {
+  const criticality = toCriticality(node.criticality);
+  switch (nodeKind(node)) {
+    case 'business_service':
+      return criticality
+        ? `Business service · ${CRITICALITY_LABEL[criticality].toLowerCase()} criticality`
+        : 'Business service';
+    case 'aggregated_assets':
+      return `${node.represents ?? 0} assets · ${exposureLabelOf(nodeExposure(node))}`;
+    case 'exposure':
+      return `Exposure tier · ${exposureLabelOf(nodeExposure(node))}`;
+    default:
+      return `Asset · ${exposureLabelOf(nodeExposure(node))}`;
+  }
+}
 
 const WIDTH = 1000;
 const HEIGHT = 620;
@@ -99,7 +125,7 @@ export function SurfaceCanvas({
       ctx.strokeStyle = isRelevant ? edgeColor : withAlpha(edgeColor, 0.25);
       ctx.lineWidth = isRelevant ? 1 : 0.6;
       // `exposes` edges are dashed, so the distinction survives without colour.
-      ctx.setLineDash(edge.kind === 'exposes' ? [3, 3] : []);
+      ctx.setLineDash(edge.type === 'exposes' ? [3, 3] : []);
       ctx.stroke();
     }
     ctx.setLineDash([]);
@@ -111,7 +137,7 @@ export function SurfaceCanvas({
 
       ctx.globalAlpha = dimmed ? 0.22 : 1;
 
-      if (node.kind === 'service') {
+      if (nodeKind(node) === 'business_service') {
         // Services are squares — a different shape, not just a different colour.
         const size = node.radius;
         ctx.beginPath();
@@ -124,18 +150,18 @@ export function SurfaceCanvas({
       } else {
         ctx.beginPath();
         ctx.arc(node.x, node.y, node.radius, 0, Math.PI * 2);
-        ctx.fillStyle = exposureColors[node.exposure ?? 'internal'] ?? inkMuted;
+        ctx.fillStyle = exposureColors[nodeExposure(node) ?? 'internal'] ?? inkMuted;
         ctx.fill();
         ctx.lineWidth = 1.25;
         ctx.strokeStyle = strokeColor;
         ctx.stroke();
 
         // Aggregate nodes get a second ring, marking them as a rollup rather than a host.
-        if (node.kind === 'aggregate') {
+        if (nodeKind(node) === 'aggregated_assets') {
           ctx.beginPath();
           ctx.arc(node.x, node.y, node.radius + 3, 0, Math.PI * 2);
           ctx.lineWidth = 1;
-          ctx.strokeStyle = exposureColors[node.exposure ?? 'internal'] ?? inkMuted;
+          ctx.strokeStyle = exposureColors[nodeExposure(node) ?? 'internal'] ?? inkMuted;
           ctx.stroke();
         }
       }
@@ -156,7 +182,7 @@ export function SurfaceCanvas({
     ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';
     for (const node of layout.nodes) {
-      if (node.kind !== 'service') continue;
+      if (nodeKind(node) !== 'business_service') continue;
       const dimmed = connected ? !connected.has(node.id) : false;
       ctx.globalAlpha = dimmed ? 0.3 : 1;
 
@@ -240,16 +266,8 @@ export function SurfaceCanvas({
           }}
         >
           <p className="surface__tooltiptitle">{hovered.label}</p>
-          <p className="subtle">
-            {hovered.kind === 'service'
-              ? `Business service · ${hovered.criticality} criticality`
-              : hovered.kind === 'aggregate'
-                ? `${hovered.represents} assets · ${EXPOSURE_LABEL[hovered.exposure ?? 'internal']}`
-                : `Asset · ${EXPOSURE_LABEL[hovered.exposure ?? 'internal']}`}
-          </p>
-          <p className="subtle">
-            {hovered.open_findings} open findings · top risk {formatScore(hovered.weight)}
-          </p>
+          <p className="subtle">{describeNode(hovered)}</p>
+          <p className="subtle">Top risk {formatScore(nodeWeight(hovered))}</p>
         </div>
       ) : null}
 

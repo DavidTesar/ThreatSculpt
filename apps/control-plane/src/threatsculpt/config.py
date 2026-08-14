@@ -60,21 +60,46 @@ class Settings(BaseSettings):
     #: account is inert, and one that is never proved should stop being
     #: verifiable rather than remain claimable indefinitely.
     email_verification_ttl_hours: Annotated[int, Field(ge=1, le=168)] = 24
-    #: Delivery mechanism for verification messages. **Neither option delivers
-    #: mail** — this branch has no mail infrastructure. ``none`` drops the
-    #: message and logs that it did; ``memory`` retains it in-process for
-    #: development and tests. Wiring a real provider means one class in
-    #: ``auth.delivery`` and one new value here. See SECURITY.md.
-    #:
-    #: Because neither delivers, the process refuses to start unless the escape
-    #: below is set: an unverified account cannot log in, so a deployment with no
-    #: delivery can onboard nobody, and failing at boot is how that gets noticed.
-    email_delivery: Literal["none", "memory"] = "none"
+    #: Delivery mechanism for verification messages. **Only ``smtp`` delivers.**
+    #: ``none`` drops the message and logs that it did; ``memory`` retains it
+    #: in-process for development and tests. The process refuses to start on
+    #: either unless the escape below is set: an unverified account cannot log
+    #: in, so a deployment that cannot deliver can onboard nobody, and failing at
+    #: boot is how that gets noticed. See SECURITY.md.
+    email_delivery: Literal["none", "memory", "smtp"] = "none"
     #: Escape hatch for local development and tests only, matching
     #: ``allow_superuser_db``. Deliberately a separate, greppable flag rather
     #: than something inferred from ``environment``, so running without email
     #: delivery is an explicit act. Logged at CRITICAL on every boot.
     allow_undeliverable_email: bool = False
+
+    # --- smtp -------------------------------------------------------------
+    # Read only when email_delivery == "smtp"; validated together at boot by
+    # auth.smtp_config, which reports every problem at once rather than one
+    # deploy at a time. SMTP rather than a vendor SDK so the same settings reach
+    # SES, SendGrid, Postmark, Mailgun or a customer's own relay.
+    smtp_host: str | None = None
+    smtp_port: Annotated[int, Field(ge=1, le=65535)] = 587
+    smtp_username: str | None = None
+    #: Like every other secret here: no default, ``SecretStr`` so it cannot be
+    #: printed by accident, and supplied by the environment or not at all.
+    smtp_password: SecretStr | None = None
+    #: ``starttls`` (587) or ``implicit`` (465) everywhere real. ``none`` is
+    #: accepted only for a loopback relay — see ``auth.smtp_config`` — because
+    #: unencrypted SMTP puts the relay password and the verification link, which
+    #: is itself a credential, on the wire in the clear.
+    smtp_tls: Literal["starttls", "implicit", "none"] = "starttls"
+    smtp_timeout_seconds: Annotated[float, Field(gt=0, le=60)] = 10.0
+    smtp_from_email: str | None = None
+    smtp_from_name: str = "ThreatSculpt"
+    #: Prove the relay accepts these credentials at boot rather than at the
+    #: first registration. A wrong password refuses the boot; an unreachable
+    #: relay logs CRITICAL and starts anyway. See ``auth.smtp.preflight``.
+    smtp_verify_on_start: bool = True
+    #: Public origin of the dashboard, used to build the verification link.
+    #: Required for SMTP delivery; must be https in production, because the link
+    #: carries a token that grants control of the account.
+    public_base_url: str | None = None
 
     # --- http -------------------------------------------------------------
     # NoDecode: pydantic-settings would otherwise try to JSON-parse a tuple

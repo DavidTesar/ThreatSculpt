@@ -19,11 +19,12 @@ import type { EnrollmentToken } from '@/types/domain';
  */
 export function EnrollmentTokenDialog({
   token,
-  agentName,
+  note,
   onClose,
 }: {
   token: EnrollmentToken | null;
-  agentName: string;
+  /** What the operator said this token was for. Not the agent's name — it has none yet. */
+  note: string;
   onClose: () => void;
 }) {
   const [acknowledged, setAcknowledged] = useState(false);
@@ -32,7 +33,7 @@ export function EnrollmentTokenDialog({
   const handleCopy = async () => {
     if (!token) return;
     try {
-      await navigator.clipboard.writeText(token.token);
+      await navigator.clipboard.writeText(token.enrollment_token);
       setCopied(true);
       window.setTimeout(() => setCopied(false), 2500);
     } catch {
@@ -53,7 +54,7 @@ export function EnrollmentTokenDialog({
       onClose={handleClose}
       dismissible={false}
       title="Copy this enrollment token now"
-      description={`This is the only time it will be shown. Once you close this dialog it cannot be retrieved — you would have to issue a new one for ${agentName}.`}
+      description={`This is the only time it will be shown. Once you close this dialog it cannot be retrieved — you would have to issue a new one for ${note}.`}
       footer={
         <Button variant="primary" disabled={!acknowledged} onClick={handleClose}>
           I have saved the token
@@ -73,7 +74,7 @@ export function EnrollmentTokenDialog({
       </div>
 
       <div className="tokenbox">
-        <code className="tokenbox__value">{token?.token}</code>
+        <code className="tokenbox__value">{token?.enrollment_token}</code>
         <Button size="sm" variant="secondary" onClick={() => void handleCopy()}>
           <Icon name={copied ? 'check' : 'copy'} size={13} />
           {copied ? 'Copied' : 'Copy'}
@@ -98,15 +99,23 @@ export function EnrollmentTokenDialog({
             lineHeight: 1.7,
           }}
         >
+          {/*
+            The agent takes no `--token` flag, and refuses to start if a credential
+            appears in argv at all: `ps` shows every argument to every user on the host.
+            The token arrives from the environment or from a 0600 file, and the agent's
+            name comes from its own config, not from this dialog.
+          */}
           <code>
-            threatsculpt-agent enroll \{'\n'}
-            {'  '}--token {token?.token ?? 'tse_…'} \{'\n'}
-            {'  '}--name {agentName}
+            install -m 600 /dev/null /var/lib/threatsculpt-agent/enrollment.token{'\n'}
+            printf %s &apos;{token?.enrollment_token ?? 'tse_…'}&apos; \{'\n'}
+            {'  '}&gt; /var/lib/threatsculpt-agent/enrollment.token{'\n'}
+            systemctl start threatsculpt-agent
           </code>
         </pre>
         <p className="field__hint" style={{ marginTop: 'var(--space-2xs)' }}>
           The agent trades this token for a permanent API key on first start and writes it to a file
-          readable only by its own service account.
+          readable only by its own service account. It reports its own name from
+          <code className="mono"> agent_name</code> in <code className="mono">agent.toml</code>.
         </p>
       </div>
 

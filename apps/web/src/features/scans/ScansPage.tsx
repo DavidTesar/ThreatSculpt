@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useForm } from 'react-hook-form';
@@ -14,12 +14,12 @@ import { SelectField, TextField } from '@/components/ui/Field';
 import { EmptyState, ErrorState, LoadingState } from '@/components/ui/States';
 import { TableWrap } from '@/components/ui/Table';
 import { useToast } from '@/components/ui/useToast';
-import { networksApi, scansApi, type ScanInput } from '@/lib/api/endpoints';
+import { agentsApi, networksApi, scansApi, type ScanCreate } from '@/lib/api/endpoints';
 import { queryKeys } from '@/lib/api/queryKeys';
 import { formatRelative } from '@/lib/format';
 import { messageFor } from '@/lib/api/ApiError';
 import { useAuth } from '@/auth/useAuth';
-import { SCAN_PROFILES, type ScanProfile } from '@/types/domain';
+import { SCAN_PROFILES, toScanProfile, toScanStatus, type ScanProfile } from '@/types/domain';
 
 /** Named constants only — "the API accepts a profile name, never raw nmap flags." */
 const PROFILE_COPY: Record<ScanProfile, { label: string; blurb: string; duration: string }> = {
@@ -42,6 +42,12 @@ const PROFILE_COPY: Record<ScanProfile, { label: string; blurb: string; duration
   },
 };
 
+/** `ScanJobOut.profile` is typed `str`, so the copy table is looked up defensively. */
+function profileLabel(profile: string): string {
+  const narrowed = toScanProfile(profile);
+  return narrowed ? PROFILE_COPY[narrowed].label : profile;
+}
+
 const schema = z.object({
   network_id: z.string().min(1, 'Choose a network to scan.'),
   target: z.string().min(1, 'Enter a target range.'),
@@ -55,7 +61,7 @@ function LaunchScanForm({
   onCancel,
   isSubmitting,
 }: {
-  onSubmit: (values: ScanInput) => void;
+  onSubmit: (values: ScanCreate) => void;
   onCancel: () => void;
   isSubmitting: boolean;
 }) {
@@ -199,8 +205,32 @@ export function ScansPage() {
     },
   });
 
+  /*
+   * A scan job carries `network_id` and `agent_id`, never their names. Both are resolved
+   * from the collections that own them rather than read off fields the API does not send.
+   */
+  const networksQuery = useQuery({
+    queryKey: queryKeys.networks.list(),
+    queryFn: ({ signal }) => networksApi.list(undefined, signal),
+    staleTime: 5 * 60_000,
+  });
+  const agentsQuery = useQuery({
+    queryKey: queryKeys.agents.list(),
+    queryFn: ({ signal }) => agentsApi.list(undefined, signal),
+    staleTime: 5 * 60_000,
+  });
+
+  const networkNames = useMemo(
+    () => new Map((networksQuery.data?.items ?? []).map((n) => [n.id, n.name] as const)),
+    [networksQuery.data],
+  );
+  const agentNames = useMemo(
+    () => new Map((agentsQuery.data?.items ?? []).map((a) => [a.id, a.name] as const)),
+    [agentsQuery.data],
+  );
+
   const createMutation = useMutation({
-    mutationFn: (values: ScanInput) => scansApi.create(values),
+    mutationFn: (values: ScanCreate) => scansApi.create(values),
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: queryKeys.scans.all });
       setIsLaunching(false);
@@ -253,12 +283,6 @@ export function ScansPage() {
                   <th scope="col">Target</th>
                   <th scope="col">Profile</th>
                   <th scope="col">Agent</th>
-                  <th scope="col" className="table__num">
-                    Hosts
-                  </th>
-                  <th scope="col" className="table__num">
-                    Findings
-                  </th>
                   <th scope="col">Started</th>
                 </tr>
               </thead>
@@ -266,8 +290,10 @@ export function ScansPage() {
                 {query.data.items.map((scan) => (
                   <tr key={scan.id}>
                     <td>
-                      <ScanStatusBadge status={scan.status} />
-                      {scan.status === 'running' && scan.progress_percent !== null ? (
+                      <ScanStatusBadge status={toScanStatus(scan.status)} />
+                      {scan.status === 'running' &&
+                      scan.progress_percent !== null &&
+                      scan.progress_percent !== undefined ? (
                         <div style={{ marginTop: 6, width: 88 }}>
                           <div
                             className="progressbar"
@@ -290,15 +316,13 @@ export function ScansPage() {
                         {scan.target}
                       </Link>
                       <div className="subtle" style={{ fontSize: 'var(--text-micro)' }}>
-                        {scan.network_name}
+                        {(scan.network_id ? networkNames.get(scan.network_id) : null) ?? '—'}
                       </div>
                     </td>
-                    <td>{PROFILE_COPY[scan.profile].label}</td>
-                    <td className="subtle" style={{ fontSize: 'var(--text-xs)' }}>
-                      {scan.agent_name ?? 'Awaiting claim'}
+                    <td>{profileLabel(scan.profile)}</td>
+                    <td className="subtle mono" style={{ fontSize: 'var(--text-xs)' }}>
+                      {(scan.agent_id ? agentNames.get(scan.agent_id) : null) ?? 'Awaiting claim'}
                     </td>
-                    <td className="table__num">{scan.hosts_discovered || '—'}</td>
-                    <td className="table__num">{scan.findings_created || '—'}</td>
                     <td className="subtle" style={{ fontSize: 'var(--text-xs)' }}>
                       {scan.started_at ? formatRelative(scan.started_at) : 'Not started'}
                     </td>

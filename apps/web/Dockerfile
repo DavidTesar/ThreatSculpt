@@ -23,8 +23,10 @@ FROM nginxinc/nginx-unprivileged:1.27-alpine
 COPY --from=builder /build/dist /usr/share/nginx/html
 COPY nginx.conf /etc/nginx/conf.d/default.conf
 # Not named *.conf: conf.d/*.conf is auto-included at http level by the base image's
-# nginx.conf, and this file is meant to be included explicitly, per location.
+# nginx.conf, and these files are meant to be included explicitly.
 COPY security-headers.inc /etc/nginx/conf.d/security-headers.inc
+# Replace this one file to point at a different control plane or a different resolver.
+COPY upstream.inc /etc/nginx/conf.d/upstream.inc
 
 EXPOSE 8080
 

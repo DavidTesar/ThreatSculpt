@@ -1,21 +1,27 @@
-"""Where an outbound message goes. Deliberately not wired to anything.
+"""Where an outbound message goes.
 
-This branch has no mail infrastructure, and inventing one is not what the
-verification work is for. So delivery is a seam: the verification state machine
-hands a finished message to an ``EmailSender`` and stops caring. Swapping in an
-SES/SendGrid/SMTP implementation is one class and one settings value, and
-touches nothing that decides whether an address is proved.
+Delivery is a seam: the verification state machine hands a finished message to
+an ``EmailSender`` and stops caring. Nothing that decides whether an address is
+proved knows how — or whether — a message travels.
 
-**Neither implementation here delivers mail.** ``NullEmailSender`` — the default,
-and what production gets until somebody wires a real one — records that a message
-was requested and drops it. That is a real operational gap and SECURITY.md says
-so in as many words; it is not a gap in the model, which enforces verification
-whether or not a message ever arrives.
+**One implementation here delivers mail, and two deliberately do not.**
+``SmtpEmailSender`` (``auth.smtp``, selected by ``TS_EMAIL_DELIVERY=smtp``) is
+the real one. ``NullEmailSender`` — still the default — records that a message
+was requested and drops it, and ``MemoryEmailSender`` retains it in-process for
+tests. Neither of those can onboard anybody, which is why
+``assert_email_delivery_is_usable`` refuses to boot on them: an account that
+never receives its message can never sign in.
+
+SMTP rather than a vendor SDK because one relay configuration reaches SES,
+SendGrid, Postmark, Mailgun and the corporate relay an enterprise customer will
+insist on. Picking a vendor's SDK would be betting on which one every future
+customer chooses.
 
 The token is never logged. A verification token is a credential that grants
 control of an account, so a sender that wrote it to the log stream would be a
 credential in the log stream, which is precisely what ``observability.logging``
-exists to prevent.
+exists to prevent. The verification *link* contains the token, so it is a
+credential too and is logged nowhere either.
 """
 
 from __future__ import annotations
@@ -23,6 +29,9 @@ from __future__ import annotations
 import logging
 from dataclasses import dataclass
 from typing import Protocol
+
+from threatsculpt.auth.smtp import build_smtp_sender
+from threatsculpt.config import Settings
 
 logger = logging.getLogger(__name__)
 
@@ -47,13 +56,23 @@ class EmailSender(Protocol):
     would turn somebody else's outage into a failed sign-up, and the account is
     perfectly valid without the message — it is simply unverified until one
     arrives.
+
+    ``close`` exists because a real sender owns sockets and threads: a delivery
+    mechanism that cannot be drained at shutdown loses whatever was in flight
+    when the process stopped. Implementations that own nothing implement it as a
+    no-op rather than leaving callers to guess whether it is there.
     """
 
     def send_verification(self, message: VerificationMessage) -> None: ...
 
+    def close(self) -> None: ...
+
 
 class NullEmailSender:
-    """Default. Logs that a message was wanted, delivers nothing, keeps nothing."""
+    """Logs that a message was wanted, delivers nothing, keeps nothing."""
+
+    def close(self) -> None:
+        """Owns nothing."""
 
     def send_verification(self, message: VerificationMessage) -> None:
         logger.warning(
@@ -81,6 +100,9 @@ class MemoryEmailSender:
     def __init__(self) -> None:
         self._messages: list[VerificationMessage] = []
 
+    def close(self) -> None:
+        """Owns nothing."""
+
     def send_verification(self, message: VerificationMessage) -> None:
         retained = [*self._messages, message][-MAX_RETAINED_MESSAGES:]
         self._messages = retained
@@ -97,10 +119,12 @@ class MemoryEmailSender:
         return None
 
 
-#: Delivery modes that actually put a message in front of a human. Empty today,
-#: which is the whole point of ``assert_email_delivery_is_usable``: an SMTP or
-#: provider implementation adds its name here and the refusal below stops firing.
-DELIVERING_MODES: frozenset[str] = frozenset()
+#: Delivery modes that actually put a message in front of a human. **This set is
+#: the whole of what ``assert_email_delivery_is_usable`` trusts**, so adding a
+#: name to it is a claim that the named sender delivers — the guard has no other
+#: way to tell. ``none`` and ``memory`` stay out of it because neither does, and
+#: a deployment on either can onboard nobody.
+DELIVERING_MODES: frozenset[str] = frozenset({"smtp"})
 
 ESCAPE_HATCH_ENV_VAR = "TS_ALLOW_UNDELIVERABLE_EMAIL"
 
@@ -113,9 +137,16 @@ def can_deliver(delivery: str) -> bool:
     return delivery in DELIVERING_MODES
 
 
-def build_email_sender(delivery: str) -> EmailSender:
-    """Resolve the configured sender. Unknown values fail closed, not open."""
-    if delivery == "memory":
+def build_email_sender(settings: Settings) -> EmailSender:
+    """Resolve the configured sender. Unknown values fail closed, not open.
+
+    Takes the whole ``Settings`` because a real sender needs a relay, a sender
+    address and a public origin, and because building it is where those are
+    validated — at boot, from ``create_app``, not on the first registration.
+    """
+    if settings.email_delivery == "smtp":
+        return build_smtp_sender(settings)
+    if settings.email_delivery == "memory":
         return MemoryEmailSender()
     return NullEmailSender()
 
@@ -128,9 +159,10 @@ def build_refusal_message(delivery: str) -> str:
         "with this configuration the first user is locked out the moment their "
         "registration session lapses, every invited colleague is locked out "
         "immediately, and the service can onboard nobody at all.\n\n"
-        "Wire a delivery mechanism: implement EmailSender in "
-        "threatsculpt/auth/delivery.py, add its name to DELIVERING_MODES, and set "
-        "TS_EMAIL_DELIVERY to it.\n\n"
+        "Set TS_EMAIL_DELIVERY=smtp and configure the relay: TS_SMTP_HOST, "
+        "TS_SMTP_PORT, TS_SMTP_TLS, TS_SMTP_USERNAME, TS_SMTP_PASSWORD, "
+        "TS_SMTP_FROM_EMAIL and TS_PUBLIC_BASE_URL. Any SMTP relay works — SES, "
+        "SendGrid, Postmark, Mailgun, or your own.\n\n"
         f"To run without delivery anyway — local development and tests only — set "
         f"{ESCAPE_HATCH_ENV_VAR}=1. Never set it in a deployed environment: it "
         "does not make verification work, it only stops this message."

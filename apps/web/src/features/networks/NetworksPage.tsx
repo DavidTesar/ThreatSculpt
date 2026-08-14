@@ -10,9 +10,8 @@ import { EmptyState, ErrorState, LoadingState } from '@/components/ui/States';
 import { TableWrap } from '@/components/ui/Table';
 import { useToast } from '@/components/ui/useToast';
 import { NetworkForm } from './NetworkForm';
-import { networksApi, type NetworkInput } from '@/lib/api/endpoints';
+import { networksApi, type NetworkCreate } from '@/lib/api/endpoints';
 import { queryKeys } from '@/lib/api/queryKeys';
-import { formatNumber } from '@/lib/format';
 import { messageFor } from '@/lib/api/ApiError';
 import { useAuth } from '@/auth/useAuth';
 import type { Network } from '@/types/domain';
@@ -37,7 +36,7 @@ export function NetworksPage() {
   };
 
   const createMutation = useMutation({
-    mutationFn: (values: NetworkInput) => networksApi.create(values),
+    mutationFn: (values: NetworkCreate) => networksApi.create(values),
     onSuccess: () => {
       invalidate();
       setIsCreating(false);
@@ -47,7 +46,7 @@ export function NetworksPage() {
   });
 
   const updateMutation = useMutation({
-    mutationFn: ({ id, values }: { id: string; values: NetworkInput }) =>
+    mutationFn: ({ id, values }: { id: string; values: NetworkCreate }) =>
       networksApi.update(id, values),
     onSuccess: () => {
       invalidate();
@@ -130,9 +129,6 @@ export function NetworksPage() {
                   <th scope="col">CIDR</th>
                   <th scope="col">Scanning</th>
                   <th scope="col">Authorization record</th>
-                  <th scope="col" className="table__num">
-                    Assets
-                  </th>
                   {can('analyst') ? (
                     <th scope="col">
                       <span className="visually-hidden">Actions</span>
@@ -155,7 +151,6 @@ export function NetworksPage() {
                         <em>{network.authorized ? 'No record captured' : '—'}</em>
                       )}
                     </td>
-                    <td className="table__num">{formatNumber(network.asset_count)}</td>
                     {can('analyst') ? (
                       <td>
                         <div className="row" style={{ justifyContent: 'flex-end' }}>

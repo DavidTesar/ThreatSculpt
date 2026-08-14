@@ -3,33 +3,45 @@ import { Link } from 'react-router-dom';
 import { keepPreviousData, useQuery } from '@tanstack/react-query';
 import { PageHeader } from '@/components/layout/PageHeader';
 import { Card } from '@/components/ui/Card';
-import { SelectField, TextField } from '@/components/ui/Field';
+import { SelectField } from '@/components/ui/Field';
 import { CheckboxField } from '@/components/ui/Field';
 import { Button, ButtonLink } from '@/components/ui/Button';
 import { Icon } from '@/components/ui/Icon';
 import { SeverityBadge } from '@/components/ui/SeverityMark';
-import { ExposureBadge, FindingStatusBadge, KevBadge } from '@/components/ui/Badge';
+import { Badge, ExposureBadge, FindingStatusBadge, KevBadge } from '@/components/ui/Badge';
 import { EmptyState, ErrorState, LoadingState } from '@/components/ui/States';
-import { Pagination, SortableHeader, TableWrap } from '@/components/ui/Table';
-import { toggleSort } from '@/components/ui/sorting';
+import { Pagination, TableWrap } from '@/components/ui/Table';
 import { useFilterParams } from '@/hooks/useFilterParams';
 import { findingsApi, businessServicesApi } from '@/lib/api/endpoints';
 import { queryKeys } from '@/lib/api/queryKeys';
 import { formatRelative, formatScore } from '@/lib/format';
 import { FINDING_STATUSES, SEVERITIES } from '@/types/domain';
-import { FINDING_STATUS_LABEL, SEVERITY_LABEL } from '@/lib/risk';
-import type { FindingStatus, Severity } from '@/types/domain';
+import {
+  FINDING_STATUS_LABEL,
+  MATCH_CONFIDENCE_LABEL,
+  MATCH_CONFIDENCE_TONE,
+  SEVERITY_LABEL,
+} from '@/lib/risk';
+import { toExposure, toSeverity } from '@/types/domain';
+import type { FindingStatus, MatchConfidence, Severity } from '@/types/domain';
 
+/*
+ * Only filters `/findings` actually accepts.
+ *
+ * `q`, `sort` and `order` used to live here and were sent on every request; the endpoint
+ * has never read any of them, so the search box filtered nothing and the sortable headers
+ * reordered nothing. Results come back sorted by business risk, descending, which is the
+ * product's whole ordering claim — see API.md, "sort by `business_risk_score` desc
+ * default".
+ */
 const DEFAULTS = {
   status: 'open',
   severity: '',
   service_id: '',
   asset_id: '',
   kev_only: '',
-  sort: 'business_risk_score',
-  order: 'desc',
+  min_confidence: '',
   page: '1',
-  q: '',
 };
 
 const STATUS_OPTIONS = [
@@ -40,6 +52,17 @@ const STATUS_OPTIONS = [
 const SEVERITY_OPTIONS = [
   { value: '', label: 'Any severity' },
   ...SEVERITIES.map((severity) => ({ value: severity, label: SEVERITY_LABEL[severity] })),
+];
+
+/**
+ * "Show me only what you are sure about" is the first question a sceptical analyst asks,
+ * and the API answers it — this filter is `min_confidence`, which the client never sent.
+ */
+const CONFIDENCE_OPTIONS = [
+  { value: '', label: 'Any confidence' },
+  { value: 'high', label: 'High only' },
+  { value: 'medium', label: 'Medium and above' },
+  { value: 'low', label: 'Low and above' },
 ];
 
 export function FindingsPage() {
@@ -58,8 +81,7 @@ export function FindingsPage() {
       service_id: values.service_id || undefined,
       asset_id: values.asset_id || undefined,
       kev_only: values.kev_only === 'true' ? true : undefined,
-      sort: values.sort,
-      order: values.order as 'asc' | 'desc',
+      min_confidence: (values.min_confidence || undefined) as MatchConfidence | undefined,
       page: Number(values.page) || 1,
       per_page: 50,
     }),
@@ -73,14 +95,6 @@ export function FindingsPage() {
     // not flash an empty body and shift the layout.
     placeholderData: keepPreviousData,
   });
-
-  const sort = { key: values.sort, order: values.order as 'asc' | 'desc' };
-
-  const handleSort = (key: string) => {
-    const next = toggleSort(sort, key);
-    setValue('sort', next.key);
-    setValue('order', next.order);
-  };
 
   const serviceOptions = [
     { value: '', label: 'Any service' },
@@ -100,15 +114,6 @@ export function FindingsPage() {
 
       <Card>
         <div className="toolbar">
-          <div className="toolbar__grow">
-            <TextField
-              label="Search"
-              placeholder="Filter by CVE, host, or IP"
-              value={values.q}
-              onChange={(event) => setValue('q', event.target.value)}
-            />
-          </div>
-
           <SelectField
             label="Status"
             options={STATUS_OPTIONS}
@@ -128,6 +133,13 @@ export function FindingsPage() {
             options={serviceOptions}
             value={values.service_id}
             onChange={(event) => setValue('service_id', event.target.value)}
+          />
+
+          <SelectField
+            label="Match confidence"
+            options={CONFIDENCE_OPTIONS}
+            value={values.min_confidence}
+            onChange={(event) => setValue('min_confidence', event.target.value)}
           />
 
           <div style={{ paddingBottom: 8 }}>
@@ -176,47 +188,27 @@ export function FindingsPage() {
             <TableWrap>
               <table className="table table--rowlink">
                 <caption className="visually-hidden">
-                  Findings, sorted by {sort.key.replace(/_/g, ' ')} {sort.order}ending.
+                  Findings, highest business risk first.
                 </caption>
                 <thead>
                   <tr>
-                    <SortableHeader
-                      label="Risk"
-                      sortKey="business_risk_score"
-                      sort={sort}
-                      onSort={handleSort}
-                      numeric
-                      width="86px"
-                    />
-                    <SortableHeader
-                      label="Severity"
-                      sortKey="severity"
-                      sort={sort}
-                      onSort={handleSort}
-                      width="130px"
-                    />
-                    <SortableHeader label="CVE" sortKey="cve_id" sort={sort} onSort={handleSort} />
-                    <SortableHeader
-                      label="Asset"
-                      sortKey="asset_ip"
-                      sort={sort}
-                      onSort={handleSort}
-                    />
-                    <th scope="col">Business services</th>
-                    <SortableHeader
-                      label="Status"
-                      sortKey="status"
-                      sort={sort}
-                      onSort={handleSort}
-                      width="120px"
-                    />
-                    <SortableHeader
-                      label="Last seen"
-                      sortKey="last_seen_at"
-                      sort={sort}
-                      onSort={handleSort}
-                      width="110px"
-                    />
+                    <th scope="col" className="table__num" style={{ width: '86px' }}>
+                      Risk
+                    </th>
+                    <th scope="col" style={{ width: '130px' }}>
+                      Severity
+                    </th>
+                    <th scope="col">CVE</th>
+                    <th scope="col">Asset</th>
+                    <th scope="col" style={{ width: '110px' }}>
+                      Match
+                    </th>
+                    <th scope="col" style={{ width: '120px' }}>
+                      Status
+                    </th>
+                    <th scope="col" style={{ width: '110px' }}>
+                      Last seen
+                    </th>
                   </tr>
                 </thead>
                 <tbody>
@@ -228,45 +220,33 @@ export function FindingsPage() {
                         </strong>
                       </td>
                       <td>
-                        <SeverityBadge severity={finding.severity} />
+                        <SeverityBadge severity={toSeverity(finding.cve.severity)} />
                       </td>
                       <td>
                         <Link to={`/findings/${finding.id}`} className="rowlink mono">
-                          {finding.cve_id}
+                          {finding.cve.cve_id}
                         </Link>
-                        {finding.kev_listed ? (
+                        {finding.cve.kev_listed ? (
                           <div style={{ marginTop: 4 }}>
                             <KevBadge />
                           </div>
                         ) : null}
                       </td>
                       <td>
-                        <Link to={`/assets/${finding.asset_id}`} className="rowlink">
-                          {finding.asset_hostname ?? finding.asset_ip}
+                        <Link to={`/assets/${finding.asset.id}`} className="rowlink">
+                          {finding.asset.hostname ?? finding.asset.ip}
                         </Link>
                         <div className="subtle mono" style={{ fontSize: 'var(--text-micro)' }}>
-                          {finding.asset_ip}
-                          {finding.port ? `:${finding.port}` : ''}
-                          {finding.product ? ` · ${finding.product}` : ''}
+                          {finding.asset.ip}
                         </div>
                         <div style={{ marginTop: 4 }}>
-                          <ExposureBadge exposure={finding.exposure} />
+                          <ExposureBadge exposure={toExposure(finding.asset.exposure)} />
                         </div>
                       </td>
                       <td>
-                        {finding.services_affected.length === 0 ? (
-                          <span className="subtle" style={{ fontSize: 'var(--text-xs)' }}>
-                            Not mapped
-                          </span>
-                        ) : (
-                          <div className="row row--wrap" style={{ gap: 'var(--space-2xs)' }}>
-                            {finding.services_affected.map((name) => (
-                              <span className="chip" key={name}>
-                                {name}
-                              </span>
-                            ))}
-                          </div>
-                        )}
+                        <Badge tone={MATCH_CONFIDENCE_TONE[finding.match.confidence]}>
+                          {MATCH_CONFIDENCE_LABEL[finding.match.confidence]}
+                        </Badge>
                       </td>
                       <td>
                         <FindingStatusBadge status={finding.status} />

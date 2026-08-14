@@ -425,6 +425,18 @@
   border-color: var(--sev-none-border);
 }
 
+/*
+ * The API sent no severity, or one this build does not recognise. Deliberately
+ * unstyled-looking and carries no severity glyph: "we do not know" must not read as
+ * "not severe".
+ */
+.sev--unrated {
+  color: var(--ink-muted);
+  background: transparent;
+  border-color: var(--line);
+  border-style: dashed;
+}
+
 .sevmark {
   flex-shrink: 0;
 }

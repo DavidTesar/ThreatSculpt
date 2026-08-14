@@ -56,6 +56,13 @@ export function AssetsPage() {
     placeholderData: keepPreviousData,
   });
 
+  // `AssetOut` carries `network_id`, never a network name, so the name is resolved from
+  // the networks this page already loads for its filter rather than invented on the row.
+  const networkNames = useMemo(() => {
+    const entries = (networksQuery.data?.items ?? []).map((n) => [n.id, n.name] as const);
+    return new Map<string, string>(entries);
+  }, [networksQuery.data]);
+
   return (
     <main className="main" id="main">
       <PageHeader
@@ -168,7 +175,7 @@ export function AssetsPage() {
                         </div>
                       </td>
                       <td className="subtle" style={{ fontSize: 'var(--text-xs)' }}>
-                        {asset.network_name ?? '—'}
+                        {(asset.network_id ? networkNames.get(asset.network_id) : null) ?? '—'}
                       </td>
                       <td>
                         <ExposureBadge exposure={asset.exposure} />
@@ -177,14 +184,14 @@ export function AssetsPage() {
                         {asset.os_family ? `${asset.os_family} ${asset.os_version ?? ''}` : '—'}
                       </td>
                       <td>
-                        {asset.services.length === 0 ? (
+                        {(asset.services ?? []).length === 0 ? (
                           <span className="chip" style={{ color: 'var(--warn)' }}>
                             <Icon name="alert" size={10} />
                             Not mapped
                           </span>
                         ) : (
                           <div className="row row--wrap" style={{ gap: 'var(--space-2xs)' }}>
-                            {asset.services.map((service) => (
+                            {(asset.services ?? []).map((service) => (
                               <span className="chip" key={service.id}>
                                 {service.name}
                               </span>
@@ -194,7 +201,7 @@ export function AssetsPage() {
                       </td>
                       <td className="table__num">{asset.open_findings}</td>
                       <td className="table__num">
-                        <strong>{formatScore(asset.max_business_risk_score)}</strong>
+                        <strong>{formatScore(asset.worst_finding_score)}</strong>
                       </td>
                       <td className="subtle" style={{ fontSize: 'var(--text-xs)' }}>
                         {formatRelative(asset.last_seen_at)}

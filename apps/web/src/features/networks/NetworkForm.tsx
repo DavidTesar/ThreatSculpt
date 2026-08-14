@@ -4,7 +4,7 @@ import { z } from 'zod';
 import { TextField, TextAreaField, CheckboxField } from '@/components/ui/Field';
 import { Button } from '@/components/ui/Button';
 import { Icon } from '@/components/ui/Icon';
-import type { NetworkInput } from '@/lib/api/endpoints';
+import type { NetworkCreate } from '@/lib/api/endpoints';
 import type { Network } from '@/types/domain';
 
 /**
@@ -40,7 +40,7 @@ export function NetworkForm({
   isSubmitting,
 }: {
   initial?: Network;
-  onSubmit: (values: NetworkInput) => void;
+  onSubmit: (values: NetworkCreate) => void;
   onCancel: () => void;
   isSubmitting: boolean;
 }) {

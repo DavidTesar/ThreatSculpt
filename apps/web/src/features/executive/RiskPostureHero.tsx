@@ -1,10 +1,7 @@
-import { Area, AreaChart, ResponsiveContainer, Tooltip, YAxis } from 'recharts';
-import { ChartTable } from '@/components/charts/ChartTable';
 import { SeverityMark } from '@/components/ui/SeverityMark';
 import { Icon } from '@/components/ui/Icon';
 import { BAND_LABEL, BAND_NARRATIVE, bandToSeverity } from '@/lib/risk';
-import { formatDate } from '@/lib/format';
-import type { RiskPosture } from '@/types/domain';
+import { toRiskBand, type RiskPosture } from '@/types/domain';
 
 /**
  * The headline. One number, what it means in a sentence, and whether it is moving the
@@ -12,9 +9,15 @@ import type { RiskPosture } from '@/types/domain';
  *
  * A falling score is an improvement, so the trend is labelled "improving" / "worsening"
  * rather than shown as a bare signed number that the reader has to interpret.
+ *
+ * There is no sparkline. `GET /dashboard/executive` returns `score`, `trend_30d` and
+ * `band` — it has never returned a daily series, so the chart that used to sit here was
+ * plotting `undefined` and rendering an empty box. Restoring it means the control plane
+ * returning the samples first.
  */
 export function RiskPostureHero({ posture }: { posture: RiskPosture }) {
-  const severity = bandToSeverity(posture.band);
+  const band = toRiskBand(posture.band);
+  const severity = band ? bandToSeverity(band) : 'none';
   const improving = posture.trend_30d < 0;
   const flat = posture.trend_30d === 0;
 
@@ -38,10 +41,14 @@ export function RiskPostureHero({ posture }: { posture: RiskPosture }) {
 
         <p className={`hero__band hero__band--${severity}`}>
           <SeverityMark severity={severity} size={14} />
-          {BAND_LABEL[posture.band]}
+          {band ? BAND_LABEL[band] : 'Unrated'}
         </p>
 
-        <p className="hero__narrative">{BAND_NARRATIVE[posture.band]}</p>
+        <p className="hero__narrative">
+          {band
+            ? BAND_NARRATIVE[band]
+            : 'This score has not been placed in a band this version of the dashboard recognises.'}
+        </p>
 
         <p className={`hero__trend hero__trend--${flat ? 'flat' : improving ? 'good' : 'bad'}`}>
           <Icon name={flat ? 'arrow-right' : improving ? 'arrow-down' : 'arrow-up'} size={15} />
@@ -51,53 +58,6 @@ export function RiskPostureHero({ posture }: { posture: RiskPosture }) {
             {trendLabel}.
           </span>
         </p>
-      </div>
-
-      <div className="hero__chart">
-        <p className="hero__chartlabel">30-day trend</p>
-        <div
-          className="hero__chartbox"
-          role="img"
-          aria-label={`Risk posture over the last 30 days. ${trendLabel}. Currently ${posture.score} out of 100.`}
-        >
-          <ResponsiveContainer width="100%" height="100%">
-            <AreaChart data={posture.history} margin={{ top: 4, right: 0, bottom: 0, left: 0 }}>
-              <defs>
-                <linearGradient id="postureFill" x1="0" y1="0" x2="0" y2="1">
-                  <stop offset="0%" stopColor="var(--chart-area-from)" />
-                  <stop offset="100%" stopColor="var(--chart-area-to)" />
-                </linearGradient>
-              </defs>
-              <YAxis domain={[0, 100]} hide />
-              <Tooltip
-                contentStyle={{
-                  background: 'var(--surface-raised)',
-                  border: '1px solid var(--line-strong)',
-                  borderRadius: 8,
-                  fontSize: 12,
-                  color: 'var(--ink)',
-                }}
-                labelStyle={{ color: 'var(--ink-muted)' }}
-                formatter={(value: number) => [`${value} / 100`, 'Risk posture']}
-              />
-              <Area
-                type="monotone"
-                dataKey="score"
-                stroke="var(--chart-line)"
-                strokeWidth={2}
-                fill="url(#postureFill)"
-                isAnimationActive={false}
-              />
-            </AreaChart>
-          </ResponsiveContainer>
-        </div>
-
-        <ChartTable
-          summary="View trend as a table"
-          caption="Risk posture sampled daily, oldest first."
-          headers={['Date', 'Score']}
-          rows={posture.history.map((point) => [formatDate(point.date), point.score])}
-        />
       </div>
     </section>
   );

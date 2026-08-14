@@ -1,0 +1,40 @@
+# Gitleaks configuration.
+#
+# The default ruleset is inherited in full and then narrowed. Nothing here disables a
+# rule, lowers a severity, or excludes a source directory — the only entries are
+# specific, justified false positives, each one anchored tightly enough that a real
+# credential in the same file would still be caught.
+#
+# The bar for adding an entry: the value must be provably not a credential (a literal
+# in a test that asserts about redaction, a documented placeholder), and the path and
+# regex must both be narrow. "This file has a lot of noise" is not a reason; fix the
+# file instead. A broad exclusion here silently re-creates the defect this project
+# exists to correct — v1 leaked live MongoDB and vendor API keys into a public
+# repository, and a permissive scanner config is how that goes unnoticed a second time.
+
+[extend]
+useDefault = true
+
+[[rules]]
+# Keep the default generic-api-key rule, but let it ignore the fake credentials used
+# by the agent's log-redaction tests.
+id = "generic-api-key"
+
+  [rules.allowlist]
+  # Scoped to the one test module that must contain credential-shaped strings: it
+  # asserts that `redact()` removes them from log output, so the literals are the
+  # subject under test. They are obviously synthetic (`tsa_abc123DEF-456`), and the
+  # regex below matches only that shape — a genuine key pasted into this file would
+  # not match and would still fail the scan.
+  paths = ['''apps/scan-agent/tests/test_cli\.py''']
+  regexes = ['''ts[aev]_[a-zA-Z0-9_-]{0,24}''']
+
+[allowlist]
+description = "Repository-wide allowlist"
+# Lockfiles carry package integrity hashes, which are high-entropy by construction and
+# are not secrets. Restricted to the hash fields rather than the whole file.
+regexes = [
+  '''sha512-[A-Za-z0-9+/=]{40,}''',
+  '''sha256-[A-Za-z0-9+/=]{40,}''',
+  '''--hash=sha256:[a-f0-9]{64}''',
+]

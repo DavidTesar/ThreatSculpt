@@ -4,6 +4,10 @@
 #
 #    pip-compile --extra=dev --generate-hashes --output-file=requirements-dev.lock --strip-extras pyproject.toml
 #
+aiosmtpd==1.4.6 \
+    --hash=sha256:5a811826e1a5a06c25ebc3e6c4a704613eb9a1bcf6b78428fbe865f4f6c9a4b8 \
+    --hash=sha256:72c99179ba5aa9ae0abbda6994668239b64a5ce054471955fe75f581d2592475
+    # via threatsculpt-control-plane (pyproject.toml)
 alembic==1.19.1 \
     --hash=sha256:b39018cb3d9413a19cbd54cf3c02ad33998641f0538eb77413a488a21c3e14be \
     --hash=sha256:e0fca0518118c78acc493e31bcb5402f190057aaf6df8b5b95ce94c4789cf648
@@ -114,6 +118,14 @@ ast-serialize==0.8.0 \
     --hash=sha256:fdc0d5b18ff8fb364e87923e47c0a91d0d69dbcaeaa274591f7fd26892cc3a3a \
     --hash=sha256:ffa5e7cb08f96fed9121f77b224151e41caf88feab9d652bb46c78202b6fbeda
     # via mypy
+atpublic==7.0.0 \
+    --hash=sha256:466ef10d0c8bbd14fd02a5fbd5a8b6af6a846373d91106d3a07c16d72d96b63e \
+    --hash=sha256:6702bd9e7245eb4e8220a3e222afcef7f87412154732271ee7deee4433b72b4b
+    # via aiosmtpd
+attrs==26.1.0 \
+    --hash=sha256:c647aa4a12dfbad9333ca4e71fe62ddc36f4e63b2d260a37a8b83d2f043ac309 \
+    --hash=sha256:d03ceb89cb322a8fd706d4fb91940737b6642aa36998fe130a9bc96c985eff32
+    # via aiosmtpd
 certifi==2026.7.22 \
     --hash=sha256:62f22742b58a1a33014a2b6b706588a8d7e2a88ae7bd1a6ebe8c992928483775 \
     --hash=sha256:741e2c3b351ddf169a738da9f2c048608ff7f2c5cc02f1ebc6b118bb090d5d55

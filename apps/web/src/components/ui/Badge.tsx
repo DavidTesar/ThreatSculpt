@@ -35,7 +35,12 @@ export function KevBadge({ dueDate }: { dueDate?: string | null }) {
   );
 }
 
-export function ExposureBadge({ exposure }: { exposure: Exposure }) {
+/** `exposure` is `null` when the API sent a tier this build does not recognise. */
+export function ExposureBadge({ exposure }: { exposure: Exposure | null }) {
+  if (exposure === null) {
+    return <span className="chip subtle">Position unknown</span>;
+  }
+
   return (
     <span className="chip" style={{ color: `var(--exp-${exposure})`, borderColor: 'currentColor' }}>
       <Icon name={exposure === 'internet' ? 'unlock' : 'lock'} size={11} />
@@ -77,7 +82,10 @@ const SCAN_STATUS_LABEL: Record<ScanStatus, string> = {
   cancelled: 'Cancelled',
 };
 
-export function ScanStatusBadge({ status }: { status: ScanStatus }) {
+/** `status` is `null` when the API sent a state this build does not recognise. */
+export function ScanStatusBadge({ status }: { status: ScanStatus | null }) {
+  if (status === null) return <Badge tone="neutral">Unknown</Badge>;
+
   const isLive = status === 'running' || status === 'claimed';
   return (
     <Badge tone={SCAN_STATUS_TONE[status]}>

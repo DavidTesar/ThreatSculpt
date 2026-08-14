@@ -7,16 +7,16 @@ import {
   formatRelative,
   formatScore,
   initialsFor,
-  parseMoney,
+  parseDecimal,
   pluralize,
 } from './format';
 
 describe('money formatting', () => {
   it('parses the numeric(14,2) string the API sends', () => {
-    expect(parseMoney('4200000.00')).toBe(4200000);
-    expect(parseMoney(null)).toBeNull();
-    expect(parseMoney('')).toBeNull();
-    expect(parseMoney('not-money')).toBeNull();
+    expect(parseDecimal('4200000.00')).toBe(4200000);
+    expect(parseDecimal(null)).toBeNull();
+    expect(parseDecimal('')).toBeNull();
+    expect(parseDecimal('not-money')).toBeNull();
   });
 
   it('formats full currency without cents', () => {

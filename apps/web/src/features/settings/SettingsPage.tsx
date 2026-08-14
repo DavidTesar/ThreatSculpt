@@ -19,12 +19,22 @@ import { formatRelative, initialsFor } from '@/lib/format';
 import { messageFor } from '@/lib/api/ApiError';
 import { ROLE_DESCRIPTION, ROLE_LABEL, ROLE_OPTIONS } from '@/auth/roles';
 import { useAuth } from '@/auth/useAuth';
-import { ROLES, type Role, type User } from '@/types/domain';
+import { ROLES, toRole, type AdminUser, type Role } from '@/types/domain';
 
+/**
+ * `POST /users` mints the account outright and **requires a password** — there is no
+ * invitation-email flow behind it, and this form used to send no password at all. The
+ * admin sets an initial credential and passes it on; the new account starts unverified,
+ * exactly like a self-service sign-up.
+ */
 const schema = z.object({
   full_name: z.string().min(2, 'Enter their full name.').max(120),
   email: z.string().min(1, 'Enter their email address.').email('Enter a valid email address.'),
   role: z.enum(ROLES),
+  password: z
+    .string()
+    .min(12, 'Use at least 12 characters.')
+    .max(256, 'Use at most 256 characters.'),
 });
 
 type InviteValues = z.infer<typeof schema>;
@@ -35,11 +45,11 @@ export function SettingsPage() {
   const queryClient = useQueryClient();
 
   const [isInviting, setIsInviting] = useState(false);
-  const [removing, setRemoving] = useState<User | null>(null);
+  const [removing, setRemoving] = useState<AdminUser | null>(null);
 
   const query = useQuery({
     queryKey: queryKeys.users.list(),
-    queryFn: ({ signal }) => usersApi.list(signal),
+    queryFn: ({ signal }) => usersApi.list(undefined, signal),
   });
 
   const {
@@ -49,7 +59,7 @@ export function SettingsPage() {
     formState: { errors },
   } = useForm<InviteValues>({
     resolver: zodResolver(schema),
-    defaultValues: { full_name: '', email: '', role: 'viewer' },
+    defaultValues: { full_name: '', email: '', role: 'viewer', password: '' },
   });
 
   const inviteMutation = useMutation({
@@ -58,7 +68,10 @@ export function SettingsPage() {
       void queryClient.invalidateQueries({ queryKey: queryKeys.users.all });
       setIsInviting(false);
       resetForm();
-      notify('Invitation sent.', 'success');
+      notify(
+        'Account created. Share the password you set — they can change it after signing in.',
+        'success',
+      );
     },
     onError: (error) => notify(messageFor(error), 'error'),
   });
@@ -67,8 +80,9 @@ export function SettingsPage() {
     mutationFn: ({ id, role }: { id: string; role: Role }) => usersApi.update(id, { role }),
     onSuccess: (updated) => {
       void queryClient.invalidateQueries({ queryKey: queryKeys.users.all });
+      const role = toRole(updated.role);
       notify(
-        `${updated.full_name ?? updated.email} is now ${ROLE_LABEL[updated.role]}.`,
+        `${updated.full_name ?? updated.email} is now ${role ? ROLE_LABEL[role] : updated.role}.`,
         'success',
       );
     },
@@ -97,7 +111,7 @@ export function SettingsPage() {
         actions={
           <Button variant="primary" onClick={() => setIsInviting(true)}>
             <Icon name="plus" size={15} />
-            Invite user
+            Add user
           </Button>
         }
       />
@@ -201,11 +215,21 @@ export function SettingsPage() {
                           ) : null}
                         </td>
                         <td>
-                          {user.status === 'active' ? (
-                            <Badge tone="ok">Active</Badge>
-                          ) : (
-                            <Badge tone="neutral">Disabled</Badge>
-                          )}
+                          {/*
+                            `locked` and `verified` come back on every directory row, and
+                            they are the two reasons a colleague cannot sign in. Showing
+                            only `status` left an admin with no way to know which lever to
+                            pull.
+                          */}
+                          <div className="row row--wrap" style={{ gap: 'var(--space-2xs)' }}>
+                            {user.status === 'active' ? (
+                              <Badge tone="ok">Active</Badge>
+                            ) : (
+                              <Badge tone="neutral">Disabled</Badge>
+                            )}
+                            {user.locked ? <Badge tone="danger">Locked out</Badge> : null}
+                            {user.verified ? null : <Badge tone="warn">Unverified</Badge>}
+                          </div>
                         </td>
                         <td className="subtle" style={{ fontSize: 'var(--text-xs)' }}>
                           {formatRelative(user.last_login_at)}
@@ -250,8 +274,8 @@ export function SettingsPage() {
       <Dialog
         open={isInviting}
         onClose={() => setIsInviting(false)}
-        title="Invite a user"
-        description="They will receive an email to set their own password. Grant the least role that lets them do their job."
+        title="Add a user"
+        description="You set their initial password and pass it on; they can change it once signed in. Grant the least role that lets them do their job."
         footer={null}
       >
         <form
@@ -279,13 +303,22 @@ export function SettingsPage() {
             error={errors.role?.message}
             {...register('role')}
           />
+          <TextField
+            label="Initial password"
+            type="password"
+            autoComplete="new-password"
+            required
+            hint="At least 12 characters. Share it with them out of band; they can change it once signed in."
+            error={errors.password?.message}
+            {...register('password')}
+          />
 
           <div className="row" style={{ justifyContent: 'flex-end' }}>
             <Button variant="ghost" type="button" onClick={() => setIsInviting(false)}>
               Cancel
             </Button>
             <Button variant="primary" type="submit" loading={inviteMutation.isPending}>
-              Send invitation
+              Create account
             </Button>
           </div>
         </form>

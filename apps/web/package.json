@@ -16,7 +16,11 @@
     "lint": "eslint .",
     "lint:fix": "eslint . --fix",
     "format": "prettier --write \"src/**/*.{ts,tsx,css}\"",
-    "format:check": "prettier --check \"src/**/*.{ts,tsx,css}\""
+    "format:check": "prettier --check \"src/**/*.{ts,tsx,css}\"",
+    "openapi:dump": "../control-plane/.venv/bin/python scripts/dump_openapi.py",
+    "openapi:types": "node scripts/generate-types.mjs && prettier --write src/lib/api/schema.gen.ts",
+    "openapi": "npm run openapi:dump && npm run openapi:types",
+    "openapi:check": "npm run openapi && git add --intent-to-add openapi.json src/lib/api/schema.gen.ts && git diff --exit-code -- openapi.json src/lib/api/schema.gen.ts"
   },
   "dependencies": {
     "@hookform/resolvers": "^3.9.1",
@@ -45,7 +49,8 @@
     "globals": "^15.13.0",
     "jsdom": "^25.0.1",
     "msw": "^2.7.0",
-    "prettier": "^3.4.2",
+    "openapi-typescript": "7.13.0",
+    "prettier": "3.9.6",
     "typescript": "^5.7.2",
     "typescript-eslint": "^8.18.0",
     "vite": "^6.0.3",

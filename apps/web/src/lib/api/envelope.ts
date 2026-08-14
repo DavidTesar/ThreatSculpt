@@ -4,21 +4,19 @@
  *   { "data": <payload>, "error": null, "meta": { page, per_page, total } }
  *
  * `meta` is present only on paginated collections.
+ *
+ * The envelope is generic over the payload, so `Envelope[T]` appears in the schema
+ * once per payload type rather than as one reusable shape. The two parts that *are*
+ * one shape — the pagination meta and the error body — are aliased from the
+ * generated types below; the union arms are the generic structure around them.
  */
 
-export interface PaginationMeta {
-  page: number;
-  per_page: number;
-  total: number;
-}
+import type { components } from './schema.gen';
+
+export type PaginationMeta = components['schemas']['PageMeta'];
 
 /** Error body — a stable machine-readable code, never a stack trace (API.md, rule 3). */
-export interface ApiErrorBody {
-  code: ApiErrorCode;
-  message: string;
-  /** Set when the error is attributable to one input field. */
-  field?: string | null;
-}
+export type ApiErrorBody = components['schemas']['ErrorBody'];
 
 export interface ApiEnvelope<T> {
   data: T;

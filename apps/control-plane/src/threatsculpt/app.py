@@ -7,6 +7,7 @@ from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 from datetime import timedelta
 
+from anyio import to_thread
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
@@ -15,7 +16,11 @@ from threatsculpt.api.limits import AUTH_LIMITER_ATTR, GENERAL_LIMITER_ATTR
 from threatsculpt.api.middleware import RequestContextMiddleware
 from threatsculpt.api.router import api_router
 from threatsculpt.api.routes import health
-from threatsculpt.auth.delivery import assert_email_delivery_is_usable, build_email_sender
+from threatsculpt.auth.delivery import (
+    EmailSender,
+    assert_email_delivery_is_usable,
+    build_email_sender,
+)
 from threatsculpt.config import Settings, get_settings
 from threatsculpt.db.engine import build_engine, build_session_factory
 from threatsculpt.db.privileges import assert_database_role_is_unprivileged
@@ -69,7 +74,12 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     assert_email_delivery_is_usable(
         resolved.email_delivery, allow_undeliverable=resolved.allow_undeliverable_email
     )
-    app.state.email_sender = build_email_sender(resolved.email_delivery)
+    # Building the sender is also where its configuration is validated and,
+    # for SMTP, where the relay is asked whether it accepts these credentials.
+    # Both belong here for the same reason as the check above: a relay password
+    # that is wrong produces no error until somebody registers, and then the
+    # only symptom is a message that never arrives.
+    app.state.email_sender = build_email_sender(resolved)
 
     _install_middleware(app, resolved)
     register_exception_handlers(app)
@@ -124,5 +134,18 @@ async def _lifespan(app: FastAPI) -> AsyncIterator[None]:
     try:
         yield
     finally:
+        # Let sends already on the wire finish before the process goes: a send
+        # abandoned at shutdown is an account that never hears back. Bounded, and
+        # off the loop, because closing it waits on sockets.
+        await to_thread.run_sync(_close_email_sender, app)
         await engine.dispose()
         logger.info("control plane stopped")
+
+
+def _close_email_sender(app: FastAPI) -> None:
+    """Best effort, and never the reason a shutdown fails."""
+    sender: EmailSender = app.state.email_sender
+    try:
+        sender.close()
+    except Exception:
+        logger.exception("email sender did not shut down cleanly")

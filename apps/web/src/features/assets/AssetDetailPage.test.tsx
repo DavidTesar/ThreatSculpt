@@ -17,22 +17,26 @@ function renderAsset(assetId: string) {
 /** Picks a fixture asset that is already mapped, so the editor has a starting state. */
 function mappedAssetId(): string {
   const db = buildDb();
-  return db.assets.find((asset) => asset.services.length > 0)!.id;
+  return db.assets.find((asset) => (asset.services ?? []).length > 0)!.id;
 }
 
 describe('AssetDetailPage', () => {
-  it('shows the observed ports the agent reported', async () => {
+  // There is no observed-ports view: `GET /assets/{id}` returns `AssetOut`, which has no
+  // port inventory. The table that used to be asserted here rendered nothing against the
+  // real API.
+  it('shows the findings recorded against the host', async () => {
     signIn();
     renderAsset(mappedAssetId());
 
-    expect(await screen.findByText(/observed services/i)).toBeInTheDocument();
-    expect(screen.getByText(/what the scan agent found listening/i)).toBeInTheDocument();
+    expect(
+      await screen.findByRole('region', { name: /findings on this asset/i }),
+    ).toBeInTheDocument();
   });
 
   it('pre-selects the services this asset already supports', async () => {
     signIn();
     const db = buildDb();
-    const asset = db.assets.find((a) => a.services.length > 0)!;
+    const asset = db.assets.find((a) => (a.services ?? []).length > 0)!;
 
     renderAsset(asset.id);
 
@@ -41,7 +45,7 @@ describe('AssetDetailPage', () => {
       .getAllByRole('checkbox')
       .filter((box) => (box as HTMLInputElement).checked);
 
-    expect(checked).toHaveLength(asset.services.length);
+    expect(checked).toHaveLength((asset.services ?? []).length);
   });
 
   it('keeps the save button inert until the mapping actually changes', async () => {

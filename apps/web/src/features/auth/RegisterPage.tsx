@@ -11,12 +11,32 @@ import { useAuth } from '@/auth/useAuth';
 import { messageFor } from '@/lib/api/ApiError';
 
 /**
+ * `org_slug` is **required** by `POST /auth/register` — one address may legitimately hold
+ * an account in several orgs, and the slug is what tells them apart at login. This form
+ * used to omit it entirely, so every registration was rejected before it reached the
+ * database. It is offered as an editable field with a sensible default rather than being
+ * generated silently, because the customer has to be able to type it at sign-in.
+ */
+function slugify(name: string): string {
+  return name
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-+|-+$/g, '')
+    .slice(0, 63);
+}
+
+/**
  * Password rules are stated up front rather than only on failure, and the confirmation is
  * checked client-side so a typo does not cost a round trip.
  */
 const schema = z
   .object({
     org_name: z.string().min(2, 'Enter your organisation name.').max(120),
+    org_slug: z
+      .string()
+      .max(63)
+      .regex(/^[a-z0-9-]*$/, 'Use lowercase letters, numbers and dashes only.')
+      .optional(),
     full_name: z.string().min(2, 'Enter your full name.').max(120),
     email: z.string().min(1, 'Enter your email address.').email('Enter a valid email address.'),
     password: z
@@ -30,6 +50,10 @@ const schema = z
   .refine((values) => values.password === values.confirm, {
     message: 'Passwords do not match.',
     path: ['confirm'],
+  })
+  .refine((values) => slugify(values.org_slug || values.org_name).length >= 3, {
+    message: 'Enter a workspace address of at least three characters.',
+    path: ['org_slug'],
   });
 
 type RegisterValues = z.infer<typeof schema>;
@@ -42,11 +66,21 @@ export function RegisterPage() {
   const {
     register,
     handleSubmit,
+    watch,
     formState: { errors, isSubmitting },
   } = useForm<RegisterValues>({
     resolver: zodResolver(schema),
-    defaultValues: { org_name: '', full_name: '', email: '', password: '', confirm: '' },
+    defaultValues: {
+      org_name: '',
+      org_slug: '',
+      full_name: '',
+      email: '',
+      password: '',
+      confirm: '',
+    },
   });
+
+  const orgName = watch('org_name');
 
   if (status === 'authenticated') return <Navigate to="/" replace />;
 
@@ -55,6 +89,7 @@ export function RegisterPage() {
     try {
       await createAccount({
         org_name: values.org_name,
+        org_slug: slugify(values.org_slug || values.org_name),
         full_name: values.full_name,
         email: values.email,
         password: values.password,
@@ -89,6 +124,15 @@ export function RegisterPage() {
           required
           error={errors.org_name?.message}
           {...register('org_name')}
+        />
+
+        <TextField
+          label="Workspace address"
+          mono
+          placeholder={slugify(orgName) || 'acme-corp'}
+          hint="How your organisation is identified at sign-in. Leave blank to use the name above."
+          error={errors.org_slug?.message}
+          {...register('org_slug')}
         />
 
         <TextField

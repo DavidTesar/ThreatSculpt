@@ -99,18 +99,17 @@ describe('ExecutiveDashboardPage', () => {
     expect(kev).toBeInTheDocument();
   });
 
-  it('offers the trend chart as an accessible table', async () => {
+  // There is no trend chart, and no accessible table behind one: `GET
+  // /dashboard/executive` returns `score`, `trend_30d` and `band` — never a daily series.
+  // The direction of travel is stated in words instead, which needs no chart to read.
+  it('states the direction of travel in words, not only as a signed number', async () => {
     signIn();
     renderApp(<ExecutiveDashboardPage />);
 
     const posture = await screen.findByRole('region', { name: /overall risk posture/i });
 
-    expect(within(posture).getByText(/view trend as a table/i)).toBeInTheDocument();
-
-    // Every point behind the sparkline is available as real, readable text.
-    const table = within(posture).getByRole('table');
-    expect(within(table).getByRole('columnheader', { name: /score/i })).toBeInTheDocument();
-    expect(within(table).getAllByRole('row').length).toBeGreaterThan(5);
+    expect(within(posture).getByText(/improving|worsening|holding steady/i)).toBeInTheDocument();
+    expect(within(posture).getByText(/30 days/i)).toBeInTheDocument();
   });
 
   it('shows an actionable error state and can retry', async () => {

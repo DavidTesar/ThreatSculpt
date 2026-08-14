@@ -2,30 +2,38 @@ import { describe, expect, it } from 'vitest';
 import { computeLayout, hitTest } from './layout';
 import { buildAttackSurface } from '@/mocks/derive';
 import { buildDb } from '@/mocks/db';
-import type { AttackSurfaceGraph, GraphNode } from '@/types/domain';
+import type { AttackSurfaceGraph, GraphNode, GraphNodeKind } from '@/types/domain';
 
-function node(id: string, kind: GraphNode['kind'], weight: number): GraphNode {
+/**
+ * Node ids are namespaced and weights are decimal strings, exactly as the control plane
+ * emits them — `business_service:<id>`, not a bare uuid, and `"90.00"`, not `90`.
+ */
+function node(id: string, kind: GraphNodeKind, weight: number): GraphNode {
+  const isService = kind === 'business_service';
   return {
-    id,
-    kind,
+    id: `${kind}:${id}`,
+    type: kind,
     label: id,
-    weight,
-    exposure: kind === 'service' ? null : 'internal',
-    criticality: kind === 'service' ? 'critical' : null,
-    open_findings: 0,
+    weight: weight.toFixed(2),
+    exposure: isService ? null : 'internal',
+    criticality: isService ? 'critical' : null,
     represents: null,
   };
 }
 
+const SERVICE_ID = 'business_service:s1';
+const ASSET_HEAVY = 'asset:a1';
+const ASSET_LIGHT = 'asset:a2';
+
 const SIMPLE: AttackSurfaceGraph = {
-  nodes: [node('s1', 'service', 50), node('a1', 'asset', 90), node('a2', 'asset', 10)],
+  nodes: [node('s1', 'business_service', 50), node('a1', 'asset', 90), node('a2', 'asset', 10)],
   edges: [
-    { source: 'a1', target: 's1', kind: 'supports' },
-    { source: 'a2', target: 's1', kind: 'supports' },
+    { source: ASSET_HEAVY, target: SERVICE_ID, type: 'supports' },
+    { source: ASSET_LIGHT, target: SERVICE_ID, type: 'supports' },
   ],
   aggregated: false,
   node_cap: 500,
-  total_nodes: 3,
+  total_assets: 2,
 };
 
 describe('computeLayout', () => {
@@ -54,8 +62,8 @@ describe('computeLayout', () => {
 
   it('scales node area, not radius, with weight', () => {
     const layout = computeLayout(SIMPLE, 1000, 620);
-    const heavy = layout.byId.get('a1');
-    const light = layout.byId.get('a2');
+    const heavy = layout.byId.get(ASSET_HEAVY);
+    const light = layout.byId.get(ASSET_LIGHT);
 
     expect(heavy!.radius).toBeGreaterThan(light!.radius);
     // Radius must grow sub-linearly, or a 9× weight would look 81× bigger.
@@ -69,20 +77,20 @@ describe('computeLayout', () => {
       return Math.hypot(n.x - 500, n.y - 310);
     };
 
-    expect(distance('s1')).toBeLessThan(distance('a1'));
+    expect(distance(SERVICE_ID)).toBeLessThan(distance(ASSET_HEAVY));
   });
 
   it('handles the full fixture estate without dropping nodes', () => {
     const graph = buildAttackSurface(buildDb());
     const layout = computeLayout(graph, 1000, 620);
 
-    expect(layout.nodes).toHaveLength(graph.nodes.length);
+    expect(layout.nodes).toHaveLength((graph.nodes ?? []).length);
     expect(layout.nodes.every((n) => Number.isFinite(n.x) && Number.isFinite(n.y))).toBe(true);
   });
 
   it('survives an empty graph', () => {
     const layout = computeLayout(
-      { nodes: [], edges: [], aggregated: false, node_cap: 500, total_nodes: 0 },
+      { nodes: [], edges: [], aggregated: false, node_cap: 500, total_assets: 0 },
       800,
       600,
     );
@@ -94,9 +102,9 @@ describe('computeLayout', () => {
 describe('hitTest', () => {
   it('finds the node under the cursor', () => {
     const layout = computeLayout(SIMPLE, 1000, 620);
-    const target = layout.byId.get('a1')!;
+    const target = layout.byId.get(ASSET_HEAVY)!;
 
-    expect(hitTest(layout, target.x, target.y)?.id).toBe('a1');
+    expect(hitTest(layout, target.x, target.y)?.id).toBe(ASSET_HEAVY);
   });
 
   it('returns null over empty space', () => {
@@ -110,10 +118,11 @@ describe('buildAttackSurface aggregation', () => {
   it('stays under the node cap and flags aggregation when the estate is large', () => {
     const graph = buildAttackSurface(buildDb());
 
-    expect(graph.nodes.length).toBeLessThanOrEqual(graph.node_cap);
+    const nodes = graph.nodes ?? [];
+    expect(nodes.length).toBeLessThanOrEqual(graph.node_cap);
     if (graph.aggregated) {
-      expect(graph.nodes.some((n) => n.kind === 'aggregate')).toBe(true);
-      expect(graph.total_nodes).toBeGreaterThan(graph.node_cap);
+      expect(nodes.some((n) => n.type === 'aggregated_assets')).toBe(true);
+      expect(graph.total_assets).toBeGreaterThan(0);
     }
   });
 });

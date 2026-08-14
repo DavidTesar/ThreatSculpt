@@ -43,43 +43,28 @@ describe('FindingsPage', () => {
     expect([...scores]).toEqual([...scores].sort((a, b) => b - a));
   });
 
-  it('reverses the order when the active sort header is activated again', async () => {
+  // `/findings` accepts no `sort` or `order` parameter and always returns business risk
+  // descending, so there are no sortable headers to announce. The client used to send
+  // both on every request and render clickable headers that reordered nothing.
+  it('narrows to a single match confidence', async () => {
     signIn();
     const { user } = renderApp(<FindingsPage />);
 
     await riskColumn();
+    const totalBefore = totalFromPagination();
 
-    await user.click(screen.getByRole('button', { name: /^risk/i }));
-
-    // Wait on the rendered state directly — nesting an async query inside waitFor stacks
-    // two timeouts and turns a slow render into a flake under coverage instrumentation.
-    await waitFor(() => {
-      expect(screen.getByRole('columnheader', { name: /risk/i })).toHaveAttribute(
-        'aria-sort',
-        'ascending',
-      );
-    });
+    await user.selectOptions(screen.getByLabelText(/match confidence/i), 'high');
 
     await waitFor(() => {
-      const scores = readRiskColumn();
-      expect([...scores]).toEqual([...scores].sort((a, b) => a - b));
+      expect(totalFromPagination()).toBeLessThanOrEqual(totalBefore);
     });
-  });
 
-  it('marks the sorted column with aria-sort for assistive tech', async () => {
-    signIn();
-    renderApp(<FindingsPage />);
-
-    await riskColumn();
-
-    expect(screen.getByRole('columnheader', { name: /risk/i })).toHaveAttribute(
-      'aria-sort',
-      'descending',
-    );
-    expect(screen.getByRole('columnheader', { name: /^cve/i })).toHaveAttribute(
-      'aria-sort',
-      'none',
-    );
+    // Column 5 is Match. Severity is column 2 and also reads "High", so the assertion
+    // has to name the cell rather than search the whole row.
+    const table = await screen.findByRole('table');
+    for (const row of within(table).getAllByRole('row').slice(1)) {
+      expect(within(row).getAllByRole('cell')[4]).toHaveTextContent('High');
+    }
   });
 
   it('filters to known-exploited findings only', async () => {

@@ -11,11 +11,33 @@ import { SurfaceCanvas } from './SurfaceCanvas';
 import { dashboardApi } from '@/lib/api/endpoints';
 import { queryKeys } from '@/lib/api/queryKeys';
 import { formatNumber, formatScore } from '@/lib/format';
-import { EXPOSURE_LABEL } from '@/lib/risk';
-import type { GraphNode } from '@/types/domain';
+import { nodeExposure, nodeHref, nodeKind, nodeWeight } from './nodes';
+import { CRITICALITY_LABEL, EXPOSURE_LABEL } from '@/lib/risk';
+import { toCriticality, type GraphNode } from '@/types/domain';
 
 /** Keeps the node list workable when the graph is at its cap. */
 const LIST_LIMIT = 120;
+
+/**
+ * What a node is, in one phrase. The graph payload carries no per-node findings count, so
+ * this describes the node's role rather than inventing a number for it.
+ */
+function describeNode(node: GraphNode): string {
+  const exposure = nodeExposure(node);
+  const criticality = toCriticality(node.criticality);
+  switch (nodeKind(node)) {
+    case 'business_service':
+      return criticality
+        ? `Business service · ${CRITICALITY_LABEL[criticality].toLowerCase()} criticality`
+        : 'Business service';
+    case 'aggregated_assets':
+      return `${formatNumber(node.represents ?? 0)} assets grouped`;
+    case 'exposure':
+      return exposure ? `Exposure tier · ${EXPOSURE_LABEL[exposure]}` : 'Exposure tier';
+    default:
+      return exposure ? `Asset · ${EXPOSURE_LABEL[exposure]}` : 'Asset';
+  }
+}
 
 export function AttackSurfacePage() {
   const [selected, setSelected] = useState<GraphNode | null>(null);
@@ -26,12 +48,16 @@ export function AttackSurfacePage() {
     queryFn: ({ signal }) => dashboardApi.attackSurface(signal),
   });
 
+  const selectedExposure = selected ? nodeExposure(selected) : null;
+  // Node ids are namespaced (`asset:<uuid>`), so the link is built from the stripped id.
+  const selectedHref = selected ? nodeHref(selected) : null;
+
   const ranked = useMemo(() => {
     const nodes = query.data?.nodes ?? [];
     const needle = filter.toLowerCase().trim();
     return [...nodes]
       .filter((node) => !needle || node.label.toLowerCase().includes(needle))
-      .sort((a, b) => b.weight - a.weight)
+      .sort((a, b) => nodeWeight(b) - nodeWeight(a))
       .slice(0, LIST_LIMIT);
   }, [query.data, filter]);
 
@@ -55,7 +81,7 @@ export function AttackSurfacePage() {
         data={query.data}
         onRetry={() => void query.refetch()}
         loadingLabel="Building the attack surface map"
-        isEmpty={(graph) => graph.nodes.length === 0}
+        isEmpty={(graph) => (graph.nodes ?? []).length === 0}
         empty={
           <Card>
             <EmptyState
@@ -79,7 +105,7 @@ export function AttackSurfacePage() {
                 <div>
                   <p className="alert__title">Showing an aggregated view</p>
                   <p style={{ fontSize: 'var(--text-xs)' }}>
-                    Your estate has {formatNumber(graph.total_nodes)} nodes, above the{' '}
+                    Your estate has {formatNumber(graph.total_assets)} assets, above the{' '}
                     {formatNumber(graph.node_cap)}-node limit for this map. Assets have been grouped
                     by service and network position — each ringed circle stands for many hosts. Use
                     the <Link to="/assets">asset list</Link> to work with individual hosts.
@@ -101,13 +127,7 @@ export function AttackSurfacePage() {
                     <CardHead
                       titleId="selected-heading"
                       title={selected.label}
-                      subtitle={
-                        selected.kind === 'service'
-                          ? `Business service · ${selected.criticality} criticality`
-                          : selected.kind === 'aggregate'
-                            ? `${formatNumber(selected.represents ?? 0)} assets grouped`
-                            : 'Asset'
-                      }
+                      subtitle={describeNode(selected)}
                       as="h2"
                       actions={
                         <button
@@ -122,37 +142,25 @@ export function AttackSurfacePage() {
                     />
                     <CardBody>
                       <dl className="deflist">
-                        {selected.exposure ? (
+                        {selectedExposure ? (
                           <>
                             <dt>Position</dt>
-                            <dd>{EXPOSURE_LABEL[selected.exposure]}</dd>
+                            <dd>{EXPOSURE_LABEL[selectedExposure]}</dd>
                           </>
                         ) : null}
-                        <dt>Open findings</dt>
-                        <dd>{formatNumber(selected.open_findings)}</dd>
                         <dt>Top risk score</dt>
-                        <dd>{formatScore(selected.weight)}</dd>
+                        <dd>{formatScore(nodeWeight(selected))}</dd>
                       </dl>
 
-                      {selected.kind === 'asset' ? (
+                      {selectedHref ? (
                         <ButtonLink
-                          to={`/assets/${selected.id}`}
+                          to={selectedHref}
                           variant="secondary"
                           size="sm"
                           className="btn--full"
                           style={{ marginTop: 'var(--space-md)' }}
                         >
-                          Open asset
-                        </ButtonLink>
-                      ) : selected.kind === 'service' ? (
-                        <ButtonLink
-                          to={`/findings?service_id=${selected.id}&status=open`}
-                          variant="secondary"
-                          size="sm"
-                          className="btn--full"
-                          style={{ marginTop: 'var(--space-md)' }}
-                        >
-                          View findings
+                          {nodeKind(selected) === 'asset' ? 'Open asset' : 'View findings'}
                         </ButtonLink>
                       ) : null}
                     </CardBody>
@@ -170,7 +178,7 @@ export function AttackSurfacePage() {
                     title="Nodes by risk"
                     subtitle={
                       ranked.length >= LIST_LIMIT
-                        ? `Highest ${LIST_LIMIT} of ${formatNumber(graph.nodes.length)}.`
+                        ? `Highest ${LIST_LIMIT} of ${formatNumber((graph.nodes ?? []).length)}.`
                         : `${formatNumber(ranked.length)} shown.`
                     }
                     as="h2"
@@ -205,26 +213,19 @@ export function AttackSurfacePage() {
                                 className="nodelist__dot"
                                 style={{
                                   background:
-                                    node.kind === 'service'
+                                    nodeKind(node) === 'business_service'
                                       ? 'var(--brand)'
-                                      : `var(--exp-${node.exposure ?? 'internal'})`,
-                                  borderRadius: node.kind === 'service' ? 3 : '50%',
+                                      : `var(--exp-${nodeExposure(node) ?? 'internal'})`,
+                                  borderRadius: nodeKind(node) === 'business_service' ? 3 : '50%',
                                 }}
                                 aria-hidden="true"
                               />
                               <span className="nodelist__text">
                                 <span className="nodelist__label">{node.label}</span>
-                                <span className="nodelist__meta">
-                                  {node.kind === 'service'
-                                    ? 'Business service'
-                                    : node.exposure
-                                      ? EXPOSURE_LABEL[node.exposure]
-                                      : 'Asset'}{' '}
-                                  · {node.open_findings} open
-                                </span>
+                                <span className="nodelist__meta">{describeNode(node)}</span>
                               </span>
                               <span className="nodelist__score" data-numeric>
-                                {formatScore(node.weight)}
+                                {formatScore(nodeWeight(node))}
                               </span>
                             </button>
                           </li>

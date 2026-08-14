@@ -5,7 +5,7 @@ import { hasRole } from './roles';
 import { authApi, type LoginRequest, type RegisterRequest } from '@/lib/api/endpoints';
 import { setSessionExpiredHandler } from '@/lib/api/client';
 import { isApiError } from '@/lib/api/ApiError';
-import type { CurrentPrincipal, Role } from '@/types/domain';
+import { toRole, type CurrentPrincipal, type Role } from '@/types/domain';
 
 /**
  * Owns the session.
@@ -81,7 +81,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   }, [clearSession]);
 
-  const role: Role | null = principal?.role ?? null;
+  // `GET /auth/me` carries the role on the user, not beside it, and types it as a bare
+  // string — so it is narrowed rather than asserted. An unrecognised role resolves to
+  // `null`, which `hasRole` treats as "no permissions": the safe direction to fail.
+  const role: Role | null = toRole(principal?.user.role);
 
   const can = useCallback((minimum: Role) => hasRole(role ?? undefined, minimum), [role]);
 

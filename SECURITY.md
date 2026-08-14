@@ -97,17 +97,52 @@ at registration is what an earlier revision did, and it converted an account-loc
 into a denial of onboarding: ten unauthenticated registrations against a prospect's address
 and its real owner met a conflict they had not caused and could not clear.
 
-> **Delivery is not wired, and the service refuses to start because of it.** This branch has
-> no mail infrastructure. The verification state machine is fully enforced, but no
-> `TS_EMAIL_DELIVERY` value can actually deliver a message, so **no account could ever be
-> verified and the service could onboard nobody**. Rather than start cleanly and then refuse
-> every login for a reason no operator would connect back to a mail setting, `create_app`
-> raises `UndeliverableEmailError` at boot with a message naming the setting and the fix —
-> the same posture as the RLS check refusing a privileged database role.
->
-> Wiring a provider is one class implementing `EmailSender` in `auth/delivery.py`, its name
-> added to `DELIVERING_MODES`, and `TS_EMAIL_DELIVERY` set to it. Nothing that decides
-> whether an address is proved changes with it.
+#### Delivery
+
+Verification messages are delivered over **SMTP** (`TS_EMAIL_DELIVERY=smtp`), which is what
+reaches SES, SendGrid, Postmark, Mailgun and the corporate relay an enterprise customer will
+insist on using instead of any of them. A vendor SDK would be a bet on which one every future
+customer picks; nine settings are not.
+
+The message is plain text and HTML, and contains a link to
+`TS_PUBLIC_BASE_URL/verify-email?token=…`. **That link is a credential** — the token in it
+grants control of the account — so neither the token nor the link is ever logged, the base URL
+must be `https` in production, and `TS_SMTP_TLS=none` is refused for anything but a loopback
+relay. Every value that reaches a header (the recipient, the org slug, the sender name) is
+re-validated at the boundary and the whole message is refused rather than sanitised if one of
+them carries a CR, an LF or any other control character; an address of
+`victim@example.com\nBcc: …` does not get partially sent.
+
+**The relay is proved usable at boot, not at the first registration.** `create_app` validates
+the settings — reporting every problem at once, so three wrong values cost one deploy rather
+than three — and then connects to the relay, authenticates and hangs up without sending
+anything. The two failure classes are handled differently on purpose: a **rejected credential
+or an unusable TLS mode** refuses the boot, because it will be just as wrong at send time and
+the only symptom then is a registration that reports success while the message silently never
+leaves. An **unreachable relay** logs CRITICAL and starts anyway, because refusing to boot on
+a relay outage turns "cannot onboard" into "cannot serve anything", and a pod restart during
+the outage would crash-loop until mail came back. Set `TS_SMTP_VERIFY_ON_START=0` to skip the
+connection; it does not make delivery work, it only skips the check.
+
+**A delivery failure never fails a request.** By the time a message is sent the registration
+has committed and the account exists, so failing the request would report a sign-up that did
+not happen and leave the user re-registering into a conflict. Sends are handed to a bounded
+thread pool — `smtplib` is blocking and this is an async service, so a send on the event loop
+would stall every concurrent request — and a failure is logged as
+`verification_delivery_failed` with the org and the recipient's domain, never the token.
+Beyond 64 in-flight messages further sends are shed as
+`verification_delivery_shed` rather than queued, because an unbounded backlog against a dead
+relay ends as an out-of-memory kill. In every one of those cases the account's owner recovers
+through `POST /auth/verify-email/resend`.
+
+> **A deployment that cannot deliver refuses to start.** `TS_EMAIL_DELIVERY=none` drops the
+> message and `memory` retains it in-process; **neither can put anything in front of a human**,
+> so an account on either could never be verified and the service could onboard nobody. Rather
+> than start cleanly and then refuse every login for a reason no operator would connect back to
+> a mail setting, `create_app` raises `UndeliverableEmailError` at boot with a message naming
+> the setting and the fix — the same posture as the RLS check refusing a privileged database
+> role. `DELIVERING_MODES` in `auth/delivery.py` is the whole of what that guard trusts, so
+> adding a name to it is a claim that the named sender delivers.
 >
 > To run without delivery anyway — local development and the test suite — set
 > `TS_ALLOW_UNDELIVERABLE_EMAIL=1`. It is logged at CRITICAL on every boot, and it does not

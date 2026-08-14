@@ -14,7 +14,16 @@ export default defineConfig({
   },
   build: {
     target: 'es2022',
-    sourcemap: true,
+    // No sourcemaps in the production bundle. A `.map` served next to a minified chunk
+    // hands anyone who asks for it the original TypeScript — file paths, comments, and
+    // the shape of the auth flow — which is free reconnaissance against a security
+    // product. It is also how the removed MSW worker stayed readable in `dist` after it
+    // had been stripped from the JS.
+    //
+    // The right answer once an error tracker exists is to generate maps and upload them
+    // to it rather than serve them. Nothing on this branch collects errors, so `false`
+    // is correct today; revisit this line, not this decision, when one is wired up.
+    sourcemap: false,
     rollupOptions: {
       output: {
         manualChunks: {

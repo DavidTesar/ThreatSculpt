@@ -7,13 +7,20 @@ import { ScanStatusBadge } from '@/components/ui/Badge';
 import { Button } from '@/components/ui/Button';
 import { Icon } from '@/components/ui/Icon';
 import { useToast } from '@/components/ui/useToast';
-import { scansApi } from '@/lib/api/endpoints';
+import { agentsApi, networksApi, scansApi } from '@/lib/api/endpoints';
 import { queryKeys } from '@/lib/api/queryKeys';
-import { formatDateTime, formatNumber, formatRelative } from '@/lib/format';
+import { formatDateTime, formatRelative } from '@/lib/format';
 import { messageFor } from '@/lib/api/ApiError';
 import { useAuth } from '@/auth/useAuth';
+import { toScanStatus, type ScanStatus } from '@/types/domain';
 
-const LIVE_STATUSES = ['queued', 'claimed', 'running'];
+const LIVE_STATUSES: readonly ScanStatus[] = ['queued', 'claimed', 'running'];
+
+/** `ScanJobOut.status` is typed `str`, so it is narrowed before it is compared. */
+function isLiveStatus(status: string | undefined): boolean {
+  const narrowed = toScanStatus(status);
+  return narrowed !== null && LIVE_STATUSES.includes(narrowed);
+}
 
 export function ScanDetailPage() {
   const { id = '' } = useParams();
@@ -25,9 +32,31 @@ export function ScanDetailPage() {
     queryKey: queryKeys.scans.detail(id),
     queryFn: ({ signal }) => scansApi.get(id, signal),
     enabled: id !== '',
-    refetchInterval: (q) =>
-      q.state.data && LIVE_STATUSES.includes(q.state.data.status) ? 4000 : false,
+    refetchInterval: (q) => (isLiveStatus(q.state.data?.status) ? 4000 : false),
   });
+
+  /*
+   * `ScanJobOut` carries `network_id` and `agent_id`, never their names. Both are resolved
+   * from the resources that own them rather than read off a field the API does not send.
+   */
+  const networksQuery = useQuery({
+    queryKey: queryKeys.networks.list(),
+    queryFn: ({ signal }) => networksApi.list(undefined, signal),
+    staleTime: 5 * 60_000,
+  });
+  const agentsQuery = useQuery({
+    queryKey: queryKeys.agents.list(),
+    queryFn: ({ signal }) => agentsApi.list(undefined, signal),
+    staleTime: 5 * 60_000,
+  });
+
+  const scan = query.data;
+  const networkName = scan?.network_id
+    ? (networksQuery.data?.items.find((n) => n.id === scan.network_id)?.name ?? null)
+    : null;
+  const agentName = scan?.agent_id
+    ? (agentsQuery.data?.items.find((a) => a.id === scan.agent_id)?.name ?? null)
+    : null;
 
   const cancelMutation = useMutation({
     mutationFn: () => scansApi.cancel(id),
@@ -49,16 +78,17 @@ export function ScanDetailPage() {
         loadingLabel="Loading scan"
       >
         {(scan) => {
-          const isLive = LIVE_STATUSES.includes(scan.status);
+          const status = toScanStatus(scan.status);
+          const isLive = isLiveStatus(scan.status);
           return (
             <>
               <PageHeader
                 eyebrow={<Link to="/scans">← Scans</Link>}
                 title={scan.target}
-                lead={`${scan.profile} scan of ${scan.network_name}`}
+                lead={`${scan.profile} scan${networkName ? ` of ${networkName}` : ''}`}
                 actions={
                   <div className="row">
-                    <ScanStatusBadge status={scan.status} />
+                    <ScanStatusBadge status={status} />
                     {can('analyst') && isLive ? (
                       <Button
                         variant="secondary"
@@ -110,13 +140,19 @@ export function ScanDetailPage() {
               ) : null}
 
               <div className="metricgrid" style={{ marginBottom: 'var(--space-lg)' }}>
+                {/*
+                  `ScanJobOut` carries no result counts — no `hosts_discovered`, no
+                  `findings_created`. The two metrics that used to sit here rendered "—"
+                  on every scan. Progress, attempts and the lease are what the job
+                  actually reports.
+                */}
                 <div className="metric">
-                  <p className="metric__label">Hosts discovered</p>
-                  <p className="metric__value">{formatNumber(scan.hosts_discovered)}</p>
-                </div>
-                <div className="metric">
-                  <p className="metric__label">Findings created</p>
-                  <p className="metric__value">{formatNumber(scan.findings_created)}</p>
+                  <p className="metric__label">Progress</p>
+                  <p className="metric__value">
+                    {scan.progress_percent === null || scan.progress_percent === undefined
+                      ? '—'
+                      : `${scan.progress_percent}%`}
+                  </p>
                 </div>
                 <div className="metric">
                   <p className="metric__label">Attempts</p>
@@ -133,13 +169,13 @@ export function ScanDetailPage() {
                     <dd className="mono">{scan.target}</dd>
 
                     <dt>Network</dt>
-                    <dd>{scan.network_name}</dd>
+                    <dd>{networkName ?? '—'}</dd>
 
                     <dt>Profile</dt>
                     <dd>{scan.profile}</dd>
 
                     <dt>Agent</dt>
-                    <dd>{scan.agent_name ?? 'Not yet claimed'}</dd>
+                    <dd className="mono">{agentName ?? 'Not yet claimed'}</dd>
 
                     {scan.lease_expires_at ? (
                       <>
@@ -153,9 +189,6 @@ export function ScanDetailPage() {
                         </dd>
                       </>
                     ) : null}
-
-                    <dt>Requested by</dt>
-                    <dd>{scan.requested_by_name ?? '—'}</dd>
 
                     <dt>Queued</dt>
                     <dd>{formatDateTime(scan.created_at)}</dd>

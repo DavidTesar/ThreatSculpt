@@ -32,34 +32,37 @@ describe('SettingsPage', () => {
     await waitFor(() => expect(screen.getByText(/is now analyst/i)).toBeInTheDocument());
   });
 
-  it('rejects an invitation for an email that already exists', async () => {
+  it('rejects a new account for an email that already exists', async () => {
     signIn();
     const { user } = renderApp(<SettingsPage />);
 
-    await user.click(await screen.findByRole('button', { name: /invite user/i }));
-    const dialog = await screen.findByRole('dialog', { name: /invite a user/i });
+    await user.click(await screen.findByRole('button', { name: /add user/i }));
+    const dialog = await screen.findByRole('dialog', { name: /add a user/i });
 
     await user.type(within(dialog).getByLabelText(/full name/i), 'Diane Again');
     await user.type(
       within(dialog).getByLabelText(/work email/i),
       'diane.whitfield@northwind-logistics.com',
     );
-    await user.click(within(dialog).getByRole('button', { name: /send invitation/i }));
+    await user.type(within(dialog).getByLabelText(/initial password/i), 'correct-horse-battery');
+    await user.click(within(dialog).getByRole('button', { name: /create account/i }));
 
     expect(await screen.findByText(/already exists/i)).toBeInTheDocument();
   });
 
-  it('validates the invitation form before sending', async () => {
+  it('validates the new-account form before sending', async () => {
     signIn();
     const { user } = renderApp(<SettingsPage />);
 
-    await user.click(await screen.findByRole('button', { name: /invite user/i }));
-    const dialog = await screen.findByRole('dialog', { name: /invite a user/i });
+    await user.click(await screen.findByRole('button', { name: /add user/i }));
+    const dialog = await screen.findByRole('dialog', { name: /add a user/i });
 
-    await user.click(within(dialog).getByRole('button', { name: /send invitation/i }));
+    await user.click(within(dialog).getByRole('button', { name: /create account/i }));
 
     expect(await screen.findByText(/enter their full name/i)).toBeInTheDocument();
     expect(screen.getByText(/enter their email address/i)).toBeInTheDocument();
+    // The API requires an initial password; omitting it used to fail only at the server.
+    expect(screen.getByText(/use at least 12 characters/i)).toBeInTheDocument();
   });
 
   it('explains what each role can do, so least privilege is an informed choice', async () => {

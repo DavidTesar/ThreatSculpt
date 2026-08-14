@@ -4,26 +4,55 @@ import {
   CRITICALITY_MULTIPLIER,
   EXPLOIT_MATURITY_MULTIPLIER,
   EXPOSURE_MULTIPLIER,
+  RAW_SCORE_MAX,
+  SCORE_RANGE,
   computeBusinessRisk,
 } from '@/lib/risk';
 import type {
+  AdminUser,
   Agent,
   Asset,
-  AssetDetail,
   BusinessService,
   Criticality,
+  CriticalityTier,
+  Cve,
+  DecimalString,
   Exposure,
   Finding,
   FindingDetail,
+  MatchConfidence,
+  MaturityTier,
   Network,
   Org,
-  Port,
   ScanJob,
   ScanProfile,
   ScanStatus,
   User,
-  Vulnerability,
 } from '@/types/domain';
+
+/**
+ * A `numeric` as the control plane serialises it: a decimal string, not a float. The mock
+ * has to produce these too, or it stops being a faithful stand-in for the API.
+ */
+function decimal(value: number, places = 2): DecimalString {
+  return value.toFixed(places);
+}
+
+/**
+ * Observed ports are a fixture-only concept.
+ *
+ * The agent reports them and the control plane stores them, but no dashboard endpoint
+ * returns them — `AssetOut` has no `ports` and `FindingOut` carries only a `port_id`. They
+ * exist here to place findings on plausible software, and are never handed to the client.
+ */
+export interface MockPort {
+  id: string;
+  port: number;
+  protocol: string;
+  service: string;
+  product: string;
+  version: string | null;
+}
 
 /**
  * An in-memory fixture world for a plausible mid-market customer.
@@ -44,22 +73,23 @@ function isoDaysAgo(days: number): string {
 
 export interface MockDb {
   org: Org;
-  users: User[];
+  users: AdminUser[];
   networks: Network[];
   services: BusinessService[];
-  assets: AssetDetail[];
+  assets: Asset[];
   findings: FindingDetail[];
   scans: ScanJob[];
   agents: Agent[];
-  vulnerabilities: Map<string, Vulnerability>;
+  /** asset id → observed ports. Fixture-internal; see {@link MockPort}. */
+  ports: Map<string, MockPort[]>;
   /** asset id → business service ids */
   assetServices: Map<string, string[]>;
 }
 
 /* ------------------------------------------------------------------ builders */
 
-function buildUsers(rng: Rng, createdAt: string): User[] {
-  const people: { name: string; email: string; role: User['role'] }[] = [
+function buildUsers(rng: Rng, createdAt: string): AdminUser[] {
+  const people: { name: string; email: string; role: string }[] = [
     { name: 'Diane Whitfield', email: 'diane.whitfield@northwind-logistics.com', role: 'owner' },
     { name: 'Marcus Oyelaran', email: 'marcus.oyelaran@northwind-logistics.com', role: 'admin' },
     {
@@ -71,6 +101,7 @@ function buildUsers(rng: Rng, createdAt: string): User[] {
     { name: 'Helen Abara', email: 'helen.abara@northwind-logistics.com', role: 'viewer' },
   ];
 
+  void createdAt;
   return people.map((person, i) => ({
     id: makeId(rng, 'u', i),
     email: person.email,
@@ -78,7 +109,8 @@ function buildUsers(rng: Rng, createdAt: string): User[] {
     role: person.role,
     status: 'active',
     last_login_at: isoDaysAgo(rng.int(0, 9)),
-    created_at: createdAt,
+    locked: false,
+    verified: true,
   }));
 }
 
@@ -118,7 +150,8 @@ function buildNetworks(rng: Rng): Network[] {
     cidr: def.cidr,
     authorized: def.authorized,
     authorization_note: def.note,
-    asset_count: 0, // filled once assets exist
+    authorized_at: def.authorized ? isoDaysAgo(200 - i * 8) : null,
+    authorized_by_user_id: null,
     created_at: isoDaysAgo(220 - i * 8),
     updated_at: isoDaysAgo(rng.int(3, 60)),
   }));
@@ -203,8 +236,6 @@ function buildServices(rng: Rng): BusinessService[] {
     revenue_at_risk: def.revenue,
     owner_name: def.owner,
     owner_email: def.email,
-    asset_count: 0,
-    open_findings: 0,
     created_at: isoDaysAgo(210 - i * 5),
     updated_at: isoDaysAgo(rng.int(2, 40)),
   }));
@@ -244,8 +275,9 @@ function ipInNetwork(cidr: string, index: number): string {
 }
 
 function buildAssets(rng: Rng, networks: Network[], services: BusinessService[]) {
-  const assets: AssetDetail[] = [];
+  const assets: Asset[] = [];
   const assetServices = new Map<string, string[]>();
+  const ports = new Map<string, MockPort[]>();
 
   // Assets per network. The DMZ is small and internet-facing; the OT segment is
   // deliberately isolated; the corporate LAN carries the bulk.
@@ -297,25 +329,22 @@ function buildAssets(rng: Rng, networks: Network[], services: BusinessService[])
       const role = rng.pick(HOSTNAME_ROLES);
 
       const portCount = rng.int(1, 4);
-      const ports: Port[] = [];
+      const observed: MockPort[] = [];
       const used = new Set<number>();
       for (let p = 0; p < portCount; p++) {
         const template = rng.pick(SERVICE_TEMPLATES);
         if (used.has(template.port)) continue;
         used.add(template.port);
-        ports.push({
+        observed.push({
           id: makeId(rng, 'p', index * 10 + p),
           port: template.port,
           protocol: template.protocol,
-          state: 'open',
           service: template.service,
           product: template.product,
           version: template.version || null,
-          cpe: template.version
-            ? [`cpe:/a:${template.product.toLowerCase().replace(/\s+/g, '_')}:${template.version}`]
-            : [],
         });
       }
+      ports.set(id, observed);
 
       // Every asset maps to zero or more business services. Guest wireless maps to none,
       // which is exactly the "unmapped asset" case the mapping screen exists to fix.
@@ -338,7 +367,6 @@ function buildAssets(rng: Rng, networks: Network[], services: BusinessService[])
       assets.push({
         id,
         network_id: entry.network.id,
-        network_name: entry.network.name,
         ip: ipInNetwork(entry.network.cidr, i),
         hostname: `${role}${String(i + 1).padStart(2, '0')}.${
           entry.network.name.toLowerCase().includes('branch') ? 'eu' : 'corp'
@@ -353,39 +381,55 @@ function buildAssets(rng: Rng, networks: Network[], services: BusinessService[])
         last_seen_at: isoDaysAgo(rng.int(0, 4)),
         services: mapped.map((s) => ({ id: s.id, name: s.name, criticality: s.criticality })),
         open_findings: 0,
-        max_business_risk_score: null,
-        ports,
+        worst_finding_score: null,
       });
 
       index++;
     }
   }
 
-  return { assets, assetServices };
+  return { assets, assetServices, ports };
 }
 
-function highestCriticality(services: { criticality: Criticality }[]): Criticality {
+/**
+ * Highest tier wins when an asset supports several services. An asset mapped to nothing
+ * resolves to `unmapped`, which is a scoring tier of its own rather than a borrowed
+ * `low` — "we do not know what this host supports" and "the customer told us it matters
+ * least" are different statements. Mirrors `CRITICALITY_RANK` in the control plane.
+ */
+function highestCriticality(services: readonly { criticality: string }[]): CriticalityTier {
   const order: Criticality[] = ['critical', 'high', 'medium', 'low'];
   for (const tier of order) {
     if (services.some((s) => s.criticality === tier)) return tier;
   }
-  // An asset mapped to no business service is scored as low — it has no known business
-  // consequence yet, which is itself worth surfacing rather than assuming the worst.
-  return 'low';
+  return 'unmapped';
 }
 
-function buildFindings(rng: Rng, assets: AssetDetail[]): FindingDetail[] {
+/** KEV listing outranks the CVE's own maturity, exactly as the scoring engine resolves it. */
+function maturityTier(entry: {
+  kev_listed: boolean;
+  exploit_maturity: MaturityTier;
+}): MaturityTier {
+  return entry.kev_listed ? 'kev_listed' : entry.exploit_maturity;
+}
+
+const MATCH_CONFIDENCES: readonly MatchConfidence[] = ['high', 'medium', 'low'];
+
+function buildFindings(rng: Rng, assets: Asset[], ports: Map<string, MockPort[]>): FindingDetail[] {
   const findings: FindingDetail[] = [];
   let index = 0;
 
   for (const asset of assets) {
+    const observed = ports.get(asset.id) ?? [];
+    const services = asset.services ?? [];
+
     // More exposed hosts and busier hosts carry more findings.
     const base = asset.exposure === 'internet' ? 4 : asset.exposure === 'dmz' ? 3 : 2;
-    const count = rng.int(0, base + asset.ports.length);
+    const count = rng.int(0, base + observed.length);
 
     const seen = new Set<string>();
     for (let i = 0; i < count; i++) {
-      const port = asset.ports.length > 0 ? rng.pick(asset.ports) : null;
+      const port = observed.length > 0 ? rng.pick(observed) : null;
       const candidates = port ? CVE_CATALOG.filter((c) => c.product === port.product) : CVE_CATALOG;
       const entry = rng.pick(candidates.length > 0 ? candidates : CVE_CATALOG);
 
@@ -393,46 +437,65 @@ function buildFindings(rng: Rng, assets: AssetDetail[]): FindingDetail[] {
       if (seen.has(key)) continue; // honours UNIQUE (org, asset, port, cve)
       seen.add(key);
 
-      const criticality = highestCriticality(asset.services);
+      const criticality = highestCriticality(services);
+      const maturity = maturityTier(entry);
       const status = rng.weighted(
         ['open', 'open', 'open', 'remediated', 'accepted_risk', 'false_positive'] as const,
         [58, 0, 0, 26, 11, 5],
       );
 
-      const score = computeBusinessRisk(
-        entry.cvss_base,
-        entry.exploit_maturity,
-        asset.exposure,
-        criticality,
-      );
+      const score = computeBusinessRisk(entry.cvss_base, maturity, asset.exposure, criticality);
+      const raw =
+        entry.cvss_base *
+        EXPLOIT_MATURITY_MULTIPLIER[maturity] *
+        EXPOSURE_MULTIPLIER[asset.exposure] *
+        CRITICALITY_MULTIPLIER[criticality];
 
       const firstSeen = rng.int(1, 90);
       const resolved = status === 'remediated' || status === 'false_positive';
+      const serviceNames = services.map((s) => s.name);
+
+      const cve: Cve = {
+        cve_id: entry.cve_id,
+        severity: severityOf(entry),
+        cvss_base: decimal(entry.cvss_base, 1),
+        kev_listed: entry.kev_listed,
+        kev_due_date: entry.kev_due_date,
+        exploit_maturity: entry.exploit_maturity,
+      };
 
       findings.push({
         id: makeId(rng, 'f', index),
-        asset_id: asset.id,
-        asset_ip: asset.ip,
-        asset_hostname: asset.hostname,
-        port_id: port?.id ?? null,
-        port: port?.port ?? null,
-        protocol: port?.protocol ?? null,
-        service: port?.service ?? null,
-        product: port?.product ?? null,
-        version: port?.version ?? null,
-        scan_job_id: null,
-        cve_id: entry.cve_id,
         status,
-        business_risk_score: score,
-        severity: severityOf(entry),
-        kev_listed: entry.kev_listed,
-        exposure: asset.exposure,
-        services_affected: asset.services.map((s) => s.name),
+        business_risk_score: decimal(score),
+        asset: {
+          id: asset.id,
+          ip: asset.ip,
+          hostname: asset.hostname,
+          exposure: asset.exposure,
+        },
+        cve,
+        match: {
+          // The catalogue pins a CVE to a product, so a port match is a version-range
+          // match; without one it is a guess from the host's software inventory.
+          confidence: port ? rng.pick(MATCH_CONFIDENCES.slice(0, 2)) : 'low',
+          method: port ? 'cpe_version_range' : 'product_heuristic',
+          rationale: port
+            ? `Observed ${port.product} ${port.version ?? ''} on ${port.port}/${port.protocol} falls inside the affected range.`.trim()
+            : 'Inferred from the host software inventory; no matching service banner was observed.',
+        },
+        port_id: port?.id ?? null,
+        scan_job_id: null,
+        first_seen_at: isoDaysAgo(firstSeen),
+        last_seen_at: isoDaysAgo(rng.int(0, 3)),
+        resolved_at: resolved ? isoDaysAgo(rng.int(0, firstSeen)) : null,
+        description: entry.description,
+        services_affected: serviceNames,
         score_factors: {
           cvss_base: entry.cvss_base,
           exploit_maturity: {
-            value: entry.exploit_maturity,
-            multiplier: EXPLOIT_MATURITY_MULTIPLIER[entry.exploit_maturity],
+            value: maturity,
+            multiplier: EXPLOIT_MATURITY_MULTIPLIER[maturity],
           },
           exposure: {
             value: asset.exposure,
@@ -442,21 +505,16 @@ function buildFindings(rng: Rng, assets: AssetDetail[]): FindingDetail[] {
             value: criticality,
             multiplier: CRITICALITY_MULTIPLIER[criticality],
           },
-          services_affected: asset.services.map((s) => s.name),
-        },
-        first_seen_at: isoDaysAgo(firstSeen),
-        last_seen_at: isoDaysAgo(rng.int(0, 3)),
-        resolved_at: resolved ? isoDaysAgo(rng.int(0, firstSeen)) : null,
-        vulnerability: {
-          cve_id: entry.cve_id,
-          description: entry.description,
-          cvss_base: entry.cvss_base,
-          cvss_vector: entry.cvss_vector,
-          severity: severityOf(entry),
-          kev_listed: entry.kev_listed,
-          kev_due_date: entry.kev_due_date,
-          exploit_maturity: entry.exploit_maturity,
-          published_at: entry.published_at,
+          services_affected: serviceNames,
+          normalization: {
+            raw: Number(raw.toFixed(2)),
+            max_raw: RAW_SCORE_MAX,
+            scale: SCORE_RANGE,
+            formula:
+              'cvss_base x exploit_maturity x exposure x asset_criticality, rescaled to 0-100',
+            rounding: 'half_up',
+          },
+          notes: [],
         },
       });
       index++;
@@ -480,6 +538,7 @@ function buildAgents(rng: Rng): Agent[] {
       // moved past it, making every healthy agent look dead in the demo.
       last_seen_at: new Date(Date.now() - 42_000).toISOString(),
       created_at: isoDaysAgo(180),
+      updated_at: isoDaysAgo(180),
     },
     {
       id: makeId(rng, 'g', 1),
@@ -490,6 +549,7 @@ function buildAgents(rng: Rng): Agent[] {
       allowlist: ['192.168.70.0/24'],
       last_seen_at: new Date(Date.now() - 128_000).toISOString(),
       created_at: isoDaysAgo(174),
+      updated_at: isoDaysAgo(174),
     },
     {
       id: makeId(rng, 'g', 2),
@@ -500,6 +560,7 @@ function buildAgents(rng: Rng): Agent[] {
       allowlist: ['10.90.0.0/16'],
       last_seen_at: isoDaysAgo(6),
       created_at: isoDaysAgo(96),
+      updated_at: isoDaysAgo(96),
     },
     {
       id: makeId(rng, 'g', 3),
@@ -510,11 +571,12 @@ function buildAgents(rng: Rng): Agent[] {
       allowlist: [],
       last_seen_at: isoDaysAgo(58),
       created_at: isoDaysAgo(150),
+      updated_at: isoDaysAgo(150),
     },
   ];
 }
 
-function buildScans(rng: Rng, networks: Network[], agents: Agent[], users: User[]): ScanJob[] {
+function buildScans(rng: Rng, networks: Network[], agents: Agent[], users: AdminUser[]): ScanJob[] {
   const statuses: { status: ScanStatus; days: number; progress: number | null }[] = [
     { status: 'running', days: 0, progress: 62 },
     { status: 'queued', days: 0, progress: null },
@@ -535,32 +597,28 @@ function buildScans(rng: Rng, networks: Network[], agents: Agent[], users: User[
     const network = authorized[i % authorized.length]!;
     const agent = agents[i % 3]!;
     const user = users[rng.int(0, 3)]!;
-    const done = entry.status === 'completed';
 
     return {
       id: makeId(rng, 'j', i),
       network_id: network.id,
-      network_name: network.name,
       target: network.cidr,
       profile: profiles[i % profiles.length]!,
       status: entry.status,
       agent_id: entry.status === 'queued' ? null : agent.id,
-      agent_name: entry.status === 'queued' ? null : agent.name,
       progress_percent: entry.progress,
       attempts: entry.status === 'failed' ? 3 : 1,
       lease_expires_at:
         entry.status === 'running' ? new Date(NOW + 18 * 60_000).toISOString() : null,
       requested_by_user_id: user.id,
-      requested_by_name: user.full_name,
       started_at: entry.status === 'queued' ? null : isoDaysAgo(entry.days),
-      finished_at: done || entry.status === 'failed' ? isoDaysAgo(entry.days) : null,
+      finished_at:
+        entry.status === 'completed' || entry.status === 'failed' ? isoDaysAgo(entry.days) : null,
       error:
         entry.status === 'failed'
           ? 'Agent lease expired three times without completing. Check that hq-dc-scanner-01 can reach the target range.'
           : null,
-      hosts_discovered: done ? rng.int(12, 58) : 0,
-      findings_created: done ? rng.int(4, 40) : 0,
       created_at: isoDaysAgo(entry.days),
+      updated_at: isoDaysAgo(entry.days),
     };
   });
 }
@@ -582,33 +640,20 @@ export function buildDb(): MockDb {
   const users = buildUsers(rng, createdAt);
   const networks = buildNetworks(rng);
   const services = buildServices(rng);
-  const { assets, assetServices } = buildAssets(rng, networks, services);
-  const findings = buildFindings(rng, assets);
+  const { assets, assetServices, ports } = buildAssets(rng, networks, services);
+  const findings = buildFindings(rng, assets, ports);
   const agents = buildAgents(rng);
   const scans = buildScans(rng, networks, agents, users);
 
-  // Roll up the derived counters so every screen agrees with every other screen.
+  // The two rollups `AssetOut` actually carries. Network and business-service asset
+  // counts used to be filled in here too; neither shape has a field for them, so the
+  // screens that showed those numbers were reading `undefined`.
   for (const asset of assets) {
-    const open = findings.filter((f) => f.asset_id === asset.id && f.status === 'open');
+    const open = findings.filter((f) => f.asset.id === asset.id && f.status === 'open');
     asset.open_findings = open.length;
-    asset.max_business_risk_score =
-      open.length > 0 ? Math.max(...open.map((f) => f.business_risk_score)) : null;
+    asset.worst_finding_score =
+      open.length > 0 ? decimal(Math.max(...open.map((f) => Number(f.business_risk_score)))) : null;
   }
-
-  for (const network of networks) {
-    network.asset_count = assets.filter((a) => a.network_id === network.id).length;
-  }
-
-  for (const service of services) {
-    const serviceAssets = assets.filter((a) => a.services.some((s) => s.id === service.id));
-    service.asset_count = serviceAssets.length;
-    service.open_findings = findings.filter(
-      (f) => f.status === 'open' && serviceAssets.some((a) => a.id === f.asset_id),
-    ).length;
-  }
-
-  const vulnerabilities = new Map<string, Vulnerability>();
-  for (const finding of findings) vulnerabilities.set(finding.cve_id, finding.vulnerability);
 
   return {
     org,
@@ -619,21 +664,36 @@ export function buildDb(): MockDb {
     findings,
     scans,
     agents,
-    vulnerabilities,
+    ports,
     assetServices,
   };
 }
 
-/** The list shape drops the joined `ports`, matching `GET /assets`. */
-export function toAssetSummary(asset: AssetDetail): Asset {
-  const { ports: _ports, ...summary } = asset;
+/**
+ * `GET /findings` returns `FindingOut`; the detail endpoint adds the description, the
+ * score factors and the affected services. Dropping them here keeps the mock honest about
+ * which fields a list row may be relied on to carry.
+ */
+export function toFindingSummary(finding: FindingDetail): Finding {
+  const {
+    description: _description,
+    score_factors: _factors,
+    services_affected: _services,
+    ...summary
+  } = finding;
   return summary;
 }
 
-/** The list shape drops the joined `vulnerability`, matching `GET /findings`. */
-export function toFindingSummary(finding: FindingDetail): Finding {
-  const { vulnerability: _vulnerability, ...summary } = finding;
-  return summary;
+/** The account as `GET /auth/me` returns it — no lockout or verification state. */
+export function toUserSummary(user: AdminUser): User {
+  return {
+    id: user.id,
+    email: user.email,
+    full_name: user.full_name,
+    role: user.role,
+    status: user.status,
+    last_login_at: user.last_login_at,
+  };
 }
 
 export const MOCK_NOW = NOW;

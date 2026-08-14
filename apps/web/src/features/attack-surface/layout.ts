@@ -1,3 +1,4 @@
+import { nodeKind, nodeWeight } from './nodes';
 import type { AttackSurfaceGraph, GraphEdge, GraphNode } from '@/types/domain';
 
 export interface PositionedNode extends GraphNode {
@@ -41,10 +42,13 @@ export function computeLayout(
   const outerRing = shortest * 0.4;
   const strayRing = shortest * 0.47;
 
-  const services = graph.nodes.filter((node) => node.kind === 'service');
-  const others = graph.nodes.filter((node) => node.kind !== 'service');
+  const allNodes = graph.nodes ?? [];
+  const allEdges = graph.edges ?? [];
 
-  const maxWeight = Math.max(1, ...graph.nodes.map((node) => node.weight));
+  const services = allNodes.filter((node) => nodeKind(node) === 'business_service');
+  const others = allNodes.filter((node) => nodeKind(node) !== 'business_service');
+
+  const maxWeight = Math.max(1, ...allNodes.map(nodeWeight));
 
   const positioned: PositionedNode[] = [];
   const serviceAngles = new Map<string, number>();
@@ -62,7 +66,7 @@ export function computeLayout(
 
   // Group assets by the first service they connect to, so a cluster sits near its service.
   const primaryService = new Map<string, string>();
-  for (const edge of graph.edges) {
+  for (const edge of allEdges) {
     if (!primaryService.has(edge.source)) primaryService.set(edge.source, edge.target);
   }
 
@@ -97,7 +101,7 @@ export function computeLayout(
         ...node,
         x: centerX + Math.cos(angle) * distance,
         y: centerY + Math.sin(angle) * distance,
-        radius: scaleRadius(node.weight, maxWeight, node.represents),
+        radius: scaleRadius(nodeWeight(node), maxWeight, node.represents ?? null),
       });
     });
   }
@@ -108,12 +112,12 @@ export function computeLayout(
       ...node,
       x: centerX + Math.cos(angle) * strayRing,
       y: centerY + Math.sin(angle) * strayRing,
-      radius: scaleRadius(node.weight, maxWeight, node.represents),
+      radius: scaleRadius(nodeWeight(node), maxWeight, node.represents ?? null),
     });
   });
 
   const byId = new Map(positioned.map((node) => [node.id, node]));
-  return { nodes: positioned, edges: graph.edges, byId, width, height };
+  return { nodes: positioned, edges: allEdges, byId, width, height };
 }
 
 /**

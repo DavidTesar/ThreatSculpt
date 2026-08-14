@@ -7,34 +7,37 @@ import { AttackSurfacePage } from './AttackSurfacePage';
 
 const BASE = '*/api/v1';
 
+/**
+ * Shaped exactly as `GET /dashboard/attack-surface` returns it: namespaced node ids, a
+ * `type` discriminator whose service value is `business_service`, decimal-string weights,
+ * `total_assets`, and no per-node findings count.
+ */
 function graphResponse(overrides: Record<string, unknown> = {}) {
   return {
     nodes: [
       {
-        id: 's1',
-        kind: 'service',
+        id: 'business_service:s1',
+        type: 'business_service',
         label: 'Payment processing',
-        weight: 80,
+        weight: '80.00',
         exposure: null,
         criticality: 'critical',
-        open_findings: 12,
         represents: null,
       },
       {
-        id: 'a1',
-        kind: 'asset',
+        id: 'asset:a1',
+        type: 'asset',
         label: 'web01.corp.local',
-        weight: 94.5,
+        weight: '94.50',
         exposure: 'internet',
         criticality: null,
-        open_findings: 5,
         represents: null,
       },
     ],
-    edges: [{ source: 'a1', target: 's1', kind: 'exposes' }],
+    edges: [{ source: 'asset:a1', target: 'business_service:s1', type: 'exposes' }],
     aggregated: false,
     node_cap: 500,
-    total_nodes: 2,
+    total_assets: 1,
     ...overrides,
   };
 }
@@ -63,26 +66,24 @@ describe('AttackSurfacePage', () => {
         HttpResponse.json({
           data: graphResponse({
             aggregated: true,
-            total_nodes: 1840,
+            total_assets: 1840,
             nodes: [
               {
-                id: 's1',
-                kind: 'service',
+                id: 'business_service:s1',
+                type: 'business_service',
                 label: 'Payment processing',
-                weight: 80,
+                weight: '80.00',
                 exposure: null,
                 criticality: 'critical',
-                open_findings: 12,
                 represents: null,
               },
               {
-                id: 'agg-1',
-                kind: 'aggregate',
+                id: 'aggregated_assets:s1:internal',
+                type: 'aggregated_assets',
                 label: '312 internal assets',
-                weight: 61,
+                weight: '61.00',
                 exposure: 'internal',
                 criticality: null,
-                open_findings: 140,
                 represents: 312,
               },
             ],
@@ -95,7 +96,7 @@ describe('AttackSurfacePage', () => {
     renderApp(<AttackSurfacePage />);
 
     expect(await screen.findByText(/showing an aggregated view/i)).toBeInTheDocument();
-    expect(screen.getByText(/1,840 nodes/)).toBeInTheDocument();
+    expect(screen.getByText(/1,840 assets/)).toBeInTheDocument();
     expect(screen.getByText(/500-node limit/)).toBeInTheDocument();
   });
 
@@ -141,7 +142,7 @@ describe('AttackSurfacePage', () => {
     server.use(
       http.get(`${BASE}/dashboard/attack-surface`, () =>
         HttpResponse.json({
-          data: { nodes: [], edges: [], aggregated: false, node_cap: 500, total_nodes: 0 },
+          data: { nodes: [], edges: [], aggregated: false, node_cap: 500, total_assets: 0 },
           error: null,
         }),
       ),

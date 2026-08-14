@@ -35,10 +35,10 @@ firewall ports, which is what makes the product installable in an enterprise at 
 
 | Decision | Rationale |
 |---|---|
-| Python/FastAPI control plane | Same language as the agent, so both sides of the ingest contract are written against the same Pydantic idiom. FastAPI also publishes an OpenAPI schema at `/openapi.json`, which is what makes the contract checkable — see the caveat below. |
+| Python/FastAPI control plane | Same language as the agent, so both sides of the ingest contract are written against the same Pydantic idiom. FastAPI also publishes an OpenAPI schema at `/openapi.json`, which is what the web client's types are generated from — see "How the contract is enforced" below. |
 | PostgreSQL, not MongoDB | Tenancy isolation is the core security property. Row-level scoping against a relational schema with foreign keys is enforceable and auditable; the v1 Mongo schema had no constraint preventing cross-tenant reads, and that is exactly the bug it shipped. |
 | Agent polls, never listens | No inbound firewall rules at the customer. Also means a compromised control plane cannot be used to make agents scan arbitrary targets without passing job validation. |
-| React + TypeScript + Vite | Strict TypeScript across the client, so a shape the frontend gets wrong *about itself* fails at build time. Note this does **not** extend to the backend contract — see the caveat below. |
+| React + TypeScript + Vite | Strict TypeScript across the client, so a shape the frontend gets wrong fails at build time. This *does* extend to the backend contract: the API types are generated from the control plane's OpenAPI schema rather than hand-maintained — see below for exactly what that catches and what it does not. |
 
 ## Tenancy model
 
@@ -65,29 +65,63 @@ deploy/                 docker-compose, environment template, end-to-end proof
 docs/                   This directory
 ```
 
-### Caveat: nothing mechanically enforces the contract
+### How the contract is enforced
 
-There is no shared `packages/contracts/`. Each of the three apps declares its own models
-against *this documentation*, and the web client's types are hand-maintained rather than
-generated from the OpenAPI schema. So a backend response-shape change does **not** break
-the frontend build — it fails at runtime, in front of a customer.
+There is no shared `packages/contracts/`. What there is instead, for the dashboard API, is
+generation from the control plane's own OpenAPI schema:
 
-This is a known weakness, and it has already bitten once: the agent routes return the
-standard `{data, error, meta}` envelope, but AGENT-PROTOCOL.md originally documented bare
-response bodies, so an agent written literally against the spec could not enrol. It was
-caught by `deploy/e2e.sh`, which is the only thing standing between a contract drift and
-production.
+```
+apps/control-plane  create_app().openapi()          FastAPI derives it from the route
+        │                                            signatures and Pydantic models
+        ▼
+apps/web/openapi.json                                checked in — the contract, as JSON
+        │           npm run openapi:dump
+        ▼
+apps/web/src/lib/api/schema.gen.ts                   openapi-typescript; never hand-edited
+        │           npm run openapi:types
+        ▼
+apps/web/src/types/domain.ts                         thin aliases: `Asset` = `AssetOut`
+```
+
+`domain.ts` and `lib/api/endpoints.ts` restate no response shape and no request body: every
+one is an alias for a generated type, and request bodies and query parameters are taken from
+the schema too. So a backend change that renames a field, drops it, or retypes it fails
+`tsc`, at the call sites that read it.
+
+The **API contract** job in CI regenerates both files and runs `git diff --exit-code`. A
+control-plane change that alters a response shape therefore turns CI red until the schema and
+the generated types are regenerated and reviewed. The schema dump needs no database — the app
+is constructed, not served — so the job is a Python install and a `npm ci`.
+
+#### What this does and does not guarantee
+
+**It checks shapes, not semantics.** A field that keeps its name and JSON type but changes
+meaning — a score rescaled, a status that starts being set differently — passes every check
+here. So does an endpoint that starts returning the right shape with the wrong rows.
+
+**It is only as precise as the Pydantic models.** Several response fields are declared `str`
+where a literal union is meant (`ScanJobOut.status`, `AgentOut.status`, `UserSummary.role`,
+`RiskPosture.band`, every `criticality` outside `BusinessServiceCreate`), so the generated
+type is `string` and the compiler will not catch an unexpected value. The client narrows
+those explicitly (`toScanStatus`, `toRole`, …) and renders an unrecognised value as unknown
+rather than assuming one. `findings.score_factors` is `dict[str, Any]`, which generates as
+an opaque object; it is validated at runtime instead, in `lib/api/scoreFactors.ts`. Tightening
+either in the control plane would move that work into the compiler, and is worth doing.
+
+**It covers the dashboard API only.** The agent protocol is hand-written on both sides — the
+scan agent is Python and consumes none of this — so AGENT-PROTOCOL.md is still the only
+specification for it, and `deploy/e2e.sh` is still the only mechanical check that the agent
+and the control plane agree. That is the interface the one historical contract bug was on:
+the agent routes return the standard `{data, error, meta}` envelope while AGENT-PROTOCOL.md
+originally documented bare response bodies, so an agent written literally against the spec
+could not enrol, and `e2e.sh` is what caught it.
 
 Two consequences worth internalising:
 
-1. **Treat every contract statement in these documents as load-bearing.** They are the
-   only specification; there is no generated artifact to fall back on.
-2. **`deploy/e2e.sh` is not a nice-to-have.** It runs the three apps against each other
-   for real and is the sole mechanical check that they still agree. If it is ever
-   skipped, disabled, or allowed to rot, the contract is unverified.
-
-Generating the web client from `/openapi.json` would close this properly and is the
-obvious next investment.
+1. **`deploy/e2e.sh` is not a nice-to-have.** It runs the three apps against each other for
+   real. Generation narrows what it is the *only* check for; it does not replace it.
+2. **Treat every contract statement about the agent protocol as load-bearing.** For that
+   interface there is still no generated artifact to fall back on.
 
 ## Principals and authentication
 

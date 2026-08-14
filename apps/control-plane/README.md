@@ -72,6 +72,61 @@ it; the test suite asserts all of the above.
 
 Cross-tenant access returns **404, never 403** — a 403 would confirm the row exists.
 
+## Email delivery — required, and enforced at startup
+
+An unverified account cannot log in, so a deployment that cannot deliver a verification
+message onboards nobody. `create_app` therefore **refuses to start** unless
+`TS_EMAIL_DELIVERY` names a mode that actually delivers. Only `smtp` does; `none` drops
+the message and `memory` retains it in-process for tests.
+
+SMTP rather than a vendor SDK because one relay configuration reaches SES, SendGrid,
+Postmark, Mailgun and a customer's own relay — and enterprise buyers routinely insist on
+the last one.
+
+```bash
+TS_EMAIL_DELIVERY=smtp
+TS_SMTP_HOST=smtp.example.com
+TS_SMTP_PORT=587                  # 587 with starttls, 465 with implicit
+TS_SMTP_TLS=starttls              # starttls | implicit | none (loopback only)
+TS_SMTP_USERNAME=apikey
+TS_SMTP_PASSWORD=…                # environment only; no default, never logged
+TS_SMTP_FROM_EMAIL=no-reply@example.com
+TS_SMTP_FROM_NAME=ThreatSculpt
+TS_SMTP_VERIFY_ON_START=1
+TS_PUBLIC_BASE_URL=https://app.example.com   # the dashboard's public origin
+```
+
+`TS_PUBLIC_BASE_URL` is where the verification link points
+(`…/verify-email?token=…`). **That link is a credential**, so it must be `https` in
+production and it is never written to a log; neither is the token. Delivery log lines
+carry the org and the recipient's *domain*.
+`TS_SMTP_TLS=none` is accepted for a loopback relay and refused for anything else,
+because an unencrypted session carries both the relay password and that link in the
+clear.
+
+**Settings are validated at boot, and the relay is asked whether it agrees.** Every
+configuration problem is reported at once, so three wrong values cost one deploy rather
+than three. Then, unless `TS_SMTP_VERIFY_ON_START=0`, the process connects,
+authenticates and hangs up without sending anything:
+
+- a **rejected credential or unusable TLS mode** refuses the boot — it will be rejected at
+  send time too, and the only symptom then is a registration that reports success while
+  the message silently never leaves;
+- an **unreachable relay** logs CRITICAL and starts anyway — refusing to boot on a mail
+  outage would take the entire API down with it and crash-loop any restart until mail
+  returned.
+
+**Sending never blocks the loop and never fails a request.** `smtplib` is blocking, so
+sends run on a bounded thread pool; the registration has already committed by then, so a
+failure is logged (`verification_delivery_failed`, or `verification_delivery_shed` when
+more than 64 messages are already in flight) and the user recovers through
+`POST /auth/verify-email/resend`.
+
+For local development and the test suite, `TS_ALLOW_UNDELIVERABLE_EMAIL=1` starts the
+process on a non-delivering mode. It is logged at CRITICAL on every boot and it does not
+make verification work — it only stops the refusal. Never set it in a deployed
+environment. There is deliberately no "auto-verify when delivery is off".
+
 ## Local setup
 
 ```bash
@@ -88,7 +143,16 @@ cp .env.example .env      # then fill in TS_DATABASE_URL and TS_JWT_SECRET
 ```
 
 `TS_JWT_SECRET` must be 32+ characters and `TS_CORS_ORIGINS` must not be `*`; the
-process refuses to start otherwise.
+process refuses to start otherwise. So does an email configuration that cannot deliver —
+see [Email delivery](#email-delivery--required-and-enforced-at-startup). To run against a
+local relay instead of a real one:
+
+```bash
+python -m aiosmtpd -n -l 127.0.0.1:2525          # prints every message to stdout
+TS_EMAIL_DELIVERY=smtp TS_SMTP_HOST=127.0.0.1 TS_SMTP_PORT=2525 TS_SMTP_TLS=none \
+TS_SMTP_FROM_EMAIL=no-reply@localhost.localdomain \
+TS_PUBLIC_BASE_URL=http://localhost:5173 ./.venv/bin/python main.py
+```
 
 ## Tests
 

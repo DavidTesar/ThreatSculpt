@@ -16,15 +16,17 @@ describe('AgentsPage', () => {
     expect(screen.getByText('Revoked')).toBeInTheDocument();
   });
 
-  it('validates the agent name before issuing a token', async () => {
+  // `POST /agents` takes a `note`, not a name: the agent row appears when something
+  // enrols with the token, and the agent supplies its own name then.
+  it('requires a note describing what the token is for', async () => {
     signIn();
     const { user } = renderApp(<AgentsPage />);
 
     await user.click(await screen.findByRole('button', { name: /enroll agent/i }));
-    await user.type(screen.getByLabelText(/agent name/i), 'has spaces!');
+    await user.type(screen.getByLabelText(/what is this token for/i), 'hq');
     await user.click(screen.getByRole('button', { name: /issue enrollment token/i }));
 
-    expect(await screen.findByText(/letters, numbers, dots, dashes/i)).toBeInTheDocument();
+    expect(await screen.findByText(/note which host this token is for/i)).toBeInTheDocument();
   });
 
   it('shows the enrollment token once, with an unmissable warning', async () => {
@@ -32,7 +34,7 @@ describe('AgentsPage', () => {
     const { user } = renderApp(<AgentsPage />);
 
     await user.click(await screen.findByRole('button', { name: /enroll agent/i }));
-    await user.type(screen.getByLabelText(/agent name/i), 'new-scanner-01');
+    await user.type(screen.getByLabelText(/what is this token for/i), 'new-scanner-01');
     await user.click(screen.getByRole('button', { name: /issue enrollment token/i }));
 
     const dialog = await screen.findByRole('dialog', { name: /copy this enrollment token now/i });
@@ -48,7 +50,7 @@ describe('AgentsPage', () => {
     const { user } = renderApp(<AgentsPage />);
 
     await user.click(await screen.findByRole('button', { name: /enroll agent/i }));
-    await user.type(screen.getByLabelText(/agent name/i), 'new-scanner-02');
+    await user.type(screen.getByLabelText(/what is this token for/i), 'new-scanner-02');
     await user.click(screen.getByRole('button', { name: /issue enrollment token/i }));
 
     const dialog = await screen.findByRole('dialog', { name: /copy this enrollment token/i });

@@ -7,6 +7,7 @@ import {
   severityRank,
   SEVERITY_SHAPE,
 } from './risk';
+import type { ScoreFactors } from './api/scoreFactors';
 import { SEVERITIES } from '@/types/domain';
 
 describe('severityForCvss', () => {
@@ -46,8 +47,8 @@ describe('bandForScore', () => {
     [79, 'elevated'],
     [60, 'elevated'],
     [59, 'moderate'],
-    [35, 'moderate'],
-    [34, 'low'],
+    [40, 'moderate'],
+    [39, 'low'],
     [0, 'low'],
   ])('puts %d in the %s band', (score, expected) => {
     expect(bandForScore(score)).toBe(expected);
@@ -56,11 +57,14 @@ describe('bandForScore', () => {
 
 describe('computeBusinessRisk', () => {
   it('reaches 100 only for the worst possible combination', () => {
-    expect(computeBusinessRisk(10, 'weaponized', 'internet', 'critical')).toBe(100);
+    // The top of the ladder is `kev_listed`, not `weaponized`: CISA recording real-world
+    // use outranks "reliable exploit code exists".
+    expect(computeBusinessRisk(10, 'kev_listed', 'internet', 'critical')).toBe(100);
+    expect(computeBusinessRisk(10, 'weaponized', 'internet', 'critical')).toBeLessThan(100);
   });
 
   it('never exceeds 100', () => {
-    expect(computeBusinessRisk(10, 'weaponized', 'internet', 'critical')).toBeLessThanOrEqual(100);
+    expect(computeBusinessRisk(10, 'kev_listed', 'internet', 'critical')).toBeLessThanOrEqual(100);
   });
 
   it('ranks business context above raw CVSS — the product premise', () => {
@@ -81,12 +85,23 @@ describe('computeBusinessRisk', () => {
 });
 
 describe('explainScore', () => {
-  const factors = {
+  // Shaped like a real `score_factors` payload, including the normalisation block the
+  // control plane sends so the explanation does not have to guess at the divisor.
+  const factors: ScoreFactors = {
     cvss_base: 8.8,
-    exploit_maturity: { value: 'poc', multiplier: 1.25 },
+    exploit_maturity: { value: 'poc', multiplier: 1.2 },
     exposure: { value: 'dmz', multiplier: 1.2 },
     asset_criticality: { value: 'high', multiplier: 1.15 },
-  } as const;
+    services_affected: ['Payment processing'],
+    notes: [],
+    normalization: {
+      raw: 8.8 * 1.2 * 1.2 * 1.15,
+      max_raw: 29.12,
+      scale: 100,
+      formula: 'cvss_base x exploit_maturity x exposure x asset_criticality, rescaled to 0-100',
+      rounding: 'half_up',
+    },
+  };
 
   it('walks the documented factors in order, then the rescale', () => {
     const { steps } = explainScore(factors);
@@ -112,9 +127,9 @@ describe('explainScore', () => {
     const { base, steps } = explainScore(factors);
 
     expect(base).toBe(8.8);
-    expect(steps[0]?.runningTotal).toBeCloseTo(8.8 * 1.25, 5);
-    expect(steps[1]?.runningTotal).toBeCloseTo(8.8 * 1.25 * 1.2, 5);
-    expect(steps[2]?.runningTotal).toBeCloseTo(8.8 * 1.25 * 1.2 * 1.15, 5);
+    expect(steps[0]?.runningTotal).toBeCloseTo(8.8 * 1.2, 5);
+    expect(steps[1]?.runningTotal).toBeCloseTo(8.8 * 1.2 * 1.2, 5);
+    expect(steps[2]?.runningTotal).toBeCloseTo(8.8 * 1.2 * 1.2 * 1.15, 5);
   });
 
   it('gives every step a plain-language gloss', () => {
