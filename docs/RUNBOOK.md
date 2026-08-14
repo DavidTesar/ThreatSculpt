@@ -11,17 +11,48 @@ about running it.
 ## Known gaps
 
 Read this first. These are integration gaps found by running the three apps
-against each other; each is real, reproducible, and not yet fixed.
+against each other. Both are now fixed, but each fix depends on a process an
+operator has to actually run — so the rows stay here rather than moving to
+**Closed**.
 
 | Gap | Effect | Where |
 |---|---|---|
-| **Findings are never generated.** `enrichment.service.generate_findings` has no caller anywhere in the request path — only tests and `deploy/e2e_enrich.py` invoke it. | Scans ingest assets and ports correctly, but **no finding is ever created in a running system**, so `/findings` and `/dashboard/executive` stay permanently empty. | `apps/control-plane/src/threatsculpt/enrichment/service.py:70` |
-| **The CVE mirror is never synced.** `enrichment.sync.sync_all` has no caller and no CLI entry point. | The `vulnerabilities` table stays empty, so even a wired-up enrichment pass would match nothing. | `apps/control-plane/src/threatsculpt/enrichment/sync.py:39` |
+| ~~**Findings are never generated.**~~ **Fixed.** Ingest queues a completed job for enrichment in the same UPDATE that completes it, and the `enrichment` worker claims it. Run that process, or findings still will not appear. | — | `enrichment/worker.py`, `scanning/ingest.py:_finalise` |
+| ~~**The CVE mirror is never synced.**~~ **Fixed.** `enrichment.http` supplies the HTTP client `RemoteFeed` always needed, paging is real, and `python -m threatsculpt.enrichment.sync_cli` runs it. Schedule that process, or the mirror stays empty. | — | `enrichment/{http,sync,sync_cli}.py` |
 
-`deploy/e2e.sh` works around both by seeding one CVE and calling
-`generate_findings` directly, so the scoring pipeline is genuinely proven while
-the wiring around it is not. Treat a green e2e as evidence about scoring only,
-until that workaround is deleted rather than disabled.
+`deploy/e2e.sh` still seeds the mirror by running the **real** `sync_all` against
+a `StaticFeed`, and should keep doing so: a gate must not depend on nvd.nist.gov
+being up. Everything after that is the production path — ingest queues the
+completed job and `python -m threatsculpt.enrichment` produces the findings the
+script asserts on. Nothing in the script calls `generate_findings`, so a
+regression in that wiring times the script out rather than passing.
+
+### Sync the CVE mirror
+
+```bash
+export TS_NVD_API_KEY=…          # optional, and worth requesting: see below
+python -m threatsculpt.enrichment.sync_cli
+```
+
+Safe to interrupt and safe to schedule. Progress is committed after every page
+and recorded in `feed_sync_state`, so a killed run resumes where it stopped
+rather than starting over.
+
+`TS_CVE_SYNC_INTERVAL_HOURS` (default 24) is enforced by the command itself: a
+run that finds the mirror synced more recently than that exits without touching
+the network. So the cron entry can be **hourly** — which is what you want, since
+it means a failed run retries an hour later instead of a day later — without
+hammering a public, rate-limited API. `--force` overrides the check.
+
+**Request an NVD API key.** NVD allows 5 requests per 30 seconds anonymously and
+50 with a key, per source address. A cold sync of ~300,000 CVEs is roughly 150
+requests with a key and roughly 1,500 without — about an hour versus about ten.
+The key is read from `TS_NVD_API_KEY`, is never logged, and is only ever sent to
+the host named by `TS_NVD_CVE_URL`.
+
+The first run is a cold sync with no date filter. Every later run is incremental,
+using `lastModStartDate`/`lastModEndDate` windows; NVD caps a window at 120 days,
+so a long outage is walked as several consecutive windows rather than one.
 
 ### Closed
 
@@ -50,7 +81,8 @@ trusted. A generated type and a hand-written mock cannot disagree safely.
 
 ```bash
 cp deploy/.env.example deploy/.env
-# fill in POSTGRES_PASSWORD and TS_JWT_SECRET — start-up fails on empty values
+# fill in POSTGRES_PASSWORD, TS_JWT_SECRET, and the mail relay settings —
+# start-up fails on empty values, and compose refuses to render without them
 openssl rand -base64 32   # POSTGRES_PASSWORD
 openssl rand -hex 32      # TS_JWT_SECRET
 
@@ -58,7 +90,15 @@ docker compose -f deploy/docker-compose.yml up -d
 ```
 
 Brings up postgres, a one-shot `migrate` job, the control plane, the lease
-sweeper, and the web dashboard on <http://127.0.0.1:8080>.
+sweeper, the enrichment worker, and the web dashboard on
+<http://127.0.0.1:8080>.
+
+**The mail settings are required, not optional.** A new account is created
+unverified and an unverified account cannot log in, so a stack that cannot
+deliver a verification message onboards nobody — and the control plane refuses
+to start rather than serve traffic in that state. `TS_ALLOW_UNDELIVERABLE_EMAIL`
+turns that refusal off and is a development-only flag; it does not make
+verification work.
 
 The **scan agent is deliberately not in the default stack**. It runs on the
 customer's network, holds a customer credential, and needs raw-socket access to
@@ -88,7 +128,11 @@ cd apps/control-plane && .venv/bin/alembic upgrade head
 # 4. lease sweeper, in another shell, same environment
 .venv/bin/python -m threatsculpt.scanning
 
-# 5. dashboard, in another shell
+# 5. enrichment worker, in another shell, same environment.
+#    Without it, scans produce assets and ports but never findings.
+.venv/bin/python -m threatsculpt.enrichment
+
+# 6. dashboard, in another shell
 cd apps/web && npm run dev
 ```
 
@@ -121,15 +165,37 @@ PGHOST=/var/run/postgresql PGPORT=5432 deploy/e2e.sh
 It takes about 40 seconds, most of it the real `nmap -sS -sV -O --top-ports 1000`.
 
 **nmap needs `CAP_NET_RAW`.** The agent must not run as root, so the capability
-belongs on the binary:
+belongs on the binary — and on *the binary the kernel actually executes*, which
+is not always the one on `PATH`:
 
 ```bash
-sudo setcap cap_net_raw,cap_net_admin,cap_net_bind_service+eip "$(readlink -f "$(command -v nmap)")"
+# Find the real ELF first. On Debian and Kali /usr/bin/nmap is a shell WRAPPER
+# around /usr/lib/nmap/nmap, and because it is a script rather than a symlink,
+# `readlink -f` returns the wrapper. A capability set on a script does nothing:
+# the kernel does not honour file capabilities on anything it runs through an
+# interpreter.
+file "$(command -v nmap)"                    # "a sh script" => use the path below
+NMAP_ELF=/usr/lib/nmap/nmap                  # Debian, Kali
+[ -e "$NMAP_ELF" ] || NMAP_ELF="$(readlink -f "$(command -v nmap)")"   # Ubuntu, others
+
+sudo setcap cap_net_raw,cap_net_admin,cap_net_bind_service+eip "$NMAP_ELF"
+getcap "$NMAP_ELF"
 ```
 
-On Debian and Kali `/usr/bin/nmap` may be a shell wrapper around
-`/usr/lib/nmap/nmap`; the capability has to go on the real ELF binary, which is
-what `readlink -f` resolves.
+Two ways this looks right and is not:
+
+- **`getcap` shows the capability and scans still fail.** The mount can be the
+  reason: on a `nosuid` filesystem the kernel ignores file capabilities while
+  `getcap` still displays them. `findmnt -T "$NMAP_ELF"` shows the flags. A
+  container that drops `CAP_NET_RAW` produces the same symptom.
+- **The capability is honoured but nmap refuses anyway**, saying the scan type
+  needs root. That is nmap's own privilege check, not the kernel's answer —
+  Debian and Kali ship their wrapper precisely to pass `--privileged` for
+  non-root users. Set `NMAP_PRIVILEGED=1` in the environment.
+
+`deploy/e2e.sh` tells these apart for you: it prints what nmap actually said,
+the capability and mount state of every candidate path, and whether an
+unprivileged `-sT` of the same target works, before it offers any advice.
 
 ---
 
@@ -261,11 +327,37 @@ re-validates every submitted IP and drops the ones outside range, audit-logging
 each. A non-empty list means the agent and the control plane disagree about what
 was asked for — worth investigating rather than ignoring.
 
-### Everything works but the dashboard is empty
+### Scans complete, `assets` and `ports` fill up, but `findings` stays empty
 
-Expected today. See **Known gaps** — no findings are generated in a running
-system, because nothing calls `generate_findings`. `assets` and `ports` will be
-populated; `findings` will not.
+Work through the queue in order — each step tells you which of the three it is.
+
+```sql
+-- 1. Did ingest queue the job? Anything but 'pending'/'running'/'complete'
+--    here (especially NULL on a completed job) means the scan never finished.
+select id, status, enrichment_status, enrichment_attempts, enrichment_lease_expires_at
+  from scan_jobs order by created_at desc limit 5;
+
+-- 2. Is there anything to match against? An empty mirror matches nothing, and
+--    the pass still completes — correctly, with zero findings.
+select count(*) from vulnerabilities;
+```
+
+3. **Is the worker running?** `python -m threatsculpt.enrichment`, or the
+   `enrichment` service in the compose stack. Jobs sitting at `pending` with
+   `enrichment_attempts = 0` mean nothing has claimed them: no worker.
+
+A job stuck at `running` with a lapsed lease is a worker that died mid-pass; the
+next pass reclaims it. After `MAX_ENRICHMENT_ATTEMPTS` it goes to `failed` and
+stops being retried — the worker log has the exception, correlated by
+`scan_job_id`. The scan's own `status` stays `completed`, because the scan did
+succeed; only enrichment did not.
+
+One thing this does **not** cover: a CVE the mirror learns about *after* a scan
+was enriched produces no finding on that scan's ports. Matching happened against
+the mirror as it stood, and nothing re-enriches a job whose pass already
+completed. `rescore_findings` is not the answer either — it re-scores findings
+that exist, it does not discover new ones. Re-run the scan, or re-queue the job
+by setting `enrichment_status = 'pending'` and `enrichment_attempts = 0` on it.
 
 ### Sessions drop after 15 minutes
 

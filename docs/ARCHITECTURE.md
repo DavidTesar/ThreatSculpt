@@ -227,6 +227,15 @@ whatever nmap's script scraped that day. Moving enrichment server-side means the
 no internet access beyond the control plane, enrichment improves for historical scans without
 rescanning, and one NVD sync serves every tenant.
 
+**When it runs.** Ingest marks a job `enrichment_status = 'pending'` in the same UPDATE that
+moves it to `completed`, and a dedicated worker process (`python -m threatsculpt.enrichment`)
+claims those jobs with `FOR UPDATE SKIP LOCKED`, leases them, and pages through their ports.
+One statement rather than two because a job that reached `completed` without being queued is a
+scan that produces no findings, forever and silently — the failure mode is invisible, so it has
+to be impossible rather than unlikely. It is a separate process for the same reason the lease
+sweeper is: enrichment is database-bound and happens on every completed scan, and running it on
+the API's event loop would let scan ingest decide how fast logins are.
+
 ## What is explicitly out of scope
 
 - Exploitation, session control, network pivoting. This is a visualization and prioritization

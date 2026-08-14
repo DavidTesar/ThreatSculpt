@@ -230,6 +230,12 @@ inside a published range; `medium` means the advisory named no version bound at 
 Nothing weaker is emitted. Confidence is a column on `findings`, not a note in
 `score_factors`, so it survives a re-score and can be filtered on.
 
+**Findings are produced by a worker, not by a request.** `python -m threatsculpt.enrichment`
+claims the jobs that ingest queued (`scan_jobs.enrichment_status`), leases them, and pages
+through their ports in `id` order until a short page — so a `-p-` sweep larger than one page
+is enriched completely rather than truncated at whatever the planner returned first. Run it,
+or scans produce assets and ports and no findings at all.
+
 **Re-scoring is re-runnable without a rescan.** `enrichment.scoring_service.rescore_findings`
 recomputes historical findings when the CVE mirror learns something new, when an asset's
 exposure is corrected, or when an asset is mapped to a business service. The `/assets`

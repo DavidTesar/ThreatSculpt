@@ -2,7 +2,8 @@
 #
 # Two deployment domains live in this file, and they are NOT the same trust zone:
 #
-#   * postgres, migrate, control-plane, web  — the ThreatSculpt cloud stack.
+#   * postgres, migrate, control-plane,      — the ThreatSculpt cloud stack.
+#     sweeper, enrichment, web
 #   * scan-agent                             — runs on the CUSTOMER's network.
 #
 # The agent is behind the `agent` profile so it never starts as part of the cloud
@@ -88,6 +89,34 @@ services:
       # Cookies are Secure in production; only turn this off for plain-HTTP local dev.
       TS_COOKIE_SECURE: ${TS_COOKIE_SECURE:-true}
       TS_COOKIE_DOMAIN: ${TS_COOKIE_DOMAIN:-}
+      # Mail delivery is required, not optional. A new account is created
+      # unverified and an unverified account cannot log in, so a stack that
+      # cannot deliver a verification message onboards nobody — and the control
+      # plane refuses to start rather than serve traffic in that state. These
+      # have no defaults for the same reason POSTGRES_PASSWORD does not: a
+      # placeholder would start cleanly and fail at the first registration.
+      #
+      # TS_ALLOW_UNDELIVERABLE_EMAIL is deliberately absent. It is the
+      # development escape hatch for that refusal, and a deployment that sets it
+      # has a login page nobody can get past.
+      TS_EMAIL_DELIVERY: ${TS_EMAIL_DELIVERY:?set TS_EMAIL_DELIVERY=smtp in deploy/.env}
+      TS_SMTP_HOST: ${TS_SMTP_HOST:?set TS_SMTP_HOST in deploy/.env}
+      TS_SMTP_PORT: ${TS_SMTP_PORT:-587}
+      TS_SMTP_TLS: ${TS_SMTP_TLS:-starttls}
+      # A relay that authenticates by source IP rather than by credentials wants
+      # these two lines DELETED, not left blank: an empty password with no
+      # username is refused at boot, on purpose, because it is far more often a
+      # half-filled .env than a deliberate choice.
+      TS_SMTP_USERNAME: ${TS_SMTP_USERNAME:?set TS_SMTP_USERNAME in deploy/.env}
+      TS_SMTP_PASSWORD: ${TS_SMTP_PASSWORD:?set TS_SMTP_PASSWORD in deploy/.env}
+      TS_SMTP_FROM_EMAIL: ${TS_SMTP_FROM_EMAIL:?set TS_SMTP_FROM_EMAIL in deploy/.env}
+      TS_SMTP_FROM_NAME: ${TS_SMTP_FROM_NAME:-ThreatSculpt}
+      # Origin of the verification link. Must be https in production — the link
+      # carries a token that grants control of the account.
+      TS_PUBLIC_BASE_URL: ${TS_PUBLIC_BASE_URL:?set TS_PUBLIC_BASE_URL in deploy/.env}
+      # Ask the relay whether it accepts these credentials at boot, rather than
+      # discovering a wrong password when a real person tries to sign up.
+      TS_SMTP_VERIFY_ON_START: ${TS_SMTP_VERIFY_ON_START:-true}
     depends_on:
       postgres:
         condition: service_healthy
@@ -112,6 +141,37 @@ services:
     image: threatsculpt/control-plane:${TS_IMAGE_TAG:-2.0.0}
     restart: unless-stopped
     command: ["python", "-m", "threatsculpt.scanning"]
+    environment:
+      TS_DATABASE_URL: postgresql+psycopg://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}
+      TS_JWT_SECRET: ${TS_JWT_SECRET:?set TS_JWT_SECRET in deploy/.env}
+      TS_ENVIRONMENT: ${TS_ENVIRONMENT:-production}
+      TS_LOG_JSON: ${TS_LOG_JSON:-true}
+    depends_on:
+      postgres:
+        condition: service_healthy
+      migrate:
+        condition: service_completed_successfully
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    read_only: true
+
+  # Turns completed scans into scored findings. Without this process a customer
+  # can scan a network perfectly and the dashboard stays empty: ingest writes
+  # assets and ports, and *findings* are the product.
+  #
+  # A separate process for the reason the sweeper is one, plus a measured one:
+  # enrichment is heavy, database-bound and happens on every completed scan, so
+  # running it inside the API would let scan ingest decide how fast logins are.
+  # It holds no HTTP port and needs no mail settings — it never renders a page
+  # or sends a message.
+  enrichment:
+    build:
+      context: ../apps/control-plane
+    image: threatsculpt/control-plane:${TS_IMAGE_TAG:-2.0.0}
+    restart: unless-stopped
+    command: ["python", "-m", "threatsculpt.enrichment"]
     environment:
       TS_DATABASE_URL: postgresql+psycopg://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}
       TS_JWT_SECRET: ${TS_JWT_SECRET:?set TS_JWT_SECRET in deploy/.env}

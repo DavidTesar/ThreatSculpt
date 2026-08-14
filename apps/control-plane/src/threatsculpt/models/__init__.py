@@ -9,6 +9,7 @@ from threatsculpt.db.base import Base
 from threatsculpt.models.agent import Agent, AgentStatus
 from threatsculpt.models.audit import ActorType, AuditAction, AuditLog
 from threatsculpt.models.cpe_match import VulnerabilityCpeMatch
+from threatsculpt.models.feed_sync_state import KEV_FEED, NVD_FEED, FeedSyncState
 from threatsculpt.models.finding import (
     RESOLVED_STATUSES,
     ExploitMaturity,
@@ -45,7 +46,9 @@ from threatsculpt.models.token import EnrollmentToken, RefreshToken
 from threatsculpt.models.user import ROLE_RANK, Role, User, UserStatus, outranks_or_equals
 
 __all__ = [
+    "KEV_FEED",
     "MAX_JOB_ATTEMPTS",
+    "NVD_FEED",
     "RESOLVED_STATUSES",
     "ROLE_RANK",
     "TERMINAL_REPORT_STATUSES",
@@ -62,6 +65,7 @@ __all__ = [
     "EnrollmentToken",
     "ExploitMaturity",
     "Exposure",
+    "FeedSyncState",
     "Finding",
     "FindingStatus",
     "MatchConfidence",

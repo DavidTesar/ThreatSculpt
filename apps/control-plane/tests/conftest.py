@@ -43,6 +43,7 @@ from httpx import ASGITransport, AsyncClient
 from sqlalchemy import create_engine, text
 from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession, async_sessionmaker
 
+from tests.network_guard import block_outbound_network
 from threatsculpt.app import create_app
 from threatsculpt.config import Settings
 from threatsculpt.db.dsn import dsn_from_environment
@@ -82,6 +83,7 @@ _ALL_TABLES = (
     "refresh_tokens",
     "users",
     "vulnerabilities",
+    "feed_sync_state",
     "orgs",
 )
 
@@ -133,6 +135,19 @@ def _app_role_url(admin: str, password: str) -> str:
     scheme, _, rest = admin.partition("://")
     _, _, host_and_db = rest.rpartition("@") if "@" in rest else ("", "", rest)
     return f"{scheme.split('+')[0]}://{APP_ROLE}:{quote(password)}@{host_and_db}"
+
+
+@pytest.fixture(autouse=True, scope="session")
+def _no_outbound_network() -> Iterator[None]:
+    """The suite may talk to this machine and nothing else.
+
+    ``src/`` now contains a real HTTP client (``enrichment.http``), so "there is
+    no way to reach the network from here" has to be enforced rather than
+    observed. See ``tests/network_guard`` for what is still allowed and why, and
+    ``tests/test_enrichment_no_network.py`` for the proof that this bites.
+    """
+    with block_outbound_network():
+        yield
 
 
 @pytest.fixture(scope="session")

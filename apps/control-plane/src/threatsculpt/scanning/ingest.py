@@ -24,6 +24,11 @@ ports — a false finding on a real asset.
 The writing itself lives in ``scanning.persistence``. What stays here is the
 decision about what may be written at all, which is the part with a security
 consequence.
+
+The final chunk also queues the job for enrichment, in the same UPDATE that
+completes it — see ``_finalise``. That is what turns an ingested scan into
+findings; without it the product's whole scoring layer is unreachable from a
+running system.
 """
 
 from __future__ import annotations
@@ -35,7 +40,7 @@ from typing import Any
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from threatsculpt.core.scoped_sql import execute_scoped
-from threatsculpt.models.scan import ScanJob, ScanStatus
+from threatsculpt.models.scan import EnrichmentStatus, ScanJob, ScanStatus
 from threatsculpt.scanning.dispatch import LEASE_DURATION
 from threatsculpt.scanning.persistence import store_hosts
 from threatsculpt.scanning.schemas import (
@@ -180,6 +185,14 @@ async def _finalise(
         changes["finished_at"] = payload.finished_at or now
         changes["lease_expires_at"] = None
         changes["progress_percent"] = 100
+        # Queued for enrichment by the *same* UPDATE that completes the job.
+        # A completed job with no findings and nothing scheduled to produce them
+        # is indistinguishable from a scan that found nothing, so the two facts
+        # have to become true together or not at all: split into two writes, a
+        # crash in between strands the scan permanently and silently, and the
+        # only symptom is a dashboard that stays empty. ``enrichment.worker``
+        # picks it up from here.
+        changes["enrichment_status"] = EnrichmentStatus.PENDING.value
     else:
         changes["status"] = ScanStatus.RUNNING.value
         changes["lease_expires_at"] = now + LEASE_DURATION

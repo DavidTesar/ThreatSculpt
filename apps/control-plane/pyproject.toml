@@ -21,6 +21,11 @@ dependencies = [
     "argon2-cffi>=23.1",
     "pyjwt>=2.9",
     "python-multipart>=0.0.17",
+    # The CVE mirror's client for NVD and CISA KEV. Runtime, not dev: without a
+    # real HTTP client `RemoteFeed` is un-constructible and the mirror cannot be
+    # populated in production at all. Only `enrichment.http` may import it, and
+    # tests/test_enrichment_no_network.py enforces that.
+    "httpx>=0.27",
 ]
 
 [project.optional-dependencies]

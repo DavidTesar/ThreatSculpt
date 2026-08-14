@@ -2,10 +2,15 @@
 #
 # ThreatSculpt v2 — end-to-end proof, run natively on the host.
 #
-# Exercises the real control plane, the real scan agent, and real nmap against a
-# real PostgreSQL database. There are no mocks, stubs, or fixtures anywhere in
-# this path: every step below is an HTTP call to a running server or a subprocess
-# that actually scans 127.0.0.1.
+# Exercises the real control plane, the real scan agent, the real enrichment
+# worker, and real nmap against a real PostgreSQL database. There are no mocks,
+# stubs, or fixtures anywhere in this path: every step below is an HTTP call to a
+# running server or a subprocess that actually scans 127.0.0.1.
+#
+# The findings it asserts on are produced the way a deployment produces them —
+# ingest queues the completed job, `python -m threatsculpt.enrichment` claims it.
+# Nothing here calls generate_findings directly; if the trigger regresses, step
+# 12c times out instead of passing.
 #
 # It is a gate, not a smoke test. Every step asserts; any failed assertion exits
 # non-zero and the script prints what it saw versus what it expected.
@@ -44,8 +49,14 @@ USER_PASSWORD='CorrectHorseBatteryStaple9!'
 
 WORK_DIR="$(mktemp -d)"
 CP_PID=""
+ENRICH_PID=""
 LISTENER_PID=""
 LISTENER_PORT=""
+
+#: How long to wait for the enrichment worker to turn the completed scan into
+#: findings. Its first pass runs at start-up, so this is slack for a slow
+#: machine rather than a poll interval.
+ENRICH_TIMEOUT_SECONDS=60
 
 # --- output helpers ---------------------------------------------------------
 
@@ -78,6 +89,10 @@ cleanup() {
     kill "$CP_PID" 2>/dev/null || true
     wait "$CP_PID" 2>/dev/null || true
   fi
+  if [[ -n "$ENRICH_PID" ]] && kill -0 "$ENRICH_PID" 2>/dev/null; then
+    kill "$ENRICH_PID" 2>/dev/null || true
+    wait "$ENRICH_PID" 2>/dev/null || true
+  fi
   if [[ -n "$LISTENER_PID" ]] && kill -0 "$LISTENER_PID" 2>/dev/null; then
     kill "$LISTENER_PID" 2>/dev/null || true
   fi
@@ -90,6 +105,10 @@ cleanup() {
   if [[ $status -ne 0 && -f "$WORK_DIR/cp.log" ]]; then
     printf '\n%s--- control-plane log (last 40 lines) ---%s\n' "$RED" "$RESET" >&2
     tail -40 "$WORK_DIR/cp.log" >&2 || true
+  fi
+  if [[ $status -ne 0 && -f "$WORK_DIR/enrichment.log" ]]; then
+    printf '\n%s--- enrichment worker log (last 40 lines) ---%s\n' "$RED" "$RESET" >&2
+    tail -40 "$WORK_DIR/enrichment.log" >&2 || true
   fi
   exit $status
 }
@@ -109,13 +128,115 @@ info "nmap:      $("$NMAP_PATH" --version | head -1)"
 info "postgres:  $(psql -d postgres -tAc 'show server_version')"
 info "work dir:  $WORK_DIR"
 
-# nmap's raw-socket scan types need CAP_NET_RAW. The agent must NOT run as root
-# (AGENT-PROTOCOL.md), so the capability belongs on the binary.
-if ! "$NMAP_PATH" -sS -p 22 --max-retries 0 -oX - 127.0.0.1 >/dev/null 2>&1; then
-  fail "nmap cannot run a SYN scan as this user. Grant the capability:
-    sudo setcap cap_net_raw,cap_net_admin,cap_net_bind_service+eip \$(readlink -f $NMAP_PATH)"
+# --- nmap raw-socket probe --------------------------------------------------
+#
+# The agent's `service` and `vulnerability` profiles are `-sS -sV -O`, all of
+# which need raw sockets, and the agent must NOT run as root (AGENT-PROTOCOL.md)
+# — so the capability belongs on the binary. This block establishes whether that
+# is actually true here, and if it is not, prints what nmap said rather than a
+# guess about why.
+#
+# It used to guess. The check was `... >/dev/null 2>&1` with a failure message
+# asserting the capability was missing, which sent a reader to `setcap` even in
+# environments where `getcap` already showed the capability set. A check that
+# discards the evidence and substitutes a diagnosis is worse than one that only
+# fails: it is confidently wrong, and it costs somebody an afternoon.
+
+NMAP_PROBE_ERR="$WORK_DIR/nmap-probe.err"
+
+# The paths a capability could have to live on, deduplicated. `readlink -f` is
+# NOT enough on its own: on Debian and Kali `/usr/bin/nmap` is a **shell
+# wrapper** around `/usr/lib/nmap/nmap`, not a symlink, so `readlink -f` returns
+# the wrapper and a capability set on it does nothing at all. On Ubuntu there is
+# no wrapper and `/usr/bin/nmap` is the ELF that needs it.
+nmap_binary_candidates() {
+  local resolved seen=""
+  resolved="$(readlink -f "$NMAP_PATH" 2>/dev/null || true)"
+  local candidate
+  for candidate in "$NMAP_PATH" "$resolved" /usr/lib/nmap/nmap; do
+    [[ -n "$candidate" && -e "$candidate" ]] || continue
+    case " $seen " in *" $candidate "*) continue ;; esac
+    seen="$seen $candidate"
+    printf '%s\n' "$candidate"
+  done
+}
+
+# Everything a reader needs to tell the causes apart, printed before any advice.
+nmap_environment_report() {
+  printf '  running as: uid=%s (%s)\n' "$(id -u)" "$(id -un)"
+  local candidate caps
+  while read -r candidate; do
+    if command -v getcap >/dev/null 2>&1; then
+      caps="$(getcap "$candidate" 2>/dev/null)"
+      [[ -n "$caps" ]] || caps="$candidate (no capabilities set)"
+    else
+      caps="$candidate (getcap not installed — apt-get install libcap2-bin)"
+    fi
+    printf '  capabilities: %s\n' "$caps"
+    printf '        is a: %s\n' "$(file -b "$candidate" 2>/dev/null || echo unknown)"
+    # A `nosuid` mount makes the kernel ignore file capabilities while getcap
+    # still displays them — which looks exactly like "the capability is set and
+    # does nothing".
+    printf '     mounted: %s\n' \
+      "$(findmnt -no TARGET,OPTIONS -T "$candidate" 2>/dev/null || echo unknown)"
+  done < <(nmap_binary_candidates)
+}
+
+# One probe. Extra flags go before the target; stderr is kept, never discarded.
+probe_nmap() { # scan-type [extra-flags...]
+  "$NMAP_PATH" "$@" -p 22 --max-retries 0 -oX - 127.0.0.1 \
+    >/dev/null 2>"$NMAP_PROBE_ERR"
+}
+
+if probe_nmap -sS; then
+  pass "nmap can raw-socket scan without root"
+elif probe_nmap -sS --privileged; then
+  # The kernel allows the raw socket but nmap's own privilege check did not
+  # believe it. Debian and Kali ship a wrapper that passes --privileged for
+  # exactly this reason. NMAP_PRIVILEGED is the documented environment
+  # equivalent, so exporting it here also reaches the agent's own nmap calls,
+  # which this script does not control.
+  #
+  # This does not paper over a missing capability: with no raw-socket access
+  # --privileged changes nothing, as the branch below proves by still failing.
+  export NMAP_PRIVILEGED=1
+  pass "nmap can raw-socket scan with NMAP_PRIVILEGED=1"
+  info "nmap's own privilege check does not see the capability on this system;"
+  info "NMAP_PRIVILEGED=1 is exported so the agent's scans get the same treatment."
+else
+  printf '\n%s  nmap could not run a SYN scan. What nmap said:%s\n' "$RED" "$RESET" >&2
+  sed 's/^/    /' "$NMAP_PROBE_ERR" >&2
+  printf '\n%s  Environment:%s\n' "$RED" "$RESET" >&2
+  nmap_environment_report >&2
+
+  # Narrow it down: is it raw sockets specifically, or is nmap unable to scan at
+  # all? A connect scan needs no privileges whatsoever.
+  if probe_nmap -sT; then
+    printf '\n  An unprivileged connect scan (-sT) of the same target SUCCEEDS,\n' >&2
+    printf '  so nmap and the network are fine and raw-socket access is what is missing.\n' >&2
+  else
+    printf '\n  An unprivileged connect scan (-sT) of the same target ALSO fails,\n' >&2
+    printf '  so this is not a capability problem — nmap cannot scan 127.0.0.1 at all.\n' >&2
+    sed 's/^/    /' "$NMAP_PROBE_ERR" >&2
+  fi
+
+  # Advice, offered as causes to check against the evidence above rather than as
+  # a diagnosis. The first one is only the answer if the capability line above
+  # says "no capabilities set".
+  fail "nmap cannot raw-socket scan here. Possible causes, in order:
+    1. The capability is not set on the binary the kernel actually runs:
+         sudo setcap cap_net_raw,cap_net_admin,cap_net_bind_service+eip <path>
+       Use the path listed above whose type is ELF, NOT the wrapper script —
+       on Debian and Kali that is /usr/lib/nmap/nmap, and 'readlink -f' does
+       not resolve to it.
+    2. The capability IS set but the kernel ignores it — a 'nosuid' mount does
+       this, and getcap still displays the capability. Check the mount line.
+    3. The container or sandbox denies CAP_NET_RAW outright, in which case no
+       setcap on the host image will help.
+  There is deliberately no unprivileged fallback: the agent's scan profiles are
+  '-sS -sV -O', so a connect scan would not exercise what this gate exists to
+  prove. See docs/RUNBOOK.md."
 fi
-pass "nmap can raw-socket scan without root"
 
 # --- 1. fresh database + migrations ----------------------------------------
 
@@ -353,6 +474,14 @@ PORT_COUNT=$(psql -d "$E2E_DB" -tAc \
   "select count(*) from ports where port=$LISTENER_PORT and state='open'")
 assert_ge 1 "$PORT_COUNT" "open port $LISTENER_PORT discovered by real nmap"
 
+# The trigger, asserted where it happens. Ingest sets this in the same UPDATE
+# that completes the job, so a completed scan is queued for enrichment or the
+# scan never completed. If this reads empty, findings will never be generated in
+# a running system no matter what the rest of the pipeline does.
+ENRICH_QUEUED=$(psql -d "$E2E_DB" -tAc \
+  "select coalesce(enrichment_status,'<null>') from scan_jobs where id='$JOB_ID'")
+assert_eq "pending" "$ENRICH_QUEUED" "completing the job queued it for enrichment"
+
 info "ports discovered:"
 psql -d "$E2E_DB" -c \
   "select port, protocol, state, service, product, version, cpe from ports order by port"
@@ -365,7 +494,7 @@ done
 
 # --- 12. the product layer: business impact --------------------------------
 
-step "12. Map the asset to a business service and enrich"
+step "12. Map the asset to a business service"
 ASSET_ID=$(psql -d "$E2E_DB" -tAc "select id from assets where ip='127.0.0.1'")
 
 curl -sS -X POST "$API/business-services" -H "$AUTH" -H 'Content-Type: application/json' -d '{
@@ -381,14 +510,58 @@ curl -sS -X PUT "$API/assets/$ASSET_ID/services" -H "$AUTH" -H 'Content-Type: ap
 assert_eq "Payment processing" \
   "$(jq -r '.data.services[0].name' "$WORK_DIR/mapping.json")" "asset mapped to service"
 
-# NOTE: enrichment is invoked directly here because NOTHING in the control
-# plane's request path calls `generate_findings` — see docs/RUNBOOK.md and the
-# handover notes. Everything below this line is real application code; only the
-# trigger is missing in production.
-"$CP_PYTHON" "$REPO_ROOT/deploy/e2e_enrich.py" "$ORG_ID" || fail "enrichment failed"
+# --- 12b. the mirror, through the real sync ---------------------------------
 
-FINDING_COUNT=$(psql -d "$E2E_DB" -tAc "select count(*) from findings")
-assert_ge 1 "$FINDING_COUNT" "findings generated from the real scan observation"
+step "12b. Sync the CVE mirror from a static feed"
+# StaticFeed is the seam enrichment.feeds already provides for exactly this: the
+# parsers, upserts and KEV flagging below are the production ones, and the only
+# thing standing in is the HTTP fetch, which must not depend on nvd.nist.gov
+# being up for this gate to mean something. The mirror is seeded BEFORE the
+# worker starts, because a pass over an empty mirror legitimately produces no
+# findings and marks the job done.
+#
+# This is the one remaining stand-in in this script: the sync has no production
+# entry point yet (docs/RUNBOOK.md, "The CVE mirror is never synced").
+"$CP_PYTHON" "$REPO_ROOT/deploy/e2e_mirror_seed.py" || fail "mirror sync failed"
+
+CVE_COUNT=$(psql -d "$E2E_DB" -tAc "select count(*) from vulnerabilities where kev_listed")
+assert_ge 1 "$CVE_COUNT" "KEV-listed CVE in the mirror"
+
+# --- 12c. enrichment, by the process that does it in production -------------
+
+step "12c. Start the enrichment worker and wait for it to find something"
+# No direct call to generate_findings anywhere in this script, deliberately.
+# The findings asserted below are produced by `python -m threatsculpt.enrichment`
+# claiming the job that ingest queued — the same process deploy/docker-compose.yml
+# runs. If that trigger is ever removed, this step times out rather than passing.
+(cd "$CP_DIR" && exec "$CP_PYTHON" -m threatsculpt.enrichment) \
+  > "$WORK_DIR/enrichment.log" 2>&1 &
+ENRICH_PID=$!
+info "enrichment worker started (pid $ENRICH_PID); its first pass runs immediately"
+
+FINDING_COUNT=0
+for _ in $(seq 1 "$ENRICH_TIMEOUT_SECONDS"); do
+  kill -0 "$ENRICH_PID" 2>/dev/null || fail "the enrichment worker exited early"
+  FINDING_COUNT=$(psql -d "$E2E_DB" -tAc "select count(*) from findings")
+  [[ "$FINDING_COUNT" -ge 1 ]] && break
+  sleep 1
+done
+assert_ge 1 "$FINDING_COUNT" "findings generated by the enrichment worker"
+
+ENRICH_STATE=$(psql -d "$E2E_DB" -tAc \
+  "select coalesce(enrichment_status,'<null>') from scan_jobs where id='$JOB_ID'")
+assert_eq "complete" "$ENRICH_STATE" "the worker released the job"
+
+# One attempt: the job was claimed once and never leased back out.
+ENRICH_ATTEMPTS=$(psql -d "$E2E_DB" -tAc \
+  "select enrichment_attempts from scan_jobs where id='$JOB_ID'")
+assert_eq "1" "$ENRICH_ATTEMPTS" "enrichment attempts spent"
+
+# Every finding is attributed to the job that produced it, which is what makes
+# a rescan update rather than duplicate.
+ORPHANS=$(psql -d "$E2E_DB" -tAc \
+  "select count(*) from findings where scan_job_id is distinct from '$JOB_ID'")
+assert_eq "0" "$ORPHANS" "findings attributed to the scan job"
 
 # --- 13. the views a customer actually looks at ----------------------------
 

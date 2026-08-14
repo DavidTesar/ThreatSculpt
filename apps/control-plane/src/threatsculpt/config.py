@@ -16,6 +16,11 @@ from pydantic import Field, SecretStr, field_validator
 from pydantic_settings import BaseSettings, NoDecode, SettingsConfigDict
 
 from threatsculpt.db.dsn import normalise_driver
+from threatsculpt.enrichment.feeds import (
+    KEV_CATALOG_URL,
+    NVD_CVE_API_URL,
+    NVD_MAX_RESULTS_PER_PAGE,
+)
 
 Environment = Literal["development", "test", "staging", "production"]
 
@@ -100,6 +105,32 @@ class Settings(BaseSettings):
     #: Required for SMTP delivery; must be https in production, because the link
     #: carries a token that grants control of the account.
     public_base_url: str | None = None
+
+    # --- cve mirror -------------------------------------------------------
+    # The feed URLs are settings rather than constants so an air-gapped or
+    # proxied deployment can point them at an internal mirror without a rebuild.
+    nvd_cve_url: str = NVD_CVE_API_URL
+    kev_catalog_url: str = KEV_CATALOG_URL
+    #: NVD allows 5 requests per 30 seconds anonymously and 50 with a key, which
+    #: is the difference between a ~10-hour and a ~1-hour cold sync. Like every
+    #: other secret here: no default, ``SecretStr`` so it cannot be printed by
+    #: accident, and supplied by the environment or not at all. The key is only
+    #: ever sent to ``nvd_cve_url``'s host — see ``enrichment.http``.
+    nvd_api_key: SecretStr | None = None
+    #: NVD's documented maximum. Its *default* is 20, which would turn a
+    #: 150-request sync into a 15,000-request one.
+    nvd_page_size: Annotated[int, Field(ge=1, le=NVD_MAX_RESULTS_PER_PAGE)] = (
+        NVD_MAX_RESULTS_PER_PAGE
+    )
+    #: Minimum gap between syncs, enforced by ``enrichment.sync_cli`` rather than
+    #: left to whoever writes the crontab — so the schedule can run hourly (and
+    #: recover from a failed run within the hour) without hammering a public,
+    #: rate-limited API. Daily by default: NVD publishes continuously, and a
+    #: mirror more than a day stale starts missing the freshly-published CVEs
+    #: that findings are most urgent about.
+    cve_sync_interval_hours: Annotated[int, Field(ge=1, le=168)] = 24
+    feed_timeout_seconds: Annotated[float, Field(gt=0, le=300)] = 30.0
+    feed_max_attempts: Annotated[int, Field(ge=1, le=10)] = 5
 
     # --- http -------------------------------------------------------------
     # NoDecode: pydantic-settings would otherwise try to JSON-parse a tuple

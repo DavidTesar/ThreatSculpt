@@ -42,6 +42,14 @@ class FakeFetcher:
 # --- the feed seam ----------------------------------------------------------
 
 
+async def collect_cves(feed: RemoteFeed | StaticFeed) -> tuple[Mapping[str, Any], ...]:
+    """Every entry the feed pages out, flattened."""
+    entries: list[Mapping[str, Any]] = []
+    async for page in feed.iter_cve_pages():
+        entries.extend(page.entries)
+    return tuple(entries)
+
+
 async def test_remote_feed_reads_the_documented_urls() -> None:
     fetcher = FakeFetcher(
         {
@@ -52,7 +60,7 @@ async def test_remote_feed_reads_the_documented_urls() -> None:
     feed = RemoteFeed(fetcher=fetcher)
 
     assert len(await feed.fetch_kev()) == 1
-    assert len(await feed.fetch_cves()) == 1
+    assert len(await collect_cves(feed)) == 1
     assert fetcher.calls == [KEV_CATALOG_URL, NVD_CVE_API_URL]
 
 
@@ -69,20 +77,20 @@ async def test_remote_feed_reads_the_documented_urls() -> None:
 async def test_a_feed_outage_yields_no_items_rather_than_raising(payload: Any) -> None:
     """An NVD outage must degrade the sync, not crash the process running it."""
     feed = RemoteFeed(fetcher=FakeFetcher({NVD_CVE_API_URL: payload}))
-    assert await feed.fetch_cves() == ()
+    assert await collect_cves(feed) == ()
 
 
 async def test_non_object_entries_inside_the_array_are_dropped() -> None:
     feed = RemoteFeed(
         fetcher=FakeFetcher({NVD_CVE_API_URL: {"vulnerabilities": [None, 7, {"cve": {}}]}})
     )
-    assert len(await feed.fetch_cves()) == 1
+    assert len(await collect_cves(feed)) == 1
 
 
 async def test_the_static_feed_returns_what_it_was_given() -> None:
     feed = StaticFeed(kev_items=({"cveID": "CVE-1"},), cve_items=({"cve": {"id": "CVE-2"}},))
     assert len(await feed.fetch_kev()) == 1
-    assert len(await feed.fetch_cves()) == 1
+    assert len(await collect_cves(feed)) == 1
 
 
 # --- KEV parsing ------------------------------------------------------------

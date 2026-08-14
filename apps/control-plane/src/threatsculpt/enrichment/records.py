@@ -90,3 +90,12 @@ class SyncReport:
             kev_flagged=flagged,
             skipped=self.skipped,
         )
+
+    def merged_with(self, other: SyncReport) -> SyncReport:
+        """Totals across pages. A paged sync reports one number, not one per page."""
+        return SyncReport(
+            cves_upserted=self.cves_upserted + other.cves_upserted,
+            cpe_matches_upserted=self.cpe_matches_upserted + other.cpe_matches_upserted,
+            kev_flagged=self.kev_flagged + other.kev_flagged,
+            skipped=self.skipped + other.skipped,
+        )
