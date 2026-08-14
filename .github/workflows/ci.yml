@@ -79,6 +79,23 @@ jobs:
           alembic -x allow_missing_role=1 upgrade head
           alembic -x allow_missing_role=1 downgrade base
           alembic -x allow_missing_role=1 upgrade head
+
+      - name: Exactly one migration head
+        # Two workstreams adding a migration in parallel each chain off the current head,
+        # which produces two heads with the same parent. `alembic upgrade head` then fails
+        # for everyone with "Multiple head revisions are present" — but only on a database
+        # that has not already been migrated, so it passes locally for whoever wrote the
+        # second one and breaks on the next clean checkout.
+        #
+        # Cheaper to assert than to coordinate: this does not depend on two authors
+        # remembering to talk to each other.
+        run: |
+          heads=$(alembic heads | grep -c . || true)
+          alembic heads
+          if [ "$heads" -ne 1 ]; then
+            echo "::error::Expected exactly 1 migration head, found $heads. Chain the newer migration onto the older one."
+            exit 1
+          fi
       - name: Tests
         run: pytest --cov --cov-report=term-missing --cov-fail-under=80
 
