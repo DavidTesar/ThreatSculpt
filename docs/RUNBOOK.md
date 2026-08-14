@@ -17,11 +17,30 @@ against each other; each is real, reproducible, and not yet fixed.
 |---|---|---|
 | **Findings are never generated.** `enrichment.service.generate_findings` has no caller anywhere in the request path — only tests and `deploy/e2e_enrich.py` invoke it. | Scans ingest assets and ports correctly, but **no finding is ever created in a running system**, so `/findings` and `/dashboard/executive` stay permanently empty. | `apps/control-plane/src/threatsculpt/enrichment/service.py:70` |
 | **The CVE mirror is never synced.** `enrichment.sync.sync_all` has no caller and no CLI entry point. | The `vulnerabilities` table stays empty, so even a wired-up enrichment pass would match nothing. | `apps/control-plane/src/threatsculpt/enrichment/sync.py:39` |
-| **The web dashboard does not match the API it calls.** ~12 endpoints break at runtime: `/users` is unimplemented server-side, several request bodies are rejected with 422, and the findings/assets/executive responses are read with the wrong field names and types. | Most dashboard screens crash or render blanks against the real control plane. The frontend's MSW mocks encode the same wrong assumptions, so its test suite is green regardless. | `apps/web/src/lib/api/`, `apps/web/src/types/domain.ts` |
 
-`deploy/e2e.sh` works around the first two by seeding one CVE and calling
-`generate_findings` directly, so the scoring pipeline is genuinely proven. It
-cannot work around the third; the web app is not part of the e2e path.
+`deploy/e2e.sh` works around both by seeding one CVE and calling
+`generate_findings` directly, so the scoring pipeline is genuinely proven while
+the wiring around it is not. Treat a green e2e as evidence about scoring only,
+until that workaround is deleted rather than disabled.
+
+### Closed
+
+**The web dashboard did not match the API it called.** ~12 endpoints broke at
+runtime: `/users` was unimplemented server-side, several request bodies were
+rejected with 422, and the findings/assets/executive responses were read with
+the wrong field names and types. The frontend's MSW mocks encoded the same wrong
+assumptions, so its suite stayed green regardless.
+
+Closed by generating the client from the control plane's OpenAPI schema:
+`domain.ts` is now 32 aliases over generated types and restates no response
+shape, `/users` is implemented and registered, and CI regenerates the schema and
+runs `git diff --exit-code`, so a backend shape change turns the build red.
+
+Two things that made this gap survivable are worth remembering, because both
+were fixed alongside it. The web typecheck was `tsc --noEmit` against a solution
+file with `"files": []` — it resolved zero inputs and passed unconditionally; it
+is now `tsc -b`. And the mocks that hid the drift were the same mocks the tests
+trusted. A generated type and a hand-written mock cannot disagree safely.
 
 ---
 
